@@ -1,0 +1,59 @@
+{
+  "repository": "https://github.com/Humidyne-Labs/epd-font",
+  "target_os_repository": "https://github.com/Humidyne-Labs/H1OS",
+  "version": "0.0.6",
+  "release_archive_tag": "v1.0.6",
+  "previous_version": "0.0.5",
+  "release_date": "2026-11-03",
+  "spdx_license": "OFL-1.1 AND CC-BY-4.0 AND MIT AND ISC",
+  "upstream_assets": {
+    "ibm_plex_sans": {
+      "version": "0.2.0",
+      "type": "variable_ttf",
+      "path": "assets/font_assets/ibm-plex-font/sans_v0.2.0",
+      "license": "OFL-1.1"
+    },
+    "ibm_plex_mono": {
+      "version": "1.0.0",
+      "type": "variable_ttf",
+      "path": "assets/font_assets/ibm-plex-font/mono_v1.0.0",
+      "license": "OFL-1.1"
+    },
+    "ibm_plex_serif": {
+      "version": "2.0.0",
+      "type": "variable_ttf",
+      "path": "assets/font_assets/ibm-plex-font/serif_v2.0.0",
+      "license": "OFL-1.1"
+    },
+    "ibm_plex_math": {
+      "version": "1.1.0",
+      "type": "static_ttf",
+      "path": "assets/font_assets/ibm-plex-font/math_v1.1.0",
+      "license": "OFL-1.1"
+    },
+    "fontawesome_free": {
+      "version": "7.0.0",
+      "type": "cff_otf_to_ttf",
+      "path": "assets/icon_assets/font_awsome_v7.0.0",
+      "license": "CC-BY-4.0 AND OFL-1.1"
+    },
+    "lucide_icons": {
+      "version": "1.67.0",
+      "type": "static_ttf",
+      "path": "assets/icon_assets/lucide_icons_v1.67.0",
+      "license": "ISC"
+    },
+    "phosphor_icons": {
+      "version": "2.1.0",
+      "type": "static_ttf",
+      "path": "assets/icon_assets/phosphor_icons_v2.1.0",
+      "license": "MIT"
+    },
+    "tabler_icons": {
+      "version": "3.50.0",
+      "type": "static_ttf",
+      "path": "assets/icon_assets/tabler_icons_v3.50.0",
+      "license": "MIT"
+    }
+  }
+}

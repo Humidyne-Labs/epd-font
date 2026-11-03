@@ -1,0 +1,23 @@
+# ==============================================================================
+# Humidyne Labs `epd-font` Repository .gitignore
+# ==============================================================================
+# Python Virtual Environments & Bytecode
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Generated Build & Inspection Output Directories (recreated by scripts/*.bat)
+build/
+build_icons/
+*.egg-info/
+
+# OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/

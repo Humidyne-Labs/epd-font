@@ -1,0 +1,45 @@
+{
+  "scheme_version": "4.0.0",
+  "scheme_id": "plex_text_basic",
+  "project_brand": "Humidyne Labs — Pure IBM Plex 1-BPP Text-Only Basic Scheme (Zero Icons)",
+  "spdx_license": "Apache-2.0 AND OFL-1.1",
+  "output_branding": {
+    "symbol_prefix": "plex_",
+    "primary_header": "plex_fonts.h",
+    "compat_header": "h1os_fonts.h",
+    "emit_legacy_h1os_montserrat_symbols": true,
+    "default_lvgl_font": "plex_sans_normal_14",
+    "semantic_roles": {
+      "PLEX_FONT_UI_MICRO": "plex_sans_normal_12",
+      "PLEX_FONT_UI_BODY": "plex_sans_normal_14",
+      "PLEX_FONT_UI_TITLE": "plex_sans_bold_16",
+      "PLEX_FONT_UI_HERO": "plex_sans_bold_32",
+      "PLEX_FONT_TELEMETRY_SM": "plex_mono_normal_14",
+      "PLEX_FONT_TELEMETRY_HERO": "plex_mono_bold_24"
+    }
+  },
+  "raster_config": {
+    "raster_mode": "autohint-mono",
+    "bpp": 1,
+    "lvgl_version": 9,
+    "normal_weight": 400,
+    "bold_weight": 700,
+    "prune_noop_kerning": true
+  },
+  "character_sets": {
+    "ascii_printable": {
+      "description": "Basic Latin printable ASCII (U+0020 Space through U+007E Tilde)",
+      "ranges": "0x0020-0x007E"
+    },
+    "epd_telemetry_symbols": {
+      "description": "Scientific units, degree/plus-minus/micro, superscripts/subscripts, dashes, bullets, and arrows",
+      "ranges": "0x00B0-0x00B3,0x00B5,0x00B9,0x00D7,0x00F7,0x0394,0x03A9,0x03BC,0x2010-0x2014,0x2022,0x2026,0x2070,0x2074-0x207B,0x2080-0x2089,0x2103,0x2109,0x2126,0x2190-0x2193"
+    }
+  },
+  "strikes": [
+    {"family": "sans", "style": "normal", "weight": 400, "sizes": [12, 14, 16, 18, 20, 24, 32], "char_sets": ["ascii_printable", "epd_telemetry_symbols"], "kerning": true},
+    {"family": "sans", "style": "bold", "weight": 700, "sizes": [12, 14, 16, 18, 20, 24, 32], "char_sets": ["ascii_printable", "epd_telemetry_symbols"], "kerning": true},
+    {"family": "mono", "style": "normal", "weight": 400, "sizes": [12, 14, 16, 20, 24], "char_sets": ["ascii_printable", "epd_telemetry_symbols"], "kerning": false},
+    {"family": "mono", "style": "bold", "weight": 700, "sizes": [12, 14, 16, 20, 24, 32], "char_sets": ["ascii_printable", "epd_telemetry_symbols"], "kerning": false}
+  ]
+}

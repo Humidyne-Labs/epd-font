@@ -1,0 +1,686 @@
+
+C:\Users\Matt
+λ cd C:\Users\Matt\Documents\GitHub\epd-font\scripts
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts (main -> origin)
+λ ls
+example-build-distro/  full-audit-build-dev/  full-audit-build-distro/  h1os-build-distro/
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts (main -> origin)
+λ cd h1os-build-distro\
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts\h1os-build-distro (main -> origin)
+λ ls
+00_setup_env.bat          03_visual_check_pngs.bat    06_build_icons_catalog.bat  h1os_full.scheme.json
+01_build_static_ttfs.bat  04_dump_ascii_patches.bat   07_package_distro.bat       h1os_lite.scheme.json
+02_build_fonts.bat        05_apply_ascii_patches.bat  99_run_full_pipeline.bat
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts\h1os-build-distro (main -> origin)
+λ 00_setup_env.bat
+============================================================================
+[00] Humidyne Labs / Humiditron epd-font v1.0.7 - Environment Setup (H1OS
+'humid1-os' is not recognized as an internal or external command,
+operable program or batch file.
+============================================================================
+Python 3.14.3
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: pip in C:\Users\Matt\AppData\Roaming\Python\Python314\site-packages (26.2.2)
+Collecting pip
+  Using cached pip-26.3-py3-none-any.whl.metadata (4.6 kB)
+Using cached pip-26.3-py3-none-any.whl (2.0 MB)
+Installing collected packages: pip
+  Attempting uninstall: pip
+    Found existing installation: pip 26.2.2
+    Uninstalling pip-26.2.2:
+      Successfully uninstalled pip-26.2.2
+Successfully installed pip-26.3
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: fonttools>=4.40.0 in C:\Users\Matt\AppData\Roaming\Python\Python314\site-packages (4.66.1)
+Requirement already satisfied: Pillow>=10.0.0 in C:\Users\Matt\AppData\Roaming\Python\Python314\site-packages (12.3.0)
+Collecting freetype-py>=2.4.0
+  Using cached freetype_py-2.5.1-py3-none-win_amd64.whl.metadata (6.5 kB)
+Using cached freetype_py-2.5.1-py3-none-win_amd64.whl (814 kB)
+Installing collected packages: freetype-py
+Successfully installed freetype-py-2.5.1
+[+] Dependencies installed successfully.
+Press any key to continue . . .
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts\h1os-build-distro (main -> origin)
+λ 99_run_full_pipeline.bat
+============================================================================
+[99] Humidyne Labs / Humiditron epd-font v1.0.7 - Full End-to-End Pipeline (H1OS
+'humid1-os' is not recognized as an internal or external command,
+operable program or batch file.
+============================================================================
+============================================================================
+[01] Humidyne Labs / Humiditron epd-font v1.0.7 - Build Static TTFs & Metadata
+     Output: build\static_ttfs\ & build\metadata\
+============================================================================
+[*] Step 1/4: Instantiating IBM Plex & Terminus Static TTFs into C:\Users\Matt\Documents\GitHub\epd-font\build\static_ttfs...
+    [+] Instantiated IBMPlexSans-Thin.ttf                 (  217,604 B) @ {'wght': 100.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-ExtraLight.ttf           (  217,840 B) @ {'wght': 200.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-Light.ttf                (  217,764 B) @ {'wght': 300.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-Regular.ttf              (  217,460 B) @ {'wght': 400.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-Text.ttf                 (  217,656 B) @ {'wght': 450.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-Medium.ttf               (  217,620 B) @ {'wght': 500.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-SemiBold.ttf             (  217,588 B) @ {'wght': 600.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-Bold.ttf                 (  217,552 B) @ {'wght': 700.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-Italic.ttf               (  232,240 B) @ {'wght': 400.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-TextItalic.ttf           (  232,252 B) @ {'wght': 450.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-MediumItalic.ttf         (  232,248 B) @ {'wght': 500.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-SemiBoldItalic.ttf       (  232,260 B) @ {'wght': 600.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSans-BoldItalic.ttf           (  232,216 B) @ {'wght': 700.0, 'wdth': 100.0}
+    [+] Instantiated IBMPlexSansCondensed-Light.ttf       (  217,528 B) @ {'wght': 300.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-Regular.ttf     (  217,408 B) @ {'wght': 400.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-Text.ttf        (  217,460 B) @ {'wght': 450.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-Medium.ttf      (  217,440 B) @ {'wght': 500.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-SemiBold.ttf    (  217,424 B) @ {'wght': 600.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-Bold.ttf        (  217,312 B) @ {'wght': 700.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-Italic.ttf      (  232,200 B) @ {'wght': 400.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-MedItal.ttf     (  232,208 B) @ {'wght': 500.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexSansCondensed-BoldItalic.ttf  (  232,136 B) @ {'wght': 700.0, 'wdth': 85.0}
+    [+] Instantiated IBMPlexMono-Light.ttf                (  124,696 B) @ {'wght': 300.0}
+    [+] Instantiated IBMPlexMono-Regular.ttf              (  124,508 B) @ {'wght': 400.0}
+    [+] Instantiated IBMPlexMono-Text.ttf                 (  124,528 B) @ {'wght': 450.0}
+    [+] Instantiated IBMPlexMono-Medium.ttf               (  124,532 B) @ {'wght': 500.0}
+    [+] Instantiated IBMPlexMono-SemiBold.ttf             (  124,480 B) @ {'wght': 600.0}
+    [+] Instantiated IBMPlexMono-Bold.ttf                 (  124,440 B) @ {'wght': 700.0}
+    [+] Instantiated IBMPlexMono-Italic.ttf               (  131,904 B) @ {'wght': 400.0}
+    [+] Instantiated IBMPlexMono-MediumItalic.ttf         (  131,876 B) @ {'wght': 500.0}
+    [+] Instantiated IBMPlexMono-BoldItalic.ttf           (  131,728 B) @ {'wght': 700.0}
+    [+] Instantiated IBMPlexSerif-Light.ttf               (  234,316 B) @ {'wght': 300.0}
+    [+] Instantiated IBMPlexSerif-Regular.ttf             (  233,944 B) @ {'wght': 400.0}
+    [+] Instantiated IBMPlexSerif-Text.ttf                (  234,152 B) @ {'wght': 450.0}
+    [+] Instantiated IBMPlexSerif-Medium.ttf              (  234,280 B) @ {'wght': 500.0}
+    [+] Instantiated IBMPlexSerif-SemiBold.ttf            (  234,256 B) @ {'wght': 600.0}
+    [+] Instantiated IBMPlexSerif-Bold.ttf                (  233,960 B) @ {'wght': 700.0}
+    [+] Instantiated IBMPlexSerif-Italic.ttf              (  250,468 B) @ {'wght': 400.0}
+    [+] Instantiated IBMPlexSerif-MediumItalic.ttf        (  250,632 B) @ {'wght': 500.0}
+    [+] Instantiated IBMPlexSerif-BoldItalic.ttf          (  250,616 B) @ {'wght': 700.0}
+    [+] Installed    IBMPlexMath-Regular.ttf              (1,309,896 B) [Static Math v1.1.0]
+    [+] BDF -> TTF   Terminus-Regular.ttf                 (  226,992 B) [from ter-u16n.bdf, 1356 glyphs]
+fsSelection bit 5 (bold) and head table macStyle bit 0 (bold) should match
+    [+] BDF -> TTF   Terminus-Bold.ttf                    (  225,092 B) [from ter-u16b.bdf, 1356 glyphs]
+[*] Step 2/4: Converting & Normalizing Modular Icon Suites (FA7, Lucide, Phosphor, Tabler)...
+    [+] OTF -> TTF   FontAwesome7-Solid.ttf               (  404,204 B) [from Font Awesome 7 Free-Solid-900.otf]
+    [+] OTF -> TTF   FontAwesome7-Regular.ttf             (   84,448 B) [from Font Awesome 7 Free-Regular-400.otf]
+    [+] OTF -> TTF   FontAwesome7-Brands.ttf              (  219,052 B) [from Font Awesome 7 Brands-Regular-400.otf]
+    [+] Normalized   Lucide-Regular.ttf                   (  979,580 B) [from lucide.ttf]
+    [+] Normalized   Phosphor-Regular.ttf                 (  488,636 B) [Unmodified upstream .ttf + char_manifest]
+    [+] Normalized   Phosphor-Bold.ttf                    (  495,308 B) [Unmodified upstream .ttf + char_manifest]
+    [+] Normalized   Phosphor-Fill.ttf                    (  449,252 B) [Unmodified upstream .ttf + char_manifest]
+    [+] Normalized   Phosphor-Light.ttf                   (  536,628 B) [Unmodified upstream .ttf + char_manifest]
+    [+] Normalized   Phosphor-Thin.ttf                    (  535,152 B) [Unmodified upstream .ttf + char_manifest]
+    [+] Normalized   Tabler-Regular.ttf                   (1,835,440 B) [from tabler-icons.ttf]
+    [+] Normalized   Tabler-Light300.ttf                  (1,849,444 B) [from tabler-icons-300.ttf]
+    [+] Normalized   Tabler-Thin200.ttf                   (1,850,496 B) [from tabler-icons-200.ttf]
+    [+] Normalized   Tabler-Filled.ttf                    (  234,108 B) [from tabler-icons-filled.ttf]
+[*] Step 3/4: Generating Searchable Icon & Font Catalog JSONs in C:\Users\Matt\Documents\GitHub\epd-font\build\metadata...
+2 extra bytes in post.stringData array
+2 extra bytes in post.stringData array
+2 extra bytes in post.stringData array
+    [+] Catalog icon_fa7        : 2,349 entries indexed
+    [+] Catalog icon_lucide     : 2,043 entries indexed
+    [+] Catalog icon_phosphor   : 1,513 entries indexed
+    [+] Catalog icon_tabler     : 6,257 entries indexed
+    [+] Catalog terminus        : 1,356 entries indexed
+[*] Step 4/4: Collecting Licenses & Writing SHA-256 Asset Manifest...
+    [+] Saved 9 license files -> C:\Users\Matt\Documents\GitHub\epd-font\build\static_ttfs\licenses
+    [+] Wrote SHA-256 manifest (56 TTFs) -> C:\Users\Matt\Documents\GitHub\epd-font\build\metadata\asset_manifest.json
+
+============================================================================================================
+STATIC TRUETYPE (.TTF) ASSET VERIFICATION REPORT — C:\Users\Matt\Documents\GitHub\epd-font\build\static_ttfs
+============================================================================================================
+TTF Filename                           | Format   | UPEM | Asc/Desc   | Glyphs | Cmap   | Size (Bytes) | Status
+------------------------------------------------------------------------------------------------------------
+FontAwesome7-Brands.ttf                | TTF/glyf |  512 | +448/ -64 |    612 |   1895 |      219,052 | PASS
+FontAwesome7-Regular.ttf               | TTF/glyf |  512 | +448/ -64 |    209 |   1672 |       84,448 | PASS
+FontAwesome7-Solid.ttf                 | TTF/glyf |  512 | +448/ -64 |   1426 |   3235 |      404,204 | PASS
+IBMPlexMath-Regular.ttf                | TTF/glyf | 1000 | +1025/-275 |   7092 |   4382 |    1,309,896 | PASS
+IBMPlexMono-Bold.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,440 | PASS
+IBMPlexMono-BoldItalic.ttf             | TTF/glyf | 1000 | +1025/-275 |   1187 |   1048 |      131,728 | PASS
+IBMPlexMono-Italic.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1187 |   1048 |      131,904 | PASS
+IBMPlexMono-Light.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,696 | PASS
+IBMPlexMono-Medium.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,532 | PASS
+IBMPlexMono-MediumItalic.ttf           | TTF/glyf | 1000 | +1025/-275 |   1187 |   1048 |      131,876 | PASS
+IBMPlexMono-Regular.ttf                | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,508 | PASS
+IBMPlexMono-SemiBold.ttf               | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,480 | PASS
+IBMPlexMono-Text.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,528 | PASS
+IBMPlexSans-Bold.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,552 | PASS
+IBMPlexSans-BoldItalic.ttf             | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,216 | PASS
+IBMPlexSans-ExtraLight.ttf             | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,840 | PASS
+IBMPlexSans-Italic.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,240 | PASS
+IBMPlexSans-Light.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,764 | PASS
+IBMPlexSans-Medium.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,620 | PASS
+IBMPlexSans-MediumItalic.ttf           | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,248 | PASS
+IBMPlexSans-Regular.ttf                | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,460 | PASS
+IBMPlexSans-SemiBold.ttf               | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,588 | PASS
+IBMPlexSans-SemiBoldItalic.ttf         | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,260 | PASS
+IBMPlexSans-Text.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,656 | PASS
+IBMPlexSans-TextItalic.ttf             | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,252 | PASS
+IBMPlexSans-Thin.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,604 | PASS
+IBMPlexSansCondensed-Bold.ttf          | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,312 | PASS
+IBMPlexSansCondensed-BoldItalic.ttf    | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,136 | PASS
+IBMPlexSansCondensed-Italic.ttf        | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,200 | PASS
+IBMPlexSansCondensed-Light.ttf         | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,528 | PASS
+IBMPlexSansCondensed-MedItal.ttf       | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,208 | PASS
+IBMPlexSansCondensed-Medium.ttf        | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,440 | PASS
+IBMPlexSansCondensed-Regular.ttf       | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,408 | PASS
+IBMPlexSansCondensed-SemiBold.ttf      | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,424 | PASS
+IBMPlexSansCondensed-Text.ttf          | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,460 | PASS
+IBMPlexSerif-Bold.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      233,960 | PASS
+IBMPlexSerif-BoldItalic.ttf            | TTF/glyf | 1000 | +1025/-275 |   1042 |    926 |      250,616 | PASS
+IBMPlexSerif-Italic.ttf                | TTF/glyf | 1000 | +1025/-275 |   1042 |    926 |      250,468 | PASS
+IBMPlexSerif-Light.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,316 | PASS
+IBMPlexSerif-Medium.ttf                | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,280 | PASS
+IBMPlexSerif-MediumItalic.ttf          | TTF/glyf | 1000 | +1025/-275 |   1042 |    926 |      250,632 | PASS
+IBMPlexSerif-Regular.ttf               | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      233,944 | PASS
+IBMPlexSerif-SemiBold.ttf              | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,256 | PASS
+IBMPlexSerif-Text.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,152 | PASS
+2 extra bytes in post.stringData array
+Lucide-Regular.ttf                     | TTF/glyf | 1000 | +1000/  +0 |   2055 |   2061 |      979,580 | PASS
+Phosphor-Bold.ttf                      | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      495,308 | PASS
+Phosphor-Fill.ttf                      | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      449,252 | PASS
+Phosphor-Light.ttf                     | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      536,628 | PASS
+Phosphor-Regular.ttf                   | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      488,636 | PASS
+Phosphor-Thin.ttf                      | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      535,152 | PASS
+2 extra bytes in post.stringData array
+Tabler-Filled.ttf                      | TTF/glyf | 1000 | +900/-100 |   1052 |   1054 |      234,108 | PASS
+2 extra bytes in post.stringData array
+Tabler-Light300.ttf                    | TTF/glyf | 1000 | +900/-100 |   5180 |   5203 |    1,849,444 | PASS
+2 extra bytes in post.stringData array
+Tabler-Regular.ttf                     | TTF/glyf | 1000 | +900/-100 |   5180 |   5203 |    1,835,440 | PASS
+2 extra bytes in post.stringData array
+Tabler-Thin200.ttf                     | TTF/glyf | 1000 | +900/-100 |   5179 |   5203 |    1,850,496 | PASS
+Terminus-Bold.ttf                      | TTF/glyf | 1024 | +768/-256 |   1357 |   1356 |      225,092 | PASS
+Terminus-Regular.ttf                   | TTF/glyf | 1024 | +768/-256 |   1357 |   1356 |      226,992 | PASS
+============================================================================================================
+[+] Verification Summary: 56 PASSED, 0 FAILED (Total: 56 .ttf files)
+
+[+] Static TTF assets and metadata JSON catalogs verified in build\static_ttfs and build\metadata.
+============================================================================
+[02] Humidyne Labs / Humiditron epd-font v1.0.7 - Build 1-BPP C/H, BDF & Vault (H1OS
+'humid1-os' is not recognized as an internal or external command,
+operable program or batch file.
+     Scheme: scripts\h1os-build-distro\h1os_full.scheme.json
+     Build : build\h1os\
+     Dist  : dist\h1os_distro\
+============================================================================
+[+] Loaded optical micro-strike patch manifest: C:\Users\Matt\Documents\GitHub\epd-font\epd_font_patches.json
+[+] Loaded declarative font scheme: h1os_full.scheme.json (Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite)
+    [+] plex_sans_normal_12        | 131 glyphs |  698 kern | lh=17px | autohint-mono | ~ 3,946 B (3.85 KB) [+5 patches]
+    [+] plex_sans_normal_14        | 131 glyphs |  729 kern | lh=19px | autohint-mono | ~ 4,380 B (4.28 KB)
+    [+] plex_sans_normal_16        | 131 glyphs |  787 kern | lh=22px | autohint-mono | ~ 4,776 B (4.66 KB)
+    [+] plex_sans_normal_18        | 131 glyphs |  937 kern | lh=24px | autohint-mono | ~ 5,574 B (5.44 KB)
+    [+] plex_sans_normal_20        | 131 glyphs |  948 kern | lh=27px | autohint-mono | ~ 5,937 B (5.80 KB)
+    [+] plex_sans_normal_24        | 131 glyphs | 1131 kern | lh=32px | autohint-mono | ~ 7,204 B (7.04 KB)
+    [+] plex_sans_normal_32        | 131 glyphs | 1490 kern | lh=42px | autohint-mono | ~10,156 B (9.92 KB)
+    [+] plex_sans_bold_12          | 131 glyphs |  696 kern | lh=17px | autohint-mono | ~ 4,138 B (4.04 KB)
+    [+] plex_sans_bold_14          | 131 glyphs |  842 kern | lh=19px | autohint-mono | ~ 4,787 B (4.67 KB)
+    [+] plex_sans_bold_16          | 131 glyphs |  950 kern | lh=22px | autohint-mono | ~ 5,407 B (5.28 KB)
+    [+] plex_sans_bold_18          | 131 glyphs |  997 kern | lh=24px | autohint-mono | ~ 5,914 B (5.78 KB)
+    [+] plex_sans_bold_20          | 131 glyphs | 1007 kern | lh=27px | autohint-mono | ~ 6,266 B (6.12 KB)
+    [+] plex_sans_bold_24          | 131 glyphs | 1277 kern | lh=32px | autohint-mono | ~ 7,961 B (7.77 KB)
+    [+] plex_sans_bold_32          | 131 glyphs | 1394 kern | lh=42px | autohint-mono | ~10,344 B (10.10 KB)
+    [+] plex_sans_italic_12        | 103 glyphs |  434 kern | lh=17px | autohint-mono | ~ 2,787 B (2.72 KB)
+    [+] plex_sans_italic_14        | 103 glyphs |  469 kern | lh=19px | autohint-mono | ~ 3,190 B (3.12 KB)
+    [+] plex_sans_italic_16        | 103 glyphs |  495 kern | lh=22px | autohint-mono | ~ 3,486 B (3.40 KB)
+    [+] plex_mono_normal_12        | 107 glyphs |    0 kern | lh=17px | autohint-mono | ~ 1,493 B (1.46 KB) [+3 patches]
+    [+] plex_mono_normal_14        | 107 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,794 B (1.75 KB)
+    [+] plex_mono_normal_16        | 107 glyphs |    0 kern | lh=22px | autohint-mono | ~ 1,974 B (1.93 KB)
+    [+] plex_mono_normal_20        | 107 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,542 B (2.48 KB)
+    [+] plex_mono_normal_24        | 107 glyphs |    0 kern | lh=32px | autohint-mono | ~ 3,172 B (3.10 KB)
+    [+] plex_mono_bold_14          | 107 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,880 B (1.84 KB)
+    [+] plex_mono_bold_16          | 107 glyphs |    0 kern | lh=22px | autohint-mono | ~ 2,069 B (2.02 KB)
+    [+] plex_mono_bold_20          | 107 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,702 B (2.64 KB)
+    [+] plex_mono_bold_24          | 107 glyphs |    0 kern | lh=32px | autohint-mono | ~ 3,384 B (3.30 KB)
+    [+] plex_mono_bold_32          | 107 glyphs |    0 kern | lh=42px | autohint-mono | ~ 5,100 B (4.98 KB)
+    [+] plex_cond_normal_14        | 103 glyphs |  423 kern | lh=19px | autohint-mono | ~ 2,917 B (2.85 KB)
+    [+] plex_cond_normal_16        | 103 glyphs |  405 kern | lh=22px | autohint-mono | ~ 3,027 B (2.96 KB)
+    [+] plex_cond_normal_18        | 103 glyphs |  507 kern | lh=24px | autohint-mono | ~ 3,511 B (3.43 KB)
+    [+] plex_cond_normal_20        | 103 glyphs |  672 kern | lh=27px | autohint-mono | ~ 4,308 B (4.21 KB)
+    [+] plex_cond_bold_16          | 103 glyphs |  460 kern | lh=22px | autohint-mono | ~ 3,299 B (3.22 KB)
+    [+] plex_cond_bold_18          | 103 glyphs |  534 kern | lh=24px | autohint-mono | ~ 3,774 B (3.69 KB)
+    [+] plex_cond_bold_20          | 103 glyphs |  590 kern | lh=27px | autohint-mono | ~ 4,189 B (4.09 KB)
+    [+] plex_serif_normal_18       | 103 glyphs |  623 kern | lh=24px | autohint-mono | ~ 4,112 B (4.02 KB)
+    [+] plex_serif_normal_20       | 103 glyphs |  617 kern | lh=27px | autohint-mono | ~ 4,413 B (4.31 KB)
+    [+] plex_serif_normal_24       | 103 glyphs |  748 kern | lh=32px | autohint-mono | ~ 5,414 B (5.29 KB)
+    [+] plex_math_regular_16       | 143 glyphs |    0 kern | lh=22px | autohint-mono | ~ 2,873 B (2.81 KB)
+    [+] plex_math_regular_20       | 143 glyphs |    0 kern | lh=27px | autohint-mono | ~ 3,762 B (3.67 KB)
+    [+] plex_terminus_normal_12    | 103 glyphs |    0 kern | lh=12px | autohint-mono | ~ 1,294 B (1.26 KB)
+    [+] plex_terminus_normal_16    | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,582 B (1.54 KB)
+    [+] plex_terminus_bold_16      | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,672 B (1.63 KB)
+    [+] plex_icon_fa7_solid_14     |  38 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,331 B (1.30 KB)
+    [+] plex_icon_fa7_solid_16     |  38 glyphs |    0 kern | lh=18px | autohint-mono | ~ 1,582 B (1.54 KB)
+    [+] plex_icon_fa7_solid_20     |  38 glyphs |    0 kern | lh=21px | autohint-mono | ~ 2,183 B (2.13 KB)
+    [+] plex_icon_fa7_solid_24     |  38 glyphs |    0 kern | lh=28px | autohint-mono | ~ 2,942 B (2.87 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_14 |  80 glyphs |    0 kern | lh=14px | autohint-mono | ~ 2,076 B (2.03 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_16 |  80 glyphs |    0 kern | lh=16px | autohint-mono | ~ 2,379 B (2.32 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_20 |  80 glyphs |    0 kern | lh=20px | autohint-mono | ~ 3,300 B (3.22 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_24 |  80 glyphs |    0 kern | lh=24px | autohint-mono | ~ 4,447 B (4.34 KB)
+    [+] plex_icon_phosphor_regular_14 | 129 glyphs |    0 kern | lh=15px | autohint-mono | ~ 3,294 B (3.22 KB)
+    [+] plex_icon_phosphor_regular_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,822 B (3.73 KB)
+    [+] plex_icon_phosphor_regular_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 5,080 B (4.96 KB)
+    [+] plex_icon_phosphor_regular_24 | 129 glyphs |    0 kern | lh=25px | autohint-mono | ~ 6,736 B (6.58 KB)
+    [+] plex_icon_phosphor_fill_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,929 B (3.84 KB)
+    [+] plex_icon_phosphor_fill_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 5,314 B (5.19 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_14 |  70 glyphs |    0 kern | lh=15px | autohint-mono | ~ 1,727 B (1.69 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_16 |  70 glyphs |    0 kern | lh=17px | autohint-mono | ~ 1,993 B (1.95 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_20 |  70 glyphs |    0 kern | lh=20px | autohint-mono | ~ 2,668 B (2.61 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_24 |  70 glyphs |    0 kern | lh=25px | autohint-mono | ~ 3,560 B (3.48 KB)
+[+] Exported pre-rasterized Strike Vault (60 strikes) -> C:\Users\Matt\Documents\GitHub\epd-font\dist\h1os_distro\plex_epd_vault.json.gz (266,093 B)
+
+[+] Scheme 'h1os_epd_v1_full' (autohint-mono, normal=400) complete: 60 strikes, total ROM = 230,873 bytes (225.5 KB).
+[+] Built 1-BPP C/H fonts into build\h1os\fonts and Strike Vault into dist\h1os_distro.
+============================================================================
+[03] Humidyne Labs / Humiditron epd-font v1.0.7 - Visual Inspection PNGs & Screen Audit (H1OS
+'humid1-os' is not recognized as an internal or external command,
+operable program or batch file.
+     Filter: trouble
+     Output: build\h1os\inspect_pages\ & build\h1os\inspect_chars\
+============================================================================
+[+] Loaded optical micro-strike patch manifest: C:\Users\Matt\Documents\GitHub\epd-font\epd_font_patches.json
+[+] Loaded declarative font scheme: h1os_full.scheme.json (Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite)
+    [+] plex_sans_normal_12        | 131 glyphs |  698 kern | lh=17px | autohint-mono | ~ 3,878 B (3.79 KB) [+5 patches]
+    [+] plex_sans_normal_14        | 131 glyphs |  729 kern | lh=19px | autohint-mono | ~ 4,312 B (4.21 KB)
+    [+] plex_sans_normal_16        | 131 glyphs |  787 kern | lh=22px | autohint-mono | ~ 4,708 B (4.60 KB)
+    [+] plex_sans_normal_18        | 131 glyphs |  937 kern | lh=24px | autohint-mono | ~ 5,506 B (5.38 KB)
+    [+] plex_sans_normal_20        | 131 glyphs |  948 kern | lh=27px | autohint-mono | ~ 5,869 B (5.73 KB)
+    [+] plex_sans_normal_24        | 131 glyphs | 1131 kern | lh=32px | autohint-mono | ~ 7,136 B (6.97 KB)
+    [+] plex_sans_normal_32        | 131 glyphs | 1490 kern | lh=42px | autohint-mono | ~10,088 B (9.85 KB)
+    [+] plex_sans_bold_12          | 131 glyphs |  696 kern | lh=17px | autohint-mono | ~ 4,070 B (3.97 KB)
+    [+] plex_sans_bold_14          | 131 glyphs |  842 kern | lh=19px | autohint-mono | ~ 4,719 B (4.61 KB)
+    [+] plex_sans_bold_16          | 131 glyphs |  950 kern | lh=22px | autohint-mono | ~ 5,339 B (5.21 KB)
+    [+] plex_sans_bold_18          | 131 glyphs |  997 kern | lh=24px | autohint-mono | ~ 5,846 B (5.71 KB)
+    [+] plex_sans_bold_20          | 131 glyphs | 1007 kern | lh=27px | autohint-mono | ~ 6,198 B (6.05 KB)
+    [+] plex_sans_bold_24          | 131 glyphs | 1277 kern | lh=32px | autohint-mono | ~ 7,893 B (7.71 KB)
+    [+] plex_sans_bold_32          | 131 glyphs | 1394 kern | lh=42px | autohint-mono | ~10,276 B (10.04 KB)
+    [+] plex_sans_italic_12        | 103 glyphs |  434 kern | lh=17px | autohint-mono | ~ 2,775 B (2.71 KB)
+    [+] plex_sans_italic_14        | 103 glyphs |  469 kern | lh=19px | autohint-mono | ~ 3,178 B (3.10 KB)
+    [+] plex_sans_italic_16        | 103 glyphs |  495 kern | lh=22px | autohint-mono | ~ 3,474 B (3.39 KB)
+    [+] plex_mono_normal_12        | 107 glyphs |    0 kern | lh=17px | autohint-mono | ~ 1,489 B (1.45 KB) [+3 patches]
+    [+] plex_mono_normal_14        | 107 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,790 B (1.75 KB)
+    [+] plex_mono_normal_16        | 107 glyphs |    0 kern | lh=22px | autohint-mono | ~ 1,970 B (1.92 KB)
+    [+] plex_mono_normal_20        | 107 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,538 B (2.48 KB)
+    [+] plex_mono_normal_24        | 107 glyphs |    0 kern | lh=32px | autohint-mono | ~ 3,168 B (3.09 KB)
+    [+] plex_mono_bold_14          | 107 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,876 B (1.83 KB)
+    [+] plex_mono_bold_16          | 107 glyphs |    0 kern | lh=22px | autohint-mono | ~ 2,065 B (2.02 KB)
+    [+] plex_mono_bold_20          | 107 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,698 B (2.63 KB)
+    [+] plex_mono_bold_24          | 107 glyphs |    0 kern | lh=32px | autohint-mono | ~ 3,380 B (3.30 KB)
+    [+] plex_mono_bold_32          | 107 glyphs |    0 kern | lh=42px | autohint-mono | ~ 5,096 B (4.98 KB)
+    [+] plex_cond_normal_14        | 103 glyphs |  423 kern | lh=19px | autohint-mono | ~ 2,905 B (2.84 KB)
+    [+] plex_cond_normal_16        | 103 glyphs |  405 kern | lh=22px | autohint-mono | ~ 3,015 B (2.94 KB)
+    [+] plex_cond_normal_18        | 103 glyphs |  507 kern | lh=24px | autohint-mono | ~ 3,499 B (3.42 KB)
+    [+] plex_cond_normal_20        | 103 glyphs |  672 kern | lh=27px | autohint-mono | ~ 4,296 B (4.20 KB)
+    [+] plex_cond_bold_16          | 103 glyphs |  460 kern | lh=22px | autohint-mono | ~ 3,287 B (3.21 KB)
+    [+] plex_cond_bold_18          | 103 glyphs |  534 kern | lh=24px | autohint-mono | ~ 3,762 B (3.67 KB)
+    [+] plex_cond_bold_20          | 103 glyphs |  590 kern | lh=27px | autohint-mono | ~ 4,177 B (4.08 KB)
+    [+] plex_serif_normal_18       | 103 glyphs |  623 kern | lh=24px | autohint-mono | ~ 4,100 B (4.00 KB)
+    [+] plex_serif_normal_20       | 103 glyphs |  617 kern | lh=27px | autohint-mono | ~ 4,401 B (4.30 KB)
+    [+] plex_serif_normal_24       | 103 glyphs |  748 kern | lh=32px | autohint-mono | ~ 5,402 B (5.28 KB)
+    [+] plex_math_regular_16       | 143 glyphs |    0 kern | lh=22px | autohint-mono | ~ 2,797 B (2.73 KB)
+    [+] plex_math_regular_20       | 143 glyphs |    0 kern | lh=27px | autohint-mono | ~ 3,686 B (3.60 KB)
+    [+] plex_terminus_normal_12    | 103 glyphs |    0 kern | lh=12px | autohint-mono | ~ 1,298 B (1.27 KB)
+    [+] plex_terminus_normal_16    | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,586 B (1.55 KB)
+    [+] plex_terminus_bold_16      | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,676 B (1.64 KB)
+    [+] plex_icon_fa7_solid_14     |  38 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,275 B (1.25 KB)
+    [+] plex_icon_fa7_solid_16     |  38 glyphs |    0 kern | lh=18px | autohint-mono | ~ 1,526 B (1.49 KB)
+    [+] plex_icon_fa7_solid_20     |  38 glyphs |    0 kern | lh=21px | autohint-mono | ~ 2,127 B (2.08 KB)
+    [+] plex_icon_fa7_solid_24     |  38 glyphs |    0 kern | lh=28px | autohint-mono | ~ 2,886 B (2.82 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_14 |  80 glyphs |    0 kern | lh=14px | autohint-mono | ~ 1,956 B (1.91 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_16 |  80 glyphs |    0 kern | lh=16px | autohint-mono | ~ 2,259 B (2.21 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_20 |  80 glyphs |    0 kern | lh=20px | autohint-mono | ~ 3,180 B (3.11 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_24 |  80 glyphs |    0 kern | lh=24px | autohint-mono | ~ 4,327 B (4.23 KB)
+    [+] plex_icon_phosphor_regular_14 | 129 glyphs |    0 kern | lh=15px | autohint-mono | ~ 3,076 B (3.00 KB)
+    [+] plex_icon_phosphor_regular_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,604 B (3.52 KB)
+    [+] plex_icon_phosphor_regular_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 4,862 B (4.75 KB)
+    [+] plex_icon_phosphor_regular_24 | 129 glyphs |    0 kern | lh=25px | autohint-mono | ~ 6,518 B (6.37 KB)
+    [+] plex_icon_phosphor_fill_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,711 B (3.62 KB)
+    [+] plex_icon_phosphor_fill_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 5,096 B (4.98 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_14 |  70 glyphs |    0 kern | lh=15px | autohint-mono | ~ 1,627 B (1.59 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_16 |  70 glyphs |    0 kern | lh=17px | autohint-mono | ~ 1,893 B (1.85 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_20 |  70 glyphs |    0 kern | lh=20px | autohint-mono | ~ 2,568 B (2.51 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_24 |  70 glyphs |    0 kern | lh=25px | autohint-mono | ~ 3,460 B (3.38 KB)
+[+] Rendered 60 Auto-Wrapped Page Check PNG sheets in C:\Users\Matt\Documents\GitHub\epd-font\build\h1os\inspect_pages
+[+] Rendered 1,434 Char-by-Char Deep-Check Blueprint PNG cards in C:\Users\Matt\Documents\GitHub\epd-font\build\h1os\inspect_chars
+
+[+] Scheme 'h1os_epd_v1_full' (autohint-mono, normal=400) complete: 60 strikes, total ROM = 227,173 bytes (221.8 KB).
+
+==========================================================================================================
+WAVESHARE 1.54IN V2 EPD (SSD1681) 200x200 (188.3 DPI) SCREEN WIDTH AUDIT (MAX BUDGET: 188 px [X=6..194])
+==========================================================================================================
+Screen / Row                       | Legacy Mont | Plex Sans | Sans+Mono | Plex Cond | Sans Clr | Status
+----------------------------------------------------------------------------------------------------------
+Screen 1 - Header (Title + 36px B  |         0px |     135px |     137px |     135px |    +53px | PASS
+Screen 1 - Hero Telemetry Row (Y=  |         0px |     142px |     147px |     102px |    +46px | PASS
+Screen 1 - Row 1: Settling Status  |         0px |     147px |     153px |     152px |    +41px | PASS
+Screen 1 - Row 2: Vapor Pressure   |         0px |     151px |     160px |     156px |    +37px | PASS
+Screen 2 - Row 1: Dew Point        |         0px |     164px |     184px |     172px |    +24px | PASS
+Screen 2 - Row 2: Abs Humidity     |         0px |     146px |     157px |     151px |    +42px | PASS
+Screen 3 - Row 4: TriNode Delta T  |         0px |     114px |     118px |     118px |    +74px | PASS
+Screen 4 - Row 1: Battery Voltage  |         0px |     137px |     151px |     144px |    +51px | PASS
+Screen 5 - Row 4: Heap Watermark   |         0px |     139px |     154px |     146px |    +49px | PASS
+Screen 5 - Row 6: Wake & Ring Cou  |         0px |     155px |     178px |     167px |    +33px | PASS
+Screen 5 - Row 7: CPU & SHTC3 Sta  |         0px |     140px |     146px |     145px |    +48px | PASS
+==========================================================================================================
+
+[+] Rendered master 188-DPI visual specimen sheet to C:\Users\Matt\Documents\GitHub\epd-font\build\h1os\inspect_pages\plex_epd_specimen_188dpi.png
+[+] Visual inspection PNGs generated in build\h1os\inspect_pages and build\h1os\inspect_chars.
+============================================================================
+[04] Humidyne Labs / Humiditron epd-font v1.0.7 - Dump Full-Canvas 1:1 ASCII Patches (H1OS
+'humid1-os' is not recognized as an internal or external command,
+operable program or batch file.
+     Output: build\h1os\ascii_patches\
+============================================================================
+[+] Loaded optical micro-strike patch manifest: C:\Users\Matt\Documents\GitHub\epd-font\epd_font_patches.json
+[+] Loaded declarative font scheme: h1os_full.scheme.json (Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite)
+    [+] plex_sans_normal_12        | 131 glyphs |  698 kern | lh=17px | autohint-mono | ~ 3,878 B (3.79 KB) [+5 patches]
+    [+] plex_sans_normal_14        | 131 glyphs |  729 kern | lh=19px | autohint-mono | ~ 4,312 B (4.21 KB)
+    [+] plex_sans_normal_16        | 131 glyphs |  787 kern | lh=22px | autohint-mono | ~ 4,708 B (4.60 KB)
+    [+] plex_sans_normal_18        | 131 glyphs |  937 kern | lh=24px | autohint-mono | ~ 5,506 B (5.38 KB)
+    [+] plex_sans_normal_20        | 131 glyphs |  948 kern | lh=27px | autohint-mono | ~ 5,869 B (5.73 KB)
+    [+] plex_sans_normal_24        | 131 glyphs | 1131 kern | lh=32px | autohint-mono | ~ 7,136 B (6.97 KB)
+    [+] plex_sans_normal_32        | 131 glyphs | 1490 kern | lh=42px | autohint-mono | ~10,088 B (9.85 KB)
+    [+] plex_sans_bold_12          | 131 glyphs |  696 kern | lh=17px | autohint-mono | ~ 4,070 B (3.97 KB)
+    [+] plex_sans_bold_14          | 131 glyphs |  842 kern | lh=19px | autohint-mono | ~ 4,719 B (4.61 KB)
+    [+] plex_sans_bold_16          | 131 glyphs |  950 kern | lh=22px | autohint-mono | ~ 5,339 B (5.21 KB)
+    [+] plex_sans_bold_18          | 131 glyphs |  997 kern | lh=24px | autohint-mono | ~ 5,846 B (5.71 KB)
+    [+] plex_sans_bold_20          | 131 glyphs | 1007 kern | lh=27px | autohint-mono | ~ 6,198 B (6.05 KB)
+    [+] plex_sans_bold_24          | 131 glyphs | 1277 kern | lh=32px | autohint-mono | ~ 7,893 B (7.71 KB)
+    [+] plex_sans_bold_32          | 131 glyphs | 1394 kern | lh=42px | autohint-mono | ~10,276 B (10.04 KB)
+    [+] plex_sans_italic_12        | 103 glyphs |  434 kern | lh=17px | autohint-mono | ~ 2,775 B (2.71 KB)
+    [+] plex_sans_italic_14        | 103 glyphs |  469 kern | lh=19px | autohint-mono | ~ 3,178 B (3.10 KB)
+    [+] plex_sans_italic_16        | 103 glyphs |  495 kern | lh=22px | autohint-mono | ~ 3,474 B (3.39 KB)
+    [+] plex_mono_normal_12        | 107 glyphs |    0 kern | lh=17px | autohint-mono | ~ 1,489 B (1.45 KB) [+3 patches]
+    [+] plex_mono_normal_14        | 107 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,790 B (1.75 KB)
+    [+] plex_mono_normal_16        | 107 glyphs |    0 kern | lh=22px | autohint-mono | ~ 1,970 B (1.92 KB)
+    [+] plex_mono_normal_20        | 107 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,538 B (2.48 KB)
+    [+] plex_mono_normal_24        | 107 glyphs |    0 kern | lh=32px | autohint-mono | ~ 3,168 B (3.09 KB)
+    [+] plex_mono_bold_14          | 107 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,876 B (1.83 KB)
+    [+] plex_mono_bold_16          | 107 glyphs |    0 kern | lh=22px | autohint-mono | ~ 2,065 B (2.02 KB)
+    [+] plex_mono_bold_20          | 107 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,698 B (2.63 KB)
+    [+] plex_mono_bold_24          | 107 glyphs |    0 kern | lh=32px | autohint-mono | ~ 3,380 B (3.30 KB)
+    [+] plex_mono_bold_32          | 107 glyphs |    0 kern | lh=42px | autohint-mono | ~ 5,096 B (4.98 KB)
+    [+] plex_cond_normal_14        | 103 glyphs |  423 kern | lh=19px | autohint-mono | ~ 2,905 B (2.84 KB)
+    [+] plex_cond_normal_16        | 103 glyphs |  405 kern | lh=22px | autohint-mono | ~ 3,015 B (2.94 KB)
+    [+] plex_cond_normal_18        | 103 glyphs |  507 kern | lh=24px | autohint-mono | ~ 3,499 B (3.42 KB)
+    [+] plex_cond_normal_20        | 103 glyphs |  672 kern | lh=27px | autohint-mono | ~ 4,296 B (4.20 KB)
+    [+] plex_cond_bold_16          | 103 glyphs |  460 kern | lh=22px | autohint-mono | ~ 3,287 B (3.21 KB)
+    [+] plex_cond_bold_18          | 103 glyphs |  534 kern | lh=24px | autohint-mono | ~ 3,762 B (3.67 KB)
+    [+] plex_cond_bold_20          | 103 glyphs |  590 kern | lh=27px | autohint-mono | ~ 4,177 B (4.08 KB)
+    [+] plex_serif_normal_18       | 103 glyphs |  623 kern | lh=24px | autohint-mono | ~ 4,100 B (4.00 KB)
+    [+] plex_serif_normal_20       | 103 glyphs |  617 kern | lh=27px | autohint-mono | ~ 4,401 B (4.30 KB)
+    [+] plex_serif_normal_24       | 103 glyphs |  748 kern | lh=32px | autohint-mono | ~ 5,402 B (5.28 KB)
+    [+] plex_math_regular_16       | 143 glyphs |    0 kern | lh=22px | autohint-mono | ~ 2,797 B (2.73 KB)
+    [+] plex_math_regular_20       | 143 glyphs |    0 kern | lh=27px | autohint-mono | ~ 3,686 B (3.60 KB)
+    [+] plex_terminus_normal_12    | 103 glyphs |    0 kern | lh=12px | autohint-mono | ~ 1,298 B (1.27 KB)
+    [+] plex_terminus_normal_16    | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,586 B (1.55 KB)
+    [+] plex_terminus_bold_16      | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,676 B (1.64 KB)
+    [+] plex_icon_fa7_solid_14     |  38 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,275 B (1.25 KB)
+    [+] plex_icon_fa7_solid_16     |  38 glyphs |    0 kern | lh=18px | autohint-mono | ~ 1,526 B (1.49 KB)
+    [+] plex_icon_fa7_solid_20     |  38 glyphs |    0 kern | lh=21px | autohint-mono | ~ 2,127 B (2.08 KB)
+    [+] plex_icon_fa7_solid_24     |  38 glyphs |    0 kern | lh=28px | autohint-mono | ~ 2,886 B (2.82 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_14 |  80 glyphs |    0 kern | lh=14px | autohint-mono | ~ 1,956 B (1.91 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_16 |  80 glyphs |    0 kern | lh=16px | autohint-mono | ~ 2,259 B (2.21 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_20 |  80 glyphs |    0 kern | lh=20px | autohint-mono | ~ 3,180 B (3.11 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_24 |  80 glyphs |    0 kern | lh=24px | autohint-mono | ~ 4,327 B (4.23 KB)
+    [+] plex_icon_phosphor_regular_14 | 129 glyphs |    0 kern | lh=15px | autohint-mono | ~ 3,076 B (3.00 KB)
+    [+] plex_icon_phosphor_regular_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,604 B (3.52 KB)
+    [+] plex_icon_phosphor_regular_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 4,862 B (4.75 KB)
+    [+] plex_icon_phosphor_regular_24 | 129 glyphs |    0 kern | lh=25px | autohint-mono | ~ 6,518 B (6.37 KB)
+    [+] plex_icon_phosphor_fill_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,711 B (3.62 KB)
+    [+] plex_icon_phosphor_fill_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 5,096 B (4.98 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_14 |  70 glyphs |    0 kern | lh=15px | autohint-mono | ~ 1,627 B (1.59 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_16 |  70 glyphs |    0 kern | lh=17px | autohint-mono | ~ 1,893 B (1.85 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_20 |  70 glyphs |    0 kern | lh=20px | autohint-mono | ~ 2,568 B (2.51 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_tabler_regular_24 |  70 glyphs |    0 kern | lh=25px | autohint-mono | ~ 3,460 B (3.38 KB)
+[+] Dumped 6,364 Full-Canvas 1:1 Spaced ASCII .txt files across 60 folders in C:\Users\Matt\Documents\GitHub\epd-font\build\h1os\ascii_patches
+
+[+] Scheme 'h1os_epd_v1_full' (autohint-mono, normal=400) complete: 60 strikes, total ROM = 227,173 bytes (221.8 KB).
+[+] Dumped Full-Canvas 1:1 ASCII glyph files into build\h1os\ascii_patches.
+============================================================================
+[07] Humidyne Labs / Humiditron epd-font v1.0.7 - Package Distribution Bundle (H1OS
+'humid1-os' is not recognized as an internal or external command,
+operable program or batch file.
+     Dist Output: dist\h1os_distro\
+============================================================================
+[+] Packaged self-contained distribution bundle in dist\h1os_distro\.
+============================================================================
+[+] Full pipeline (H1OS
+'humid1-os' is not recognized as an internal or external command,
+operable program or batch file.
+    Build Artifacts : build\h1os\
+    Dist Bundle     : dist\h1os_distro\
+============================================================================
+Press any key to continue . . .
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts\h1os-build-distro (main -> origin)
+λ cd ..
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts (main -> origin)
+λ ls
+example-build-distro/  full-audit-build-dev/  full-audit-build-distro/  h1os-build-distro/
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts (main -> origin)
+λ cd example-build-distro\
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts\example-build-distro (main -> origin)
+λ 99_run_full_pipeline.bat
+============================================================================
+[99] Humidyne Labs / Humiditron epd-font v1.0.7 - Full End-to-End Pipeline (General Embedded Example Distribution Workflow)
+============================================================================
+============================================================================
+[01] Humidyne Labs / Humiditron epd-font v1.0.7 - Build Static TTFs & Metadata
+     Output: build\static_ttfs\ & build\metadata\
+============================================================================
+[*] Step 1/4: Instantiating IBM Plex & Terminus Static TTFs into C:\Users\Matt\Documents\GitHub\epd-font\build\static_ttfs...
+[*] Step 2/4: Converting & Normalizing Modular Icon Suites (FA7, Lucide, Phosphor, Tabler)...
+[*] Step 3/4: Generating Searchable Icon & Font Catalog JSONs in C:\Users\Matt\Documents\GitHub\epd-font\build\metadata...
+2 extra bytes in post.stringData array
+2 extra bytes in post.stringData array
+2 extra bytes in post.stringData array
+    [+] Catalog icon_fa7        : 2,349 entries indexed
+    [+] Catalog icon_lucide     : 2,043 entries indexed
+    [+] Catalog icon_phosphor   : 1,513 entries indexed
+    [+] Catalog icon_tabler     : 6,257 entries indexed
+    [+] Catalog terminus        : 1,355 entries indexed
+[*] Step 4/4: Collecting Licenses & Writing SHA-256 Asset Manifest...
+    [+] Saved 9 license files -> C:\Users\Matt\Documents\GitHub\epd-font\build\static_ttfs\licenses
+    [+] Wrote SHA-256 manifest (56 TTFs) -> C:\Users\Matt\Documents\GitHub\epd-font\build\metadata\asset_manifest.json
+
+============================================================================================================
+STATIC TRUETYPE (.TTF) ASSET VERIFICATION REPORT — C:\Users\Matt\Documents\GitHub\epd-font\build\static_ttfs
+============================================================================================================
+TTF Filename                           | Format   | UPEM | Asc/Desc   | Glyphs | Cmap   | Size (Bytes) | Status
+------------------------------------------------------------------------------------------------------------
+FontAwesome7-Brands.ttf                | TTF/glyf |  512 | +448/ -64 |    612 |   1895 |      219,052 | PASS
+FontAwesome7-Regular.ttf               | TTF/glyf |  512 | +448/ -64 |    209 |   1672 |       84,448 | PASS
+FontAwesome7-Solid.ttf                 | TTF/glyf |  512 | +448/ -64 |   1426 |   3235 |      404,204 | PASS
+IBMPlexMath-Regular.ttf                | TTF/glyf | 1000 | +1025/-275 |   7092 |   4382 |    1,309,896 | PASS
+IBMPlexMono-Bold.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,440 | PASS
+IBMPlexMono-BoldItalic.ttf             | TTF/glyf | 1000 | +1025/-275 |   1187 |   1048 |      131,728 | PASS
+IBMPlexMono-Italic.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1187 |   1048 |      131,904 | PASS
+IBMPlexMono-Light.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,696 | PASS
+IBMPlexMono-Medium.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,532 | PASS
+IBMPlexMono-MediumItalic.ttf           | TTF/glyf | 1000 | +1025/-275 |   1187 |   1048 |      131,876 | PASS
+IBMPlexMono-Regular.ttf                | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,508 | PASS
+IBMPlexMono-SemiBold.ttf               | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,480 | PASS
+IBMPlexMono-Text.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1207 |   1048 |      124,528 | PASS
+IBMPlexSans-Bold.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,552 | PASS
+IBMPlexSans-BoldItalic.ttf             | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,216 | PASS
+IBMPlexSans-ExtraLight.ttf             | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,840 | PASS
+IBMPlexSans-Italic.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,240 | PASS
+IBMPlexSans-Light.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,764 | PASS
+IBMPlexSans-Medium.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,620 | PASS
+IBMPlexSans-MediumItalic.ttf           | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,248 | PASS
+IBMPlexSans-Regular.ttf                | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,460 | PASS
+IBMPlexSans-SemiBold.ttf               | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,588 | PASS
+IBMPlexSans-SemiBoldItalic.ttf         | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,260 | PASS
+IBMPlexSans-Text.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,656 | PASS
+IBMPlexSans-TextItalic.ttf             | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,252 | PASS
+IBMPlexSans-Thin.ttf                   | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,604 | PASS
+IBMPlexSansCondensed-Bold.ttf          | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,312 | PASS
+IBMPlexSansCondensed-BoldItalic.ttf    | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,136 | PASS
+IBMPlexSansCondensed-Italic.ttf        | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,200 | PASS
+IBMPlexSansCondensed-Light.ttf         | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,528 | PASS
+IBMPlexSansCondensed-MedItal.ttf       | TTF/glyf | 1000 | +1025/-275 |   1017 |    891 |      232,208 | PASS
+IBMPlexSansCondensed-Medium.ttf        | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,440 | PASS
+IBMPlexSansCondensed-Regular.ttf       | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,408 | PASS
+IBMPlexSansCondensed-SemiBold.ttf      | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,424 | PASS
+IBMPlexSansCondensed-Text.ttf          | TTF/glyf | 1000 | +1025/-275 |   1025 |    891 |      217,460 | PASS
+IBMPlexSerif-Bold.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      233,960 | PASS
+IBMPlexSerif-BoldItalic.ttf            | TTF/glyf | 1000 | +1025/-275 |   1042 |    926 |      250,616 | PASS
+IBMPlexSerif-Italic.ttf                | TTF/glyf | 1000 | +1025/-275 |   1042 |    926 |      250,468 | PASS
+IBMPlexSerif-Light.ttf                 | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,316 | PASS
+IBMPlexSerif-Medium.ttf                | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,280 | PASS
+IBMPlexSerif-MediumItalic.ttf          | TTF/glyf | 1000 | +1025/-275 |   1042 |    926 |      250,632 | PASS
+IBMPlexSerif-Regular.ttf               | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      233,944 | PASS
+IBMPlexSerif-SemiBold.ttf              | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,256 | PASS
+IBMPlexSerif-Text.ttf                  | TTF/glyf | 1000 | +1025/-275 |   1055 |    926 |      234,152 | PASS
+2 extra bytes in post.stringData array
+Lucide-Regular.ttf                     | TTF/glyf | 1000 | +1000/  +0 |   2055 |   2061 |      979,580 | PASS
+Phosphor-Bold.ttf                      | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      495,308 | PASS
+Phosphor-Fill.ttf                      | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      449,252 | PASS
+Phosphor-Light.ttf                     | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      536,628 | PASS
+Phosphor-Regular.ttf                   | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      488,636 | PASS
+Phosphor-Thin.ttf                      | TTF/glyf | 1024 | +960/ -64 |   1544 |   1543 |      535,152 | PASS
+2 extra bytes in post.stringData array
+Tabler-Filled.ttf                      | TTF/glyf | 1000 | +900/-100 |   1052 |   1054 |      234,108 | PASS
+2 extra bytes in post.stringData array
+Tabler-Light300.ttf                    | TTF/glyf | 1000 | +900/-100 |   5180 |   5203 |    1,849,444 | PASS
+2 extra bytes in post.stringData array
+Tabler-Regular.ttf                     | TTF/glyf | 1000 | +900/-100 |   5180 |   5203 |    1,835,440 | PASS
+2 extra bytes in post.stringData array
+Tabler-Thin200.ttf                     | TTF/glyf | 1000 | +900/-100 |   5179 |   5203 |    1,850,496 | PASS
+Terminus-Bold.ttf                      | TTF/glyf | 1024 | +768/-256 |   1357 |   1356 |      225,092 | PASS
+Terminus-Regular.ttf                   | TTF/glyf | 1024 | +768/-256 |   1357 |   1356 |      226,992 | PASS
+============================================================================================================
+[+] Verification Summary: 56 PASSED, 0 FAILED (Total: 56 .ttf files)
+
+[+] Static TTF assets and metadata JSON catalogs verified in build\static_ttfs and build\metadata.
+============================================================================
+[02] Humidyne Labs / Humiditron epd-font v1.0.7 - Build 1-BPP C/H, BDF & Vault (General Embedded Example Distribution Workflow)
+     Scheme: scripts\example-build-distro\example.scheme.json
+     Build : build\example\
+     Dist  : dist\example_distro\
+============================================================================
+[+] Loaded optical micro-strike patch manifest: C:\Users\Matt\Documents\GitHub\epd-font\epd_font_patches.json
+[+] Loaded declarative font scheme: example.scheme.json (Humidyne Labs / Humiditron General Embedded Example Distribution)
+    [+] plex_sans_normal_12        | 103 glyphs |  348 kern | lh=17px | autohint-mono | ~ 2,483 B (2.42 KB) [+5 patches]
+    [+] plex_sans_normal_14        | 103 glyphs |  416 kern | lh=19px | autohint-mono | ~ 2,961 B (2.89 KB)
+    [+] plex_sans_normal_16        | 103 glyphs |  374 kern | lh=22px | autohint-mono | ~ 3,002 B (2.93 KB)
+    [+] plex_sans_normal_20        | 103 glyphs |  473 kern | lh=27px | autohint-mono | ~ 3,845 B (3.75 KB)
+    [+] plex_sans_normal_24        | 103 glyphs |  613 kern | lh=32px | autohint-mono | ~ 4,815 B (4.70 KB)
+    [+] plex_sans_bold_14          | 103 glyphs |  455 kern | lh=19px | autohint-mono | ~ 3,128 B (3.05 KB)
+    [+] plex_sans_bold_16          | 103 glyphs |  489 kern | lh=22px | autohint-mono | ~ 3,461 B (3.38 KB)
+    [+] plex_sans_bold_20          | 103 glyphs |  564 kern | lh=27px | autohint-mono | ~ 4,227 B (4.13 KB)
+    [+] plex_sans_bold_24          | 103 glyphs |  725 kern | lh=32px | autohint-mono | ~ 5,408 B (5.28 KB)
+    [+] plex_mono_normal_14        | 103 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,722 B (1.68 KB)
+    [+] plex_mono_normal_16        | 103 glyphs |    0 kern | lh=22px | autohint-mono | ~ 1,894 B (1.85 KB)
+    [+] plex_mono_normal_20        | 103 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,438 B (2.38 KB)
+    [+] plex_terminus_normal_12    | 103 glyphs |    0 kern | lh=12px | autohint-mono | ~ 1,294 B (1.26 KB)
+    [+] plex_terminus_normal_16    | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,582 B (1.54 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_16 |  80 glyphs |    0 kern | lh=16px | autohint-mono | ~ 2,379 B (2.32 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_20 |  80 glyphs |    0 kern | lh=20px | autohint-mono | ~ 3,300 B (3.22 KB)
+    [+] plex_icon_phosphor_regular_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,822 B (3.73 KB)
+    [+] plex_icon_phosphor_regular_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 5,080 B (4.96 KB)
+    [+] plex_icon_phosphor_fill_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 5,314 B (5.19 KB)
+[+] Exported pre-rasterized Strike Vault (19 strikes) -> C:\Users\Matt\Documents\GitHub\epd-font\dist\example_distro\plex_epd_vault.json.gz (72,826 B)
+
+[+] Scheme 'example_general_distro' (autohint-mono, normal=400) complete: 19 strikes, total ROM = 62,155 bytes (60.7 KB).
+[+] Built 1-BPP C/H fonts into build\example\fonts and Strike Vault into dist\example_distro.
+============================================================================
+[03] Humidyne Labs / Humiditron epd-font v1.0.7 - Visual Inspection PNGs & Screen Audit (General Embedded Example Distribution Workflow)
+     Filter: trouble
+     Output: build\example\inspect_pages\ & build\example\inspect_chars\
+============================================================================
+[+] Loaded optical micro-strike patch manifest: C:\Users\Matt\Documents\GitHub\epd-font\epd_font_patches.json
+[+] Loaded declarative font scheme: example.scheme.json (Humidyne Labs / Humiditron General Embedded Example Distribution)
+    [+] plex_sans_normal_12        | 103 glyphs |  348 kern | lh=17px | autohint-mono | ~ 2,471 B (2.41 KB) [+5 patches]
+    [+] plex_sans_normal_14        | 103 glyphs |  416 kern | lh=19px | autohint-mono | ~ 2,949 B (2.88 KB)
+    [+] plex_sans_normal_16        | 103 glyphs |  374 kern | lh=22px | autohint-mono | ~ 2,990 B (2.92 KB)
+    [+] plex_sans_normal_20        | 103 glyphs |  473 kern | lh=27px | autohint-mono | ~ 3,833 B (3.74 KB)
+    [+] plex_sans_normal_24        | 103 glyphs |  613 kern | lh=32px | autohint-mono | ~ 4,803 B (4.69 KB)
+    [+] plex_sans_bold_14          | 103 glyphs |  455 kern | lh=19px | autohint-mono | ~ 3,116 B (3.04 KB)
+    [+] plex_sans_bold_16          | 103 glyphs |  489 kern | lh=22px | autohint-mono | ~ 3,449 B (3.37 KB)
+    [+] plex_sans_bold_20          | 103 glyphs |  564 kern | lh=27px | autohint-mono | ~ 4,215 B (4.12 KB)
+    [+] plex_sans_bold_24          | 103 glyphs |  725 kern | lh=32px | autohint-mono | ~ 5,396 B (5.27 KB)
+    [+] plex_mono_normal_14        | 103 glyphs |    0 kern | lh=19px | autohint-mono | ~ 1,726 B (1.69 KB)
+    [+] plex_mono_normal_16        | 103 glyphs |    0 kern | lh=22px | autohint-mono | ~ 1,898 B (1.85 KB)
+    [+] plex_mono_normal_20        | 103 glyphs |    0 kern | lh=27px | autohint-mono | ~ 2,442 B (2.38 KB)
+    [+] plex_terminus_normal_12    | 103 glyphs |    0 kern | lh=12px | autohint-mono | ~ 1,298 B (1.27 KB)
+    [+] plex_terminus_normal_16    | 103 glyphs |    0 kern | lh=16px | autohint-mono | ~ 1,586 B (1.55 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_16 |  80 glyphs |    0 kern | lh=16px | autohint-mono | ~ 2,259 B (2.21 KB)
+2 extra bytes in post.stringData array
+    [+] plex_icon_lucide_regular_20 |  80 glyphs |    0 kern | lh=20px | autohint-mono | ~ 3,180 B (3.11 KB)
+    [+] plex_icon_phosphor_regular_16 | 129 glyphs |    0 kern | lh=16px | autohint-mono | ~ 3,604 B (3.52 KB)
+    [+] plex_icon_phosphor_regular_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 4,862 B (4.75 KB)
+    [+] plex_icon_phosphor_fill_20 | 129 glyphs |    0 kern | lh=21px | autohint-mono | ~ 5,096 B (4.98 KB)
+[+] Rendered 19 Auto-Wrapped Page Check PNG sheets in C:\Users\Matt\Documents\GitHub\epd-font\build\example\inspect_pages
+[+] Rendered 466 Char-by-Char Deep-Check Blueprint PNG cards in C:\Users\Matt\Documents\GitHub\epd-font\build\example\inspect_chars
+
+[+] Scheme 'example_general_distro' (autohint-mono, normal=400) complete: 19 strikes, total ROM = 61,173 bytes (59.7 KB).
+
+==========================================================================================================
+GENERIC MONOCHROME 1-BPP DISPLAY 200x200 (188.3 DPI) SCREEN WIDTH AUDIT (MAX BUDGET: 188 px [X=6..194])
+==========================================================================================================
+Screen / Row                       | Legacy Mont | Plex Sans | Sans+Mono | Plex Cond | Sans Clr | Status
+----------------------------------------------------------------------------------------------------------
+Screen 1 - Header (Title + 36px B  |         0px |     135px |     134px |     135px |    +53px | PASS
+Screen 1 - Hero Telemetry Row (Y=  |         0px |     142px |     119px |     142px |    +46px | PASS
+Screen 1 - Row 1: Settling Status  |         0px |     147px |     153px |     147px |    +41px | PASS
+Screen 1 - Row 2: Vapor Pressure   |         0px |     151px |     160px |     154px |    +37px | PASS
+Screen 2 - Row 1: Dew Point        |         0px |     164px |     184px |     165px |    +24px | PASS
+Screen 2 - Row 2: Abs Humidity     |         0px |     146px |     157px |     145px |    +42px | PASS
+Screen 3 - Row 4: TriNode Delta T  |         0px |     105px |     109px |     106px |    +83px | PASS
+Screen 4 - Row 1: Battery Voltage  |         0px |     137px |     151px |     137px |    +51px | PASS
+Screen 5 - Row 4: Heap Watermark   |         0px |     139px |     154px |     139px |    +49px | PASS
+Screen 5 - Row 6: Wake & Ring Cou  |         0px |     155px |     178px |     156px |    +33px | PASS
+Screen 5 - Row 7: CPU & SHTC3 Sta  |         0px |     134px |     140px |     135px |    +54px | PASS
+==========================================================================================================
+
+Traceback (most recent call last):
+  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 3391, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 3387, in main
+    render_specimen_sheet(specimen_out_path, strike_cache)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 2625, in render_specimen_sheet
+    draw_epd_text(200 - 4 - 28, 3, "1/5", "plex_mono_bold_14", fg=(255, 255, 255))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 2598, in draw_epd_text
+    gmap, line_h, base_l = strike_cache[sym]
+                           ~~~~~~~~~~~~^^^^^
+KeyError: 'plex_mono_bold_14'
+[!] Visual check failed.
+
+C:\Users\Matt\Documents\GitHub\epd-font\scripts\example-build-distro (main -> origin)
+λ

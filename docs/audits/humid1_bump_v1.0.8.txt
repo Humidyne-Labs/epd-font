@@ -1,0 +1,68 @@
+- Batch files need fixed, echo has breaking strings, use echo typesafe text.
+	============================================================================
+	[00] Humidyne Labs / Humiditron epd-font v1.0.7 - Environment Setup (H1OS
+	'humid1-os' is not recognized as an internal or external command,
+	operable program or batch file.
+	============================================================================
+- why do we not use 'all' the terminus BDF sizes? why just the 16pix one?
+       - I'm pretty sure curve tracing the 16pix font is why 12pt-14pt look so bad....
+	   - and why the upscale is missing data.
+- The example run, found a python bug, see log file.
+	Traceback (most recent call last):
+	  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 3391, in <module>
+		main()
+		~~~~^^
+	  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 3387, in main
+		render_specimen_sheet(specimen_out_path, strike_cache)
+		~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 2625, in render_specimen_sheet
+		draw_epd_text(200 - 4 - 28, 3, "1/5", "plex_mono_bold_14", fg=(255, 255, 255))
+		~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	  File "C:\Users\Matt\Documents\GitHub\epd-font\tools\fonts\generate_plex_1bpp.py", line 2598, in draw_epd_text
+		gmap, line_h, base_l = strike_cache[sym]
+							   ~~~~~~~~~~~~^^^^^
+	KeyError: 'plex_mono_bold_14'
+	[!] Visual check failed.
+- Do we use 'all' icons in the audit? seeing 'all' the available icons would have benifet.
+       - Would that take too long to process....??? (having a glyph proof of all icons would be handy)
+	   - Is there a way to thread the conversion script to make the most of the hosts resources?
+	   - fa7 has 2043 valid glyphs,
+	   - licude has 2043 valid glyphs,
+	   - phosphor has 1513 valid glyphs,
+	   - tabler has 6257 valid glyphs.
+	   - can't we break the audit preview up by family (or uni range) to display all valid glyphs via png?
+- Icon_tabler_filled 12-40 produced no png page check, the file is there, but theres no glyphs in it.
+       the ascii folder is also empty for 12-40 tabler filled.
+- Terminus bold 18 png check is missing part of the font glyph, it look like a horizontal white lines
+       are passing through every char.
+	   - bold 20, same thing, more lines though.
+	   - bold 24, same, more lines, like crt scan line artifacts.
+	   - bold 28, same.
+	   - bold 36, same.
+	   - bold 40, same.
+- Terminus bold 12-14 looks like crap.
+- Terminus normal 12-14 looks like crap.
+- Terminus normal 18 png check is missing part of the font glyph, it look like a horizontal white lines
+       are passing through every char.
+	   - bold 20, same thing, more lines though.
+	   - bold 24, same, more lines, like crt scan line artifacts.
+	   - bold 28, same.
+	   - bold 36, same.
+	   - bold 40, same.
+- When uploading to googles drive, please ensure every version/patch has a sub folder, if we patch a ver,
+       it becomes vx.x.x.b, vx.x.x.c, vx.x.x.d, etc...
+- Is there a diff between full-audit-build-dev & full-audit-build-distro? if not, remove full-audit-build-dev.
+- Note font awesome is actually v7.3.1, ive manually changed it in all files to reflect the current version string.
+- we have two "plex_epd_font_patches.json" & "epd_font_patches.json", which one gets used? remove the extra one, 
+       is it strictly for plex fonts patches? if not, please rename it.
+       - we should change the name to "font_icon_epd_patches.json" or similar.
+- plex_fw_emit.py, does it do more than emit plex fonts? if, please rename it.
+- does plex_epd_vault.json.gz hold more than just the plex font? is so, please rename it.
+- we do not need the tar.gz of all the terminus 'stuff', the only thing we need to host are the bdf files and lic.
+- I have issue with "plex_icon_xyz" they arnt plex icons, its xyz icons, if we need a prefix, use "HUMID1_"
+       - humid1_font_plex_cond_normal_12
+	   - humid1_icon_fa7_regular_12
+	   - humid1_font_terminus_normal_40, etc...
+- After making the needed changes, please append to the change log, rev the version string, and touch up the help docs.
+- Please ensure all of our naming schemes make logical since, ie: fonts, icons, macros, folders, glyphs, scripts, bins, etc...
+       - prefix if needed should be "humid1_"

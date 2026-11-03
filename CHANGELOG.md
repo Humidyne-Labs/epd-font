@@ -1,3 +1,41 @@
+# Changelog — Humidyne Labs / Humiditron `epd-font`
+
+All notable changes to the **`epd-font`** repository (`https://github.com/Humidyne-Labs/epd-font`) are documented in this file.
+
+---
+
+## [v1.0.7] — 2026-11-03 (Audit Remediation, General-Purpose Overhaul, Terminus TTF & Agent-First Suite)
+
+### Fixed
+- **Resolved `plex_icon_phosphor_fill_20` Empty `U+0069_i.txt` Bug**:
+  - Identified that upstream `Phosphor*.ttf` binaries include 30 empty (`0×0` bounding box, `0` advance width) ASCII ligature anchor glyphs (`0x0020..0x007A`, including `0x0069 'i'`) in their `cmap`, and that missing `assets/icon_assets/phosphor_icons_v2.1.0/metadata/selection.json` caused semantic name lookups in `"icons"` to return empty and fall back to `RANGE_UI_STR` (`0x0020-0x007E`).
+  - Restored `metadata/selection.json` across `assets/icon_assets/phosphor_icons_v2.1.0/metadata/` (and all icon asset metadata folders).
+  - Updated `sanitize_and_unwrap_ttf()` in `build_static_ttf_assets.py` (`strip_non_pua=True`) to strip all `cp < 0xE000` ASCII ligature anchor stubs from `Phosphor-*.ttf` and embed all `1,513` semantic glyph names (`"alarm"`, `"wifi-high"`, `"battery-full"`, etc.) directly into `Phosphor-Regular.ttf`, `Phosphor-Bold.ttf`, `Phosphor-Fill.ttf`, `Phosphor-Light.ttf`, and `Phosphor-Thin.ttf`.
+  - Hardened `load_plan_from_scheme_json()` and `rasterize_font_strike()` in `generate_plex_1bpp.py` so `icon_*` families never fall back to `RANGE_UI_STR` and automatically reject `0×0` non-space stubs.
+
+### Added
+- **Terminus Font v4.49.1 Native `.ttf` Synthesis (`Terminus-Regular.ttf` & `Terminus-Bold.ttf`)**:
+  - Added `convert_bdf_to_quadratic_ttf()` to `build_static_ttf_assets.py`, automatically extracting `assets/font_assets/terminus-font-4.49.1.tar.gz` (`ter-u16n.bdf` and `ter-u16b.bdf`) and synthesizing standards-compliant `1024-UPEM` quadratic TrueType fonts (`Terminus-Regular.ttf` and `Terminus-Bold.ttf`, `1,356` Unicode glyphs each) plus `build/metadata/terminus_catalog.json` and `Terminus_OFL.txt`.
+  - Added `"family": "terminus"` (rendered with crisp unhinted `bytecode-mono` pixel accuracy) and `"ttf_file"` custom font support to `generate_plex_1bpp.py`.
+- **Agent-First Tooling Suite (`tools/agent/{tools,skills,rules}`)**:
+  - Created `tools/agent/tools/char_info.py` (exact glyph metrics, bounding box, UTF-8 C literal, and 1:1 ASCII bitmap lookup).
+  - Created `tools/agent/tools/string_info.py` (exact LVGL `fp4` kerning-aware string pixel width and screen budget clearance calculator).
+  - Created `tools/agent/tools/icon_search.py` (keyword search across 12,209 icons in FA7, Lucide, Phosphor, and Tabler with ready-to-paste C macros and JSON snippets).
+  - Created `tools/agent/tools/font_catalog_info.py` (complete inventory of static TTFs, catalogs, and schemes).
+  - Added 4 concise agent skills (`tools/agent/skills/*/SKILL.md`) and `tools/agent/rules/AGENT_TYPOGRAPHY_RULES.md`.
+- **16 Curated General-Purpose Schemes (`tools/fonts/schemes/*.scheme.json`)**:
+  - Added 16 domain-tailored schemes covering `humid1_reference`, `ui_balanced`, `minimal_mcu_32kb`, `telemetry_tabular_mono`, `terminus_retro_terminal`, `condensed_narrow_hmi`, `ereader_editorial_serif`, `scientific_math_lab`, `weather_station_epd`, `smart_home_thermostat`, `wearable_watch_200x200`, `industrial_scada_plc`, and 4 standalone icon vendor packs.
+- **4 Self-Contained Workflow Batch Directories (`scripts/*`)**:
+  - Populated `scripts/full-audit-build-dev/`, `scripts/full-audit-build-distro/`, `scripts/h1os-build-distro/`, and `scripts/example-build-distro/` with dedicated `.scheme.json` files and `00`–`99` `.bat` pipelines.
+
+### Changed
+- **Strict `build/` vs `dist/` Isolation & Root Patch Manifest (`epd_font_patches.json`)**:
+  - Moved all generated `static_ttfs` (`build/static_ttfs/`), `metadata` (`build/metadata/`), and `ascii_patches` (`build/<workflow>/ascii_patches/`) strictly inside `build/`.
+  - Established root-tracked `epd_font_patches.json` so hand-tuned pixel patches remain version-controlled in Git while `build/` and `dist/` remain gitignored.
+- **General-Purpose Humiditron / Humidyne Labs Branding & MIT License**:
+  - Licensed the `epd-font` repository under the **MIT License** (`LICENSE`).
+  - Removed hardcoded `H1OS` / `200x200 SSD1681` assumptions from the Python scripts; made `--dpi`, `--screen-width`, `--screen-height`, and `--safe-margin` configurable via CLI flags and scheme JSONs, and moved `h1os_full.scheme.json` & `h1os_lite.scheme.json` into `scripts/h1os-build-distro/`.
+
 # Changelog — `epd-font`
 
 All notable changes to the **[Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)** repository and its **[Humidyne-Labs/H1OS](https://github.com/Humidyne-Labs/H1OS)** deployment bundle are documented in this file.
@@ -14,7 +52,7 @@ All notable changes to the **[Humidyne-Labs/epd-font](https://github.com/Humidyn
 - **Semantic Icon Name Scoping in Scheme JSONs (`"icons": [...]` & `"scope": "all"`)**:
   - Both `generate_plex_1bpp.py` and `plex_fw_emit.py` now allow `character_sets` in `tools/fonts/schemes/*.json` to specify custom icon subsets using plain English icon names (`"icons": ["wifi", "battery-full", "thermometer", "cpu"]`), hex ranges (`"ranges"`), or `"scope": "all"`.
 - **Repository Hygiene & Versioning (`VERSION.json`, `.gitignore`, `LICENSES/`)**:
-  - Added `VERSION.json` tracking the repository version (`0.0.6`) alongside exact upstream versions (`math_v1.1.0`, `mono_v1.0.0`, `sans_v0.2.0`, `serif_v2.0.0`, `font_awsome_v7.0.0`, `lucide_icons_v1.67.0`, `phosphor_icons_v2.1.0`, `tabler_icons_v3.50.0`), a root `.gitignore`, and a consolidated `LICENSES/` directory.
+  - Added `VERSION.json` tracking the repository version (`0.0.6`) alongside exact upstream versions (`math_v1.1.0`, `mono_v1.0.0`, `sans_v0.2.0`, `serif_v2.0.0`, `font_awsome_v7.3.1`, `lucide_icons_v1.67.0`, `phosphor_icons_v2.1.0`, `tabler_icons_v3.50.0`), a root `.gitignore`, and a consolidated `LICENSES/` directory.
 
 ### Changed
 - **Unified Single-Input (`--src-dir`) and Single-Output (`--out-dir`) CLI Architecture**:
@@ -34,7 +72,7 @@ All notable changes to the **[Humidyne-Labs/epd-font](https://github.com/Humidyn
 
 ### Added
 - **Repository Restructuring (`epd-font`)**:
-  - Standardized raw upstream directory layout under `assets/font_assets/ibm-plex-font/` (`math_v1.1.0`, `mono_v1.0.0`, `sans_v0.2.0`, `serif_v2.0.0`) and `assets/icon_assets/` (`font_awsome_v7.0.0`, `lucide_icons_v1.67.0`, `phosphor_icons_v2.1.0`, `tabler_icons_v3.50.0`).
+  - Standardized raw upstream directory layout under `assets/font_assets/ibm-plex-font/` (`math_v1.1.0`, `mono_v1.0.0`, `sans_v0.2.0`, `serif_v2.0.0`) and `assets/icon_assets/` (`font_awsome_v7.3.1`, `lucide_icons_v1.67.0`, `phosphor_icons_v2.1.0`, `tabler_icons_v3.50.0`).
 - **Standalone Host Raw-to-Static Converter (`build_static_ttf_assets.py`)**:
   - Added host script to instantiate 41 static [IBM Plex](https://github.com/IBM/plex) `.ttf` files and convert/normalize 13 icon `.ttf` files (`FontAwesome7-Solid.ttf`, `Regular.ttf`, `Brands.ttf`, `Lucide-Regular.ttf`, `Phosphor-*.ttf`, `Tabler-*.ttf`).
 

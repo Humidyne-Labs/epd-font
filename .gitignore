@@ -1,5 +1,5 @@
 # ==============================================================================
-# Humidyne Labs `epd-font` Repository .gitignore
+# Humidyne Labs / Humiditron `epd-font` v1.0.7 Repository .gitignore
 # ==============================================================================
 # Python Virtual Environments & Bytecode
 .venv/
@@ -9,10 +9,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Generated Build & Inspection Output Directories (recreated by scripts/*.bat)
+# Generated Build & Distribution Output Directories (recreated by scripts/*/*.bat)
+# Note: static_ttfs/, metadata/, and ascii_patches/ live inside build/
 build/
-build_icons/
+dist/
 *.egg-info/
+
+# Explicitly keep the root hand-tuned optical patch manifest tracked in Git!
+!epd_font_patches.json
 
 # OS & Editor Artifacts
 .DS_Store

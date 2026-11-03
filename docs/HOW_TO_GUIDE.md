@@ -1,215 +1,82 @@
-# `epd-font` (`v0.0.6`) — Complete How-To Guide (Installation, Setup, Custom Schemes & Examples)
+# Complete How-To Guide — `epd-font` (v1.0.7)
 
-**Repository:** [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)  
-**Target Firmware OS:** [Humidyne-Labs/H1OS](https://github.com/Humidyne-Labs/H1OS) & `humid1-os`
+**Repository**: `https://github.com/Humidyne-Labs/epd-font`  
+**Organization**: Humidyne Labs / Humiditron  
+**License**: MIT License (Upstream fonts retain SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT)
 
 ---
 
-## 1. Environment Setup & Dependency Installation
+## 1. Host Prerequisites & Dependency Installation
 
-### 1.1 Windows (Automated via `scripts\00_setup_env.bat`)
-Double-click `scripts\00_setup_env.bat` in Windows Explorer, or run it from PowerShell / Command Prompt:
-```bat
-scripts\00_setup_env.bat
-```
-This script automatically creates a local `.venv` virtual environment at the repository root and installs:
-- **`fonttools>=4.40.0`**: Instantiates [IBM Plex](https://github.com/IBM/plex) Variable TTFs and converts Font Awesome 7 CFF `.otf` files into quadratic TrueType `.ttf` files.
-- **`Pillow>=10.0.0`**: Renders the Page Check PNG sheets, 18×–24× Char-by-Char Blueprint PNG cards, and 188-DPI master specimen sheet.
-- **`freetype-py>=2.4.0`**: Bundles `libfreetype.dll` on Windows so `generate_plex_1bpp.py` can execute native `FT_LOAD_TARGET_MONO` 1-bit scanline conversion out of the box.
+`epd-font` has two distinct execution environments:
+1. **Maintainer / Developer Host (`build_static_ttf_assets.py` & `generate_plex_1bpp.py`)**: Requires Python 3.9+, `fonttools`, `Pillow`, and `freetype-py` (or system `libfreetype`).
+2. **Downstream Firmware / CMake Build (`plex_fw_emit.py`)**: Requires **ONLY** the standard Python 3 library (`0` pip packages, `0` native C libraries, `< 0.15s` execution time).
 
-### 1.2 Linux (Ubuntu / Debian / WSL2) & macOS
+### Install Maintainer Python Dependencies:
 ```bash
-# Ubuntu / Debian / WSL2:
-sudo apt-get update && sudo apt-get install -y libfreetype6 python3 python3-venv python3-pip
-python3 -m venv .venv && source .venv/bin/activate
-pip install --upgrade pip "fonttools>=4.40.0" "Pillow>=10.0.0"
-
-# macOS (Homebrew):
-brew install freetype python
-python3 -m venv .venv && source .venv/bin/activate
-pip install --upgrade pip "fonttools>=4.40.0" "Pillow>=10.0.0"
+python -m pip install --upgrade pip
+python -m pip install "fonttools>=4.40.0" "Pillow>=10.0.0" "freetype-py>=2.4.0"
 ```
-
-*(Note: The downstream firmware emitter `plex_fw_emit.py` used inside `H1OS` requires **zero** external packages—it uses 100% pure Python 3 standard library and runs directly inside ESP-IDF's bundled Python environment).*
+*(Or on Windows, double-click `00_setup_env.bat` inside any `scripts\*\` folder.)*
 
 ---
 
-## 2. Step-by-Step Windows Batch Workflow (`scripts\`)
+## 2. Understanding the `build/`, `dist/`, and Root Patch Architecture
 
-You never have to type long command-line arguments manually. Run the numbered scripts in `scripts\` in order:
-
-1. **`scripts\01_build_static_ttfs.bat`**:
-   - Scans `assets/` (`assets/font_assets/` and `assets/icon_assets/`) and populates `assets/static_ttfs/` with all **54 static `.ttf` fonts**, `licenses/`, and `metadata/*.json` icon catalogs (`fa7_catalog.json`, `lucide_catalog.json`, `phosphor_catalog.json`, `tabler_catalog.json`, `unified_icon_names.json`, `asset_manifest.json`).
-2. **`scripts\02_build_h1os_fonts.bat`**:
-   - Reads `tools/fonts/schemes/h1os_epd_scheme.json` and compiles all 68 strikes into `build/fonts/` (`.c` and `.h` files), `build/bdf/` (`.bdf` files), `build/metrics/` (`.csv` files), and `build/dist/plex_epd_vault.json.gz`.
-3. **`scripts\03_visual_check_pngs.bat`**:
-   - Renders Page Check sheets in `build/inspect_pages/<strike>.png`, Char-by-Char Blueprint cards in `build/inspect_chars/<strike>/U+XXXX_<name>.png`, the 188-DPI Specimen Sheet in `build/inspect_pages/plex_epd_specimen_188dpi.png`, and prints the 200×200 SSD1681 screen width audit.
-4. **`scripts\04_dump_ascii_patches.bat`**:
-   - Exports all strikes into `tools/fonts/ascii_patches/<strike>/U+XXXX_<name>.txt` as Full-Canvas 1:1 Spaced ASCII files.
-5. **`scripts\05_apply_ascii_patches.bat`**:
-   - Compiles any `.txt` files you edited in `tools/fonts/ascii_patches/` into `tools/fonts/plex_epd_patches.json` and immediately rebuilds `build/fonts/` and `plex_epd_vault.json.gz`.
-6. **`scripts\07_package_h1os_deployment.bat`**:
-   - Refreshes `dist/h1os_deployment/` and packages `dist/h1os_deployment.zip` for the `H1OS` repository.
+To keep the Git repository lightweight while preserving every pixel-level customization:
+- **`assets/` (Tracked in Git)**: Contains raw upstream variable `.ttf` fonts, `.otf` icon fonts, and `terminus-font-4.49.1.tar.gz`.
+- **`epd_font_patches.json` (Tracked in Git Root)**: The authoritative optical pixel patch manifest. Whenever you edit a Full-Canvas 1:1 ASCII `.txt` glyph inside `build/<workflow>/ascii_patches/` and run `--workflow patch --apply` (or `05_apply_ascii_patches.bat`), your edits are compiled into `epd_font_patches.json` at the repository root.
+- **`build/` (Gitignored)**: Holds all generated intermediate files:
+  - `build/static_ttfs/` — All 56 static `.ttf` binaries (`41` IBM Plex + `2` Terminus + `13` Icon TTFs) and `licenses/`.
+  - `build/metadata/` — Searchable JSON catalogs (`fa7_catalog.json`, `lucide_catalog.json`, `phosphor_catalog.json`, `tabler_catalog.json`, `terminus_catalog.json`, `plex_catalog.json`, `unified_icon_names.json`, `asset_manifest.json`).
+  - `build/<workflow>/ascii_patches/` — Dumped Full-Canvas 1:1 Spaced ASCII `.txt` glyph files.
+  - `build/<workflow>/fonts/` — Generated LVGL v9 `.c` files, `epd_fonts.h`, `plex_fonts.h`, and optional `h1os_fonts.h`.
+  - `build/<workflow>/inspect_pages/` & `build/<workflow>/inspect_chars/` — Visual inspection PNGs.
+- **`dist/` (Gitignored)**: Holds self-contained distribution bundles (`dist/example_distro/`, `dist/audit_distro/`, `dist/h1os_distro/`) ready to drop into any firmware project.
 
 ---
 
-## 3. Unified Python CLI Reference (1 Input Dir, 1 Output Dir)
+## 3. Running the 4 Self-Contained Windows Batch Workflows (`scripts/*`)
 
-All three Python tools in `tools/fonts/` use a clean, non-overlapping flag structure with a **single `--src-dir`** and a **single `--out-dir`**.
+Each subdirectory under `scripts/` contains its own `.scheme.json` and numbered `.bat` pipeline (`00` through `99`):
 
-### 3.1 Tool 1: `build_static_ttf_assets.py` (Raw Assets → Static TTFs & Catalog JSONs)
-```bash
-# Default invocation (reads <repo>/assets, writes <repo>/assets/static_ttfs):
-python tools/fonts/build_static_ttf_assets.py --verify
+| Workflow Subdirectory | Scheme File(s) | Build Output | Dist Output | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| `scripts/example-build-distro/` | `example.scheme.json` | `build/example/` | `dist/example_distro/` | General-purpose embedded project template (Sans, Mono, Terminus, Lucide, Phosphor) |
+| `scripts/full-audit-build-dev/` | `full_audit.scheme.json` | `build/audit_dev/` | `dist/audit_dev_distro/` | Exhaustive 12–40pt developer audit (all fonts & icons + every char PNG & ASCII dump) |
+| `scripts/full-audit-build-distro/` | `full_audit_distro.scheme.json` | `build/audit/` | `dist/audit_distro/` | Exhaustive 12–40pt master distribution bundle & Strike Vault |
+| `scripts/h1os-build-distro/` | `h1os_full.scheme.json`, `h1os_lite.scheme.json` | `build/h1os/` | `dist/h1os_distro/` | Dedicated H1OS & `humid1-os` firmware deployment bundle |
 
-# Explicit single input dir and single output dir:
-python tools/fonts/build_static_ttf_assets.py \
-  --src-dir ./assets \
-  --out-dir ./assets/static_ttfs \
-  --force \
-  --verify
+---
 
-# Rebuild only icon fonts (FA7, Lucide, Phosphor, Tabler):
-python tools/fonts/build_static_ttf_assets.py --families icons --force --verify
-```
+## 4. Customizing Display Geometry & Schemes (`tools/fonts/schemes/*.json`)
 
-### 3.2 Tool 2: `generate_plex_1bpp.py` (Static TTFs + Scheme → C Fonts, PNGs, ASCII, Vault)
-`generate_plex_1bpp.py` takes a single `--src-dir` (default: `assets/static_ttfs`) and a single `--out-dir` (default: `build`), automatically organizing outputs into `build/fonts/`, `build/dist/`, `build/bdf/`, `build/metrics/`, `build/inspect_pages/`, and `build/inspect_chars/`:
+You can configure any display resolution, DPI, and safe margin either in your `.scheme.json` under `"target_display"` or on the command line:
 
 ```bash
-# 1. Build C/H modules, BDFs, CSVs, and Strike Vault into ./build:
-python tools/fonts/generate_plex_1bpp.py --workflow build
-
-# 2. Render Page Check PNGs, Char-by-Char Blueprint PNGs, and 200x200 Screen Audit:
-python tools/fonts/generate_plex_1bpp.py --workflow check
-
-# 3. Render Char-by-Char Blueprint PNGs for EVERY glyph in 14px and 16px Sans & Lucide:
-python tools/fonts/generate_plex_1bpp.py \
-  --workflow check \
-  --families sans icon_lucide \
-  --sizes 14 16 \
-  --inspect-chars-filter all
-
-# 4. Dump Full-Canvas 1:1 Spaced ASCII .txt glyph files into tools/fonts/ascii_patches:
-python tools/fonts/generate_plex_1bpp.py --workflow patch --dump
-
-# 5. Compile edited ASCII .txt files into tools/fonts/plex_epd_patches.json:
-python tools/fonts/generate_plex_1bpp.py --workflow patch --apply
-
-# 6. Run the entire pipeline end-to-end with a custom scheme and output folder:
-python tools/fonts/generate_plex_1bpp.py \
-  --workflow all \
-  --scheme tools/fonts/schemes/icons_modular_scheme.json \
-  --src-dir assets/static_ttfs \
-  --out-dir build_icons
+python tools/fonts/generate_plex_1bpp.py --workflow check \
+  --scheme tools/fonts/schemes/weather_station_epd.scheme.json \
+  --dpi 112.0 --screen-width 296 --screen-height 128 --safe-margin 6 \
+  --out-dir build/weather --dist-dir dist/weather_distro --audit-screens
 ```
 
-### 3.3 Tool 3: `plex_fw_emit.py` (Zero-Dependency Firmware Emitter for `H1OS`)
+---
+
+## 5. Using the Agent-First Tooling Suite (`tools/agent/`)
+
+Never guess character widths, string pixel lengths, or icon codepoints:
+
 ```bash
-python tools/fonts/plex_fw_emit.py \
-  --scheme tools/fonts/schemes/h1os_epd_scheme.json \
-  --vault dist/plex_epd_vault.json.gz \
-  --ascii-dir tools/fonts/ascii_patches \
-  --out-dir build/generated_fonts \
-  --sizes 14 16 18 20 24 32
+# 1. Inspect exact pixel metrics and 1:1 ASCII art for any character or icon:
+python tools/agent/tools/char_info.py --strike plex_icon_phosphor_fill_20 --char alarm
+
+# 2. Compute exact kerning-aware string width and screen clearance:
+python tools/agent/tools/string_info.py --strike plex_sans_normal_14 --text "Vapor Pressure" \
+  --right-text "42.8 hPa" --right-strike plex_mono_bold_14 --screen-width 200 --safe-margin 6
+
+# 3. Search 12,200+ icons across FA7, Lucide, Phosphor, and Tabler:
+python tools/agent/tools/icon_search.py --query battery --vendor icon_phosphor
+
+# 4. List all 56 static TTFs, catalogs, and 16 built-in schemes:
+python tools/agent/tools/font_catalog_info.py
 ```
-
----
-
-## 4. How Icon Scoping & Custom Icon Inclusion Works (`schemes/*.json`)
-
-### 4.1 Where Are Available Icons Listed?
-When `01_build_static_ttfs.bat` runs, it preserves **100% of upstream icons** inside the `.ttf` binaries in `assets/static_ttfs/` and generates 4 searchable catalog JSON files in `assets/static_ttfs/metadata/`:
-- `fa7_catalog.json`: **2,396** Font Awesome v7.0.0 icons (`"battery-full": "0xF240"`, `"wifi": "0xF1EB"`, etc.)
-- `lucide_catalog.json`: **2,043** Lucide v1.67.0 icons (`"battery-charging": "0xE054"`, `"thermometer": "0xE186"`, etc.)
-- `phosphor_catalog.json`: **1,513** Phosphor v2.1.0 icons (`"battery-high": "0xE0C2"`, `"wind": "0xE4F2"`, etc.)
-- `tabler_catalog.json`: **6,257** Tabler v3.50.0 Outline & Filled icons (`"temperature": "0xEB38"`, `"wifi": "0xEB52"`, etc.)
-
-### 4.2 Three Ways to Scope Icons in `tools/fonts/schemes/*.json`
-Inside any scheme file (such as `tools/fonts/schemes/h1os_epd_scheme.json`), each entry under `"character_sets"` can define which icons get compiled into C arrays using:
-
-1. **By Human-Readable Icon Names (`"icons": [...]`) — Recommended**:
-   Simply list the icon names from `metadata/<vendor>_catalog.json`:
-   ```json
-   "my_custom_lucide_icons": {
-     "description": "Custom Lucide icon subset for H1OS status bar and sensor cards",
-     "vendor": "icon_lucide",
-     "icons": [
-       "activity", "alert-triangle", "battery", "battery-charging", "battery-full",
-       "battery-low", "battery-medium", "bell", "bluetooth", "bug", "check",
-       "clock", "cloud", "cpu", "database", "droplet", "flame", "gauge",
-       "hard-drive", "home", "info", "lock", "memory-stick", "microchip",
-       "plug", "power", "qr-code", "radio", "refresh-cw", "satellite",
-       "settings", "shield", "signal", "sliders-horizontal", "snowflake",
-       "sun", "terminal", "thermometer", "timer", "trash-2", "unlock",
-       "usb", "wifi", "wind", "wrench", "zap"
-     ]
-   }
-   ```
-2. **By Hexadecimal Codepoints or Ranges (`"ranges"`)**:
-   ```json
-   "my_hex_icons": {
-     "vendor": "icon_fa7",
-     "ranges": "0xF001,0xF00C,0xF011-0xF015,0xF240-0xF244"
-   }
-   ```
-3. **Full Vendor Catalog (`"scope": "all"`)**:
-   *(Warning: Compiling all 2,000+ icons of a vendor at 16px consumes ~60 KB of flash; use only for desktop catalog previews).*
-   ```json
-   "lucide_full_catalog": {
-     "vendor": "icon_lucide",
-     "scope": "all"
-   }
-   ```
-
----
-
-## 5. Hand-Tuning Pixels in Notepad++ (`tools/fonts/ascii_patches/`)
-
-1. Run `scripts\04_dump_ascii_patches.bat` to populate `tools/fonts/ascii_patches/<strike_symbol>/U+XXXX_<name>.txt`.
-2. Open any glyph file in Notepad++ or VS Code (e.g., `tools/fonts/ascii_patches/plex_cond_bold_14/U+00B0_degree.txt`):
-   ```text
-   grid_mode: full_canvas
-   canvas_x0: 0
-   canvas_y_top: 15
-   canvas_y_bot: -4
-   adv_w_fp4: 95
-   box_w: 5
-   box_h: 5
-   ofs_x: 1
-   ofs_y: 5
-   ---
-   # x: 0 1 2 3 4 5
-        . . . . . .  | y=+15 (ASCENDER)
-        . . . . . .  | y=+14
-        . . . . . .  | y=+13
-        . . . . . .  | y=+12
-        . . . . . .  | y=+11
-        . . . . . .  | y=+10 (CAP_HEIGHT)
-        . . # # # .  | y=+09
-        . # # . # #  | y=+08
-        . # # . # #  | y=+07 (X_HEIGHT)
-        . # # . # #  | y=+06
-        . . # # # .  | y=+05
-        . . . . . .  | y=+04
-        . . . . . .  | y=+03
-        . . . . . .  | y=+02
-        . . . . . .  | y=+01
-        - - - - - -  | y=+00 <-- BASELINE (y=0)
-   ```
-3. Edit `# ` (ink ON) and `. ` (ink OFF) anywhere on the canvas and save the file. `box_w`, `box_h`, `ofs_x`, and `ofs_y` are recalculated automatically from your `#` positions.
-4. Run `scripts\05_apply_ascii_patches.bat` to compile your edits into `tools/fonts/plex_epd_patches.json` and regenerate `build/fonts/` and `dist/plex_epd_vault.json.gz`.
-
----
-
-## 6. Deploying to `H1OS` (`h1os_deployment.zip`)
-
-The `h1os_deployment.zip` archive (also staged in `dist/h1os_deployment/`) is a turnkey drop-in for **[Humidyne-Labs/H1OS](https://github.com/Humidyne-Labs/H1OS)** (`components/h1os/`):
-1. Extract `h1os_deployment.zip` into `H1OS/components/h1os/`.
-2. It provides:
-   - `CMakeLists.txt`: Drop-in replacement for `components/h1os/CMakeLists.txt` that invokes `tools/fonts/plex_fw_emit.py` during `idf.py build`.
-   - `tools/fonts/plex_fw_emit.py`: Zero-dependency pure-Python emitter.
-   - `tools/fonts/schemes/h1os_epd_scheme.json`: Declarative H1OS font & modular icon scheme.
-   - `tools/fonts/dist/plex_epd_vault.json.gz`: Pre-rasterized, patch-baked Strike Vault.
-   - `tools/fonts/LICENSES/`: All required upstream font & icon license files.
-3. Run `idf.py build`. `plex_fw_emit.py` emits all C font modules, `plex_fonts.h`, and `h1os_fonts.h` into `${CMAKE_CURRENT_BINARY_DIR}/generated_fonts` in `< 0.15 seconds`.

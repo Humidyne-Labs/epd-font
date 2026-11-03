@@ -1,92 +1,107 @@
-# `epd-font` (`v0.0.6`) — Humidyne Labs 1-BPP Bilevel E-Paper Typography & Modular Icon Suite
+# `epd-font` (v1.0.7) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
 
-**Repository:** [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)  
-**Target Firmware OS:** [Humidyne-Labs/H1OS](https://github.com/Humidyne-Labs/H1OS) & `humid1-os` (ESP32-S3 / SSD1681 200×200 188-DPI EPD / LVGL v9)  
-**Current Version:** `v0.0.6` (revved from `v0.0.5`)
+[![Version](https://img.shields.io/badge/version-v1.0.7-blue.svg)](VERSION.json)
+[![Repository](https://img.shields.io/badge/github-Humidyne--Labs%2Fepd--font-181717.svg)](https://github.com/Humidyne-Labs/epd-font)
+[![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL--1.1%20%2F%20ISC-green.svg)](LICENSE)
 
----
-
-## 1. Overview
-
-`epd-font` is the standalone 1-bit per pixel (`bpp=1`) bilevel font foundry, Full-Canvas 1:1 ASCII pixel-patching studio, visual QA inspector, and zero-dependency firmware font emitter for **Humidyne Labs** embedded e-paper systems.
-
-It unifies **[IBM Plex](https://github.com/IBM/plex)** (`Sans`, `Sans Condensed`, `Mono`, `Serif`, `Math`) with four modular, swappable icon libraries (**Font Awesome v7.0.0**, **Lucide v1.67.0**, **Phosphor v2.1.0**, and **Tabler v3.50.0**), standardized into **54 uncompressed TrueType (`.ttf`) binaries** and compiled into zero-copy LVGL v9 `lv_font_t` C arrays using FreeType 2's native 1-bit monochrome scanline converter (`FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME | FT_LOAD_FORCE_AUTOHINT`).
+**`epd-font`** is a general-purpose, deterministic **1-bit-per-pixel (`1-bpp`) bilevel typography and modular iconography studio** engineered by **Humidyne Labs / Humiditron** for monochrome E-Paper Displays (EPD), OLEDs, Sharp Memory LCDs, and embedded LVGL v8/v9 applications.
 
 ---
 
-## 2. One-Click Windows Execution (`scripts/` Folder)
+## 1. Key Capabilities in v1.0.7
 
-All common build, inspection, patching, and deployment tasks are pre-configured as double-clickable Windows batch scripts inside `scripts/` (requiring zero manual command-line typing):
-
-| Windows Script (`scripts\`) | Action Performed |
-| :--- | :--- |
-| **`00_setup_env.bat`** | Creates `.venv` and installs `fonttools`, `Pillow`, and `freetype-py` (bundles `libfreetype.dll` for Windows). |
-| **`01_build_static_ttfs.bat`** | Converts raw assets in `assets/` into 54 static `.ttf` files (`assets/static_ttfs/`), generates searchable icon catalogs (`assets/static_ttfs/metadata/*_catalog.json`), collects licenses, and runs the 54-font verification audit. |
-| **`02_build_h1os_fonts.bat`** | Compiles `tools/fonts/schemes/h1os_epd_scheme.json` into LVGL v9 `.c`/`.h` files (`build/fonts/`), BDFs (`build/bdf/`), CSV metrics (`build/metrics/`), and exports the Strike Vault (`build/dist/plex_epd_vault.json.gz`). |
-| **`03_visual_check_pngs.bat`** | Renders Auto-Wrapped Page Check PNGs (`build/inspect_pages/*.png`), 18×–24× Char-by-Char Blueprint PNGs (`build/inspect_chars/<strike>/*.png`), the 188-DPI Specimen PNG, and runs the 200×200 SSD1681 screen width audit. |
-| **`04_dump_ascii_patches.bat`** | Dumps Full-Canvas 1:1 Spaced ASCII `.txt` glyph files into `tools/fonts/ascii_patches/<strike>/U+XXXX_<name>.txt` for pixel editing in Notepad++ or VS Code. |
-| **`05_apply_ascii_patches.bat`** | Compiles modified ASCII `.txt` files from `tools/fonts/ascii_patches/` into `tools/fonts/plex_epd_patches.json` and rebuilds the C fonts and Strike Vault. |
-| **`06_build_icons_catalog.bat`** | Compiles the standalone multi-vendor icon scheme (`tools/fonts/schemes/icons_modular_scheme.json`) into `build_icons/`. |
-| **`07_package_h1os_deployment.bat`** | Packages `dist/h1os_deployment/` and `dist/h1os_deployment.zip` ready to drop into [Humidyne-Labs/H1OS](https://github.com/Humidyne-Labs/H1OS). |
-| **`99_run_full_pipeline.bat`** | Runs `01` → `04` → `02` → `03` → `07` end-to-end in a single execution. |
+1. **56 Standardized Static TrueType (`.ttf`) Binaries (`build/static_ttfs/`)**:
+   - **IBM Plex Suite (41 cuts)**: `Sans` (`Thin 100`..`Bold 700` + Italics), `Sans Condensed` (`wdth=85`), `Mono`, `Serif`, and `Math`.
+   - **Terminus Font v4.49.1 (2 cuts)**: `Terminus-Regular.ttf` and `Terminus-Bold.ttf` (`1,356` glyphs each, automatically synthesized from `assets/font_assets/terminus-font-4.49.1.tar.gz` into pure quadratic `.ttf` outlines).
+   - **4 Modular Icon Suites (13 cuts, 12,200+ indexed PUA icons)**:
+     - **Font Awesome v7.2.0** (`Solid`, `Regular`, `Brands` — `2,396` icons)
+     - **Lucide v1.16.0** (`Regular` — `2,043` icons)
+     - **Phosphor v2.1.0** (`Thin`, `Light`, `Regular`, `Bold`, `Fill` — `1,513` PUA-sanitized icons with semantic glyph names baked in)
+     - **Tabler v3.41.1** (`Thin200`, `Light300`, `Regular`, `Filled` — `6,257` icons)
+   - **Custom `.ttf` Support**: Drop any third-party `.ttf` into `build/static_ttfs/` and reference `"ttf_file": "YourFont.ttf"` in any `.scheme.json`.
+2. **Clean Git-Friendly `build/` vs `dist/` vs Root Patch Architecture**:
+   - **`build/`** (gitignored): Houses all generated intermediate artifacts—`build/static_ttfs/`, `build/metadata/`, `build/<workflow>/ascii_patches/`, `build/<workflow>/fonts/`, `build/<workflow>/bdf/`, `build/<workflow>/metrics/`, `build/<workflow>/inspect_pages/`, and `build/<workflow>/inspect_chars/`.
+   - **`dist/`** (gitignored): Houses self-contained distribution bundles (`dist/example_distro/`, `dist/audit_distro/`, `dist/h1os_distro/`) containing the pre-rasterized Strike Vault (`plex_epd_vault.json.gz`), zero-dependency emitter (`plex_fw_emit.py`), `.c`/`.h` sources, and licenses.
+   - **`epd_font_patches.json`** (root-tracked in Git): Persists hand-edited 1:1 ASCII pixel patches at the repository root so `build/` and `dist/` can be deleted or ignored without ever losing pixel-level glyph refinements.
+3. **Configurable Display Geometry (`--dpi`, `--screen-width`, `--screen-height`, `--safe-margin`)**:
+   - No hardcoded panel assumptions: configure target resolution, DPI, and safe margins via CLI flags or the `"target_display"` object in any `.scheme.json`.
+4. **Agent-First Tooling Suite (`tools/agent/`)**:
+   - Purpose-built CLI tools (`char_info.py`, `string_info.py`, `icon_search.py`, `font_catalog_info.py`), `skills/*/SKILL.md`, and `rules/AGENT_TYPOGRAPHY_RULES.md` that give AI coding agents and engineers exact pixel metrics, kerning-aware string widths, and PUA icon UTF-8 literals with zero guessing.
 
 ---
 
-## 3. Repository Directory Structure
+## 2. Repository Directory Structure (`v1.0.7`)
 
 ```text
 epd-font/
-├── .gitignore                              # Git ignore rules for .venv/, build/, __pycache__/
-├── VERSION.json                            # Authoritative repo & upstream font version manifest (v0.0.6)
-├── README.md                               # Doc 1/4: Project overview & quick-start (this file)
-├── CHANGELOG.md                            # Doc 2/4: Dedicated version history (v0.0.1 -> v0.0.6)
+├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron code & tooling)
+├── VERSION.json                             # Release & upstream asset version manifest (v1.0.7)
+├── epd_font_patches.json                    # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
+├── README.md                                # Primary repository overview & quick-start
+├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.7)
 ├── docs/
-│   ├── HOW_TO_GUIDE.md                     # Doc 3/4: Complete install, setup, icon scoping & CLI guide
-│   └── MAINTAINER_SPEC.md                  # Doc 4/4: Architecture, FreeType internals & license policy
-├── LICENSES/                               # All upstream font/icon licenses + repo Apache-2.0 license
-├── scripts/                                # Runnable Windows (.bat) execution & test scripts (00..99)
-├── assets/
-│   ├── font_assets/ibm-plex-font/          # Raw upstream IBM Plex Variable & Math TTFs + licenses
-│   ├── icon_assets/                        # Raw upstream FA7, Lucide, Phosphor, Tabler fonts + metadata
-│   └── static_ttfs/                        # Generated 54 static .ttf files, licenses/, and metadata/*.json
-├── tools/fonts/
-│   ├── build_static_ttf_assets.py          # Tool 1: Raw assets -> Static .ttf files & JSON icon catalogs
-│   ├── generate_plex_1bpp.py               # Tool 2: Static .ttf files + Scheme -> C/H, PNGs, ASCII, Vault
-│   ├── plex_fw_emit.py                     # Tool 3: Zero-dependency pure-Python C/H emitter for H1OS CMake
-│   ├── plex_epd_patches.json               # Compiled optical 1-bpp pixel patch manifest
-│   ├── schemes/                            # Declarative JSON build schemes (h1os, icons, basic, full)
-│   └── ascii_patches/                      # Human-editable Full-Canvas 1:1 Spaced ASCII .txt glyph folders
-├── build/                                  # Unified single output directory created by generate_plex_1bpp.py
-│   ├── fonts/                              # Generated LVGL v9 .c files, plex_fonts.h, h1os_fonts.h
-│   ├── dist/plex_epd_vault.json.gz         # Pre-rasterized Strike Vault
-│   ├── bdf/                                # Adobe BDF 2.1 bitmap strikes
-│   ├── metrics/                            # Per-strike CSV character width & kerning tables
-│   ├── inspect_pages/                      # Auto-wrapped Page Check PNGs + 188-DPI master specimen
-│   └── inspect_chars/                      # 18x-24x Char-by-Char Engineering Blueprint PNG cards
-└── dist/
-    ├── plex_epd_vault.json.gz              # Latest Strike Vault for downstream firmware
-    └── h1os_deployment/                    # Turnkey drop-in tree for Humidyne-Labs/H1OS
+│   ├── HOW_TO_GUIDE.md                      # Complete installation, CLI, scheme & CMake integration guide
+│   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp typography & rasterization specification
+│   └── audits/
+│       ├── humiditron_audit_1.0.6-revved-to-1.0.7.txt
+│       └── HUMIDITRON_AUDIT_REPORT_v1.0.7.md # Formal v1.0.7 engineering & audit report
+├── scripts/                                 # Self-contained Windows (.bat) workflow directories:
+│   ├── full-audit-build-dev/                #   1. All fonts & icons (12-40pt) + full char-by-char PNGs & ASCII dumps
+│   ├── full-audit-build-distro/             #   2. All fonts & icons (12-40pt) master audit distribution bundle
+│   ├── h1os-build-distro/                   #   3. H1OS & humid1-os schemes (h1os_full & h1os_lite) + distro builder
+│   └── example-build-distro/                #   4. General-purpose embedded project example workflow
+├── assets/                                  # Immutable upstream raw font & icon source archives/trees
+│   ├── font_assets/                         #   - IBM Plex Variable TTFs + terminus-font-4.49.1.tar.gz
+│   └── icon_assets/                         #   - FA v7.2.0, Lucide v1.16.0, Phosphor v2.1.0, Tabler v3.41.1
+├── tools/
+│   ├── fonts/
+│   │   ├── build_static_ttf_assets.py       # Raw assets -> build/static_ttfs/*.ttf + build/metadata/*.json
+│   │   ├── generate_plex_1bpp.py            # Master 4-workflow 1-bpp studio (gen-assets, patch, check, build)
+│   │   ├── plex_fw_emit.py                  # Portable zero-dependency CMake firmware emitter (< 0.15s)
+│   │   └── schemes/                         # 16 curated general-purpose declarative JSON font schemes
+│   └── agent/                               # Agent-First deterministic inspection suite (zero guessing!)
+│       ├── tools/                           #   - char_info.py, string_info.py, icon_search.py, font_catalog_info.py
+│       ├── skills/                          #   - Concise SKILL.md definitions for AI coding agents
+│       └── rules/                           #   - AGENT_TYPOGRAPHY_RULES.md
+├── build/                                   # [Gitignored] All generated static_ttfs, metadata, ascii_patches, PNGs
+└── dist/                                    # [Gitignored] Self-contained firmware distribution bundles
 ```
 
 ---
 
-## 4. Upstream Font & Icon Versioning & License Matrix (`VERSION.json`)
+## 3. Quick Start
 
-| Asset Family | Upstream Version | Raw Source Location | Static `.ttf` Count | License & Attribution File |
-| :--- | :--- | :--- | :--- | :--- |
-| **IBM Plex Sans & Condensed** | `v0.2.0` (Variable) | `assets/font_assets/ibm-plex-font/sans_v0.2.0/` | 22 `.ttf` cuts (`100..700` + `Italic`, `wdth=100/85`) | SIL Open Font License 1.1 (`LICENSES/IBMPlex_Sans_OFL.txt`) |
-| **IBM Plex Mono** | `v1.0.0` (Variable) | `assets/font_assets/ibm-plex-font/mono_v1.0.0/` | 9 `.ttf` cuts (`300..700` + `Italic`) | SIL Open Font License 1.1 (`LICENSES/IBMPlex_Mono_OFL.txt`) |
-| **IBM Plex Serif** | `v2.0.0` (Variable) | `assets/font_assets/ibm-plex-font/serif_v2.0.0/` | 9 `.ttf` cuts (`300..700` + `Italic`) | SIL Open Font License 1.1 (`LICENSES/IBMPlex_Serif_OFL.txt`) |
-| **IBM Plex Math** | `v1.1.0` (Static) | `assets/font_assets/ibm-plex-font/math_v1.1.0/` | 1 `.ttf` cut (`IBMPlexMath-Regular.ttf`, 4,382 glyphs) | SIL Open Font License 1.1 (`LICENSES/IBMPlex_Math_OFL.txt`) |
-| **Font Awesome Free** | `v7.0.0` | `assets/icon_assets/font_awsome_v7.0.0/` | 3 `.ttf` cuts (`Solid`, `Regular`, `Brands`) | CC BY 4.0 / SIL OFL 1.1 (`LICENSES/FontAwesome7_LICENSE.txt`) |
-| **Lucide Icons** | `v1.67.0` | `assets/icon_assets/lucide_icons_v1.67.0/` | 1 `.ttf` cut (`Lucide-Regular.ttf`, 2,061 icons) | ISC License (`LICENSES/Lucide_ISC_LICENSE.txt`) |
-| **Phosphor Icons** | `v2.1.0` | `assets/icon_assets/phosphor_icons_v2.1.0/` | 5 `.ttf` cuts (`Regular`, `Bold`, `Fill`, `Light`, `Thin`) | MIT License (`LICENSES/Phosphor_MIT_LICENSE.txt`) |
-| **Tabler Icons** | `v3.50.0` | `assets/icon_assets/tabler_icons_v3.50.0/` | 4 `.ttf` cuts (`Regular`, `Light300`, `Thin200`, `Filled`) | MIT License (`LICENSES/Tabler_MIT_LICENSE.txt`) |
+### A. One-Click Windows Batch Workflows (`scripts/*`)
+Double-click or run `99_run_full_pipeline.bat` inside any of the 4 workflow folders:
+- **General Example Project**: `scripts\example-build-distro\99_run_full_pipeline.bat` -> outputs to `build\example\` and `dist\example_distro\`
+- **Full 12–40pt Master Audit (Dev)**: `scripts\full-audit-build-dev\99_run_full_pipeline.bat` -> outputs to `build\audit_dev\` and `dist\audit_dev_distro\`
+- **Full 12–40pt Master Audit (Distro)**: `scripts\full-audit-build-distro\99_run_full_pipeline.bat` -> outputs to `build\audit\` and `dist\audit_distro\`
+- **H1OS / `humid1-os` Deployment**: `scripts\h1os-build-distro\99_run_full_pipeline.bat` -> outputs to `build\h1os\` and `dist\h1os_distro\`
+
+### B. Command-Line Usage (Cross-Platform Python 3)
+```bash
+# 1. Install host Python dependencies
+pip install "fonttools>=4.40.0" "Pillow>=10.0.0" "freetype-py>=2.4.0"
+
+# 2. Synthesize all 56 static .ttf files into build/static_ttfs/ and catalogs into build/metadata/
+python tools/fonts/build_static_ttf_assets.py --verify
+
+# 3. Build 1-bpp C/H fonts, BDFs, CSVs, and Strike Vault using any general scheme
+python tools/fonts/generate_plex_1bpp.py --workflow build \
+  --scheme tools/fonts/schemes/humid1_reference.scheme.json \
+  --out-dir build/humid1 --dist-dir dist/humid1_distro
+
+# 4. Query exact glyph/string metrics & search icons via the Agent-First tools
+python tools/agent/tools/char_info.py --strike plex_icon_phosphor_fill_20 --char alarm
+python tools/agent/tools/string_info.py --strike plex_sans_normal_14 --text "Vapor Pressure" --right-text "42.8 hPa" --right-strike plex_mono_bold_14
+python tools/agent/tools/icon_search.py --query thermometer
+```
 
 ---
 
-## 5. Documentation Map
+## 4. Documentation Index
 
-- **[`CHANGELOG.md`](CHANGELOG.md)**: Complete version history from `v0.0.1` through `v0.0.5` and `v0.0.6`.
-- **[`docs/HOW_TO_GUIDE.md`](docs/HOW_TO_GUIDE.md)**: Step-by-step installation, Windows `.bat` workflow, CLI arguments, how to scope/add custom icons by name in `schemes/*.json`, ASCII pixel patching, and `H1OS` CMake integration.
-- **[`docs/MAINTAINER_SPEC.md`](docs/MAINTAINER_SPEC.md)**: Formal engineering specification, FreeType `FT_LOAD_TARGET_MONO` rendering architecture, CFF `.otf` to `.ttf` conversion math, `.gitignore` policy, and license compliance rules.
+- **[Complete How-To Guide (`docs/HOW_TO_GUIDE.md`)](docs/HOW_TO_GUIDE.md)** — Step-by-step installation, CLI reference, 16 schemes guide, custom ASCII patching, and CMake integration.
+- **[Maintainer & Architecture Specification (`docs/MAINTAINER_SPEC.md`)](docs/MAINTAINER_SPEC.md)** — Formal 1-bpp rasterization math, Terminus BDF-to-TTF synthesis, and PUA icon catalog architecture.
+- **[Formal v1.0.7 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.7.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.7.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
+- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.7`.

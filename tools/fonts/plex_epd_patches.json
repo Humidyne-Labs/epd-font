@@ -181,5 +181,9 @@
         "..#####.."
       ]
     }
-  }
+  },
+  "version": "1.0.7",
+  "repository": "https://github.com/Humidyne-Labs/epd-font",
+  "license": "MIT",
+  "description": "Root-tracked hand-tuned 1-bpp optical glyph patches for Humidyne Labs / Humiditron epd-font. Kept in repository root so build/ and dist/ remain gitignored without losing pixel edits."
 }

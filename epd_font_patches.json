@@ -1,0 +1,189 @@
+{
+  "_meta": {
+    "schema_version": "2.0.0",
+    "description": "Surgical 1-bpp pixel-grid overrides for IBM Plex EPD v2.0 (FT_LOAD_TARGET_MONO + FT_LOAD_FORCE_AUTOHINT + Regular wght=400 baseline). Because FreeType's native 1-bit monochrome scanline converter with symmetric autohinting keeps 98%+ of counters open at 12-16px, only ultra-dense multi-stroke symbols at 12px/14px require micro-tuning.",
+    "raster_baseline": "autohint-mono (FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME)",
+    "normal_weight": 400
+  },
+  "plex_sans_normal_12": {
+    "U+0023": {
+      "comment": "Clean symmetric octothorpe (#) at 12px with open 2x2 center counter",
+      "adv_w": 8,
+      "box_w": 7,
+      "box_h": 8,
+      "ofs_x": 1,
+      "ofs_y": 0,
+      "rows": [
+        "..#..#.",
+        "..#..#.",
+        "#######",
+        ".#..#..",
+        ".#..#..",
+        "#######",
+        ".#..#..",
+        ".#..#.."
+      ]
+    },
+    "U+0024": {
+      "comment": "Open top and bottom S-bowls on dollar sign ($) at 12px",
+      "adv_w": 7,
+      "box_w": 5,
+      "box_h": 10,
+      "ofs_x": 1,
+      "ofs_y": -1,
+      "rows": [
+        "..#..",
+        ".###.",
+        "#.#.#",
+        "#.#..",
+        ".###.",
+        "..#.#",
+        "..#.#",
+        "#.#.#",
+        ".###.",
+        "..#.."
+      ]
+    },
+    "U+0025": {
+      "comment": "Crisp diagonal slash and open 2x2 bowls on percent (%) at 12px",
+      "adv_w": 11,
+      "box_w": 10,
+      "box_h": 8,
+      "ofs_x": 1,
+      "ofs_y": 0,
+      "rows": [
+        ".##....#..",
+        "#..#..#...",
+        "#..#.#....",
+        ".##..#.##.",
+        "....#.#..#",
+        "...#..#..#",
+        "..#...#..#",
+        "..#....##."
+      ]
+    },
+    "U+0026": {
+      "comment": "Open upper and lower loops on ampersand (&) at 12px",
+      "adv_w": 8,
+      "box_w": 7,
+      "box_h": 8,
+      "ofs_x": 1,
+      "ofs_y": 0,
+      "rows": [
+        "..##...",
+        ".#..#..",
+        ".#..#..",
+        "..##...",
+        ".#..#.#",
+        "#...##.",
+        "#...#..",
+        ".###..#"
+      ]
+    },
+    "U+0040": {
+      "comment": "Clear 1px separation between outer loop and inner 'a' on @ at 12px",
+      "adv_w": 10,
+      "box_w": 9,
+      "box_h": 10,
+      "ofs_x": 1,
+      "ofs_y": -2,
+      "rows": [
+        "..#####..",
+        ".#.....#.",
+        "#..###..#",
+        "#.#...#.#",
+        "#.#...#.#",
+        "#.#...#.#",
+        "#..####.#",
+        "#........",
+        ".#.....#.",
+        "..#####.."
+      ]
+    }
+  },
+  "plex_mono_normal_12": {
+    "U+0023": {
+      "comment": "Monospace 7px cell octothorpe (#) at 12px with clean horizontal bars and open 1x2 center",
+      "adv_w": 7,
+      "box_w": 7,
+      "box_h": 8,
+      "ofs_x": 0,
+      "ofs_y": 0,
+      "rows": [
+        "..#.#..",
+        "..#.#..",
+        "#######",
+        ".#.#...",
+        ".#.#...",
+        "#######",
+        ".#.#...",
+        ".#.#..."
+      ]
+    },
+    "U+0030": {
+      "comment": "Monospace 12px zero (0) with clean centered interior dot",
+      "adv_w": 7,
+      "box_w": 6,
+      "box_h": 8,
+      "ofs_x": 1,
+      "ofs_y": 0,
+      "rows": [
+        ".####.",
+        "#....#",
+        "#....#",
+        "#.##.#",
+        "#.##.#",
+        "#....#",
+        "#....#",
+        ".####."
+      ]
+    },
+    "U+0040": {
+      "comment": "Monospace 12px @ with distinct inner counter inside 6x9 box",
+      "adv_w": 7,
+      "box_w": 6,
+      "box_h": 9,
+      "ofs_x": 1,
+      "ofs_y": -1,
+      "rows": [
+        ".####.",
+        "#....#",
+        "#.##.#",
+        "#.#..#",
+        "#.#..#",
+        "#.##.#",
+        "#..##.",
+        "#.....",
+        ".####."
+      ]
+    }
+  },
+  "plex_sans_cond_normal_14": {
+    "U+0040": {
+      "comment": "Condensed 14px @ with open inner bowl and separated outer ring",
+      "adv_w": 11,
+      "box_w": 9,
+      "box_h": 12,
+      "ofs_x": 1,
+      "ofs_y": -2,
+      "rows": [
+        "..#####..",
+        ".#.....#.",
+        "#..###..#",
+        "#.#...#.#",
+        "#.#...#.#",
+        "#.#...#.#",
+        "#.#...#.#",
+        "#..####.#",
+        "#........",
+        "#........",
+        ".#.....#.",
+        "..#####.."
+      ]
+    }
+  },
+  "version": "1.0.7",
+  "repository": "https://github.com/Humidyne-Labs/epd-font",
+  "license": "MIT",
+  "description": "Root-tracked hand-tuned 1-bpp optical glyph patches for Humidyne Labs / Humiditron epd-font. Kept in repository root so build/ and dist/ remain gitignored without losing pixel edits."
+}

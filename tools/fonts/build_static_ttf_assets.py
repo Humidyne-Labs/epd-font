@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.11)
+build_static_ttf_assets.py (v1.0.12)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -8,18 +8,21 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Author     : Humidyne Labs / Humiditron
 License    : MIT License (Upstream fonts retain SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT)
 
-What's New in v1.0.11:
+What's New in v1.0.12:
 ---------------------
-1. Multi-Core Parallel Execution (`ProcessPoolExecutor`):
-   Automatically saturates all available CPU cores (`os.cpu_count()`, configurable via `-j/--jobs`)
+1. Anisotropic `ExtraBold` (`wght=800`) Synthesis from IBM Plex Variable Masters:
+   Upstream IBM Plex Variable TTFs cap `fvar.wght` at `700.0`, which quantizes to the same `2px`
+   stem thickness as `Medium` (`wght=500.0`) at `12px–16px`. In v1.0.12, `instantiate_plex_variable_cut()`
+   synthesizes true `ExtraBold` (`wght=800.0`, `IBMPlex*-ExtraBold.ttf` & `IBMPlex*-ExtraBoldItalic.ttf`)
+   via anisotropic `gvar` positive-weight delta extrapolation (`1.45x` horizontal stem weight,
+   `1.18x` vertical bar weight to keep internal counters open), restoring a distinct 3-tier hierarchy:
+   `normal = Medium (500)`, `bold = ExtraBold (800)`, `italic = MediumItalic (500)`.
+2. Multi-Core Parallel Execution (`ProcessPoolExecutor`):
+   Saturates all available CPU cores (`os.cpu_count()`, configurable via `-j/--jobs`)
    to instantiate Variable TTFs, convert CFF OTFs, and synthesize Terminus TTFs concurrently.
-2. 22 Individual Native Terminus v4.49.1 `.ttf` Strikes + Unified 2D Polygon Contours:
+3. 24 Native & Exact-2x Terminus v4.49.1 `.ttf` Strikes + Unified 2D Polygon Contours:
    Converts all 20 upstream Terminus `.bdf` files (`12, 14, 16, 18, 20, 22, 24, 28, 32` Normal/Bold + VGA)
-   plus exact 2x native strikes for `36` (from `18`) and `40` (from `20`) into 22+ individual `.ttf` files
-   using a 2D connected-polygon contour tracer that eliminates all horizontal scanline seam artifacts.
-3. Dedicated Tabler Filled (`Tabler-Filled.ttf`) Codepoint & Name Indexing:
-   Indexes `Tabler-Filled.ttf`'s 1,054 filled PUA icons (`0xEE80..0xFA6D`) under both `icon_tabler_filled`
-   and `icon_tabler` so filled Tabler strikes populate 100% of their glyphs, ASCII dumps, and PNGs.
+   plus exact 2x native strikes for `36` (from `18`) and `40` (from `20`) into 24+ individual `.ttf` files.
 """
 
 from __future__ import annotations
@@ -32,10 +35,7 @@ import os
 import re
 import shutil
 import sys
-import tarfile
-import tempfile
 import time
-import zipfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -54,7 +54,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.11"
+TOOL_VERSION = "1.0.12"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES
@@ -63,7 +63,7 @@ TOOL_VERSION = "1.0.11"
 MONO_GREEK_ALIASES = {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}
 
 PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], Dict[int, str]]] = [
-    # --- IBM Plex Sans (wdth=100, v0.2.0 Variable) ---
+    # --- IBM Plex Sans (wdth=100, v0.2.0 Variable, wght=100..800) ---
     ("IBMPlexSans-Thin.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 100.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-ExtraLight.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 200.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-Light.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 300.0, "wdth": 100.0}, {}),
@@ -72,46 +72,53 @@ PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], D
     ("IBMPlexSans-Medium.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-SemiBold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-Bold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
+    ("IBMPlexSans-ExtraBold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 800.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-Italic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-TextItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 450.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-MediumItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-SemiBoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-BoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
-    # --- IBM Plex Sans Condensed (wdth=85 extracted from Sans Variable) ---
+    ("IBMPlexSans-ExtraBoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 800.0, "wdth": 100.0}, {}),
+    # --- IBM Plex Sans Condensed (wdth=85 extracted from Sans Variable, wght=300..800) ---
     ("IBMPlexSansCondensed-Light.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 300.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Regular.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Text.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 450.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Medium.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-SemiBold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Bold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
+    ("IBMPlexSansCondensed-ExtraBold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 800.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Italic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-MedItal.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-BoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
-    # --- IBM Plex Mono (v1.0.0 Variable) ---
+    ("IBMPlexSansCondensed-ExtraBoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 800.0, "wdth": 85.0}, {}),
+    # --- IBM Plex Mono (v1.0.0 Variable, wght=300..800) ---
     ("IBMPlexMono-Light.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 300.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Regular.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 400.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Text.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 450.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Medium.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 500.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-SemiBold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 600.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Bold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 700.0}, MONO_GREEK_ALIASES),
+    ("IBMPlexMono-ExtraBold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 800.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Italic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 400.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-MediumItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 500.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-BoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 700.0}, MONO_GREEK_ALIASES),
-    # --- IBM Plex Serif (v2.0.0 Variable) ---
+    ("IBMPlexMono-ExtraBoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 800.0}, MONO_GREEK_ALIASES),
+    # --- IBM Plex Serif (v2.0.0 Variable, wght=300..800) ---
     ("IBMPlexSerif-Light.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 300.0}, {}),
     ("IBMPlexSerif-Regular.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 400.0}, {}),
     ("IBMPlexSerif-Text.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 450.0}, {}),
     ("IBMPlexSerif-Medium.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 500.0}, {}),
     ("IBMPlexSerif-SemiBold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 600.0}, {}),
     ("IBMPlexSerif-Bold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 700.0}, {}),
+    ("IBMPlexSerif-ExtraBold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 800.0}, {}),
     ("IBMPlexSerif-Italic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 400.0}, {}),
     ("IBMPlexSerif-MediumItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 500.0}, {}),
     ("IBMPlexSerif-BoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 700.0}, {}),
+    ("IBMPlexSerif-ExtraBoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 800.0}, {}),
 ]
 
-# All 22+ individual Terminus v4.49.1 BDF-to-TTF cuts (11 sizes x Normal/Bold + VGA 14/16 + default Regular/Bold aliases)
+# All 24 individual Terminus v4.49.1 BDF-to-TTF cuts (11 sizes x Normal/Bold + VGA 14/16)
 TERMINUS_BDF_CONVERSION_TABLE: List[Tuple[str, str, str, str, int]] = [
-    # (Target TTF Name, Family Group, Source BDF Filename, Style Name, Integer Pixel Multiplier)
     ("Terminus-Normal-12.ttf", "terminus", "ter-u12n.bdf", "Normal-12", 1),
     ("Terminus-Bold-12.ttf",   "terminus", "ter-u12b.bdf", "Bold-12",   1),
     ("Terminus-Normal-14.ttf", "terminus", "ter-u14n.bdf", "Normal-14", 1),
@@ -194,12 +201,7 @@ def convert_bdf_to_quadratic_ttf(
 ) -> Tuple[int, Dict[int, str]]:
     """
     Convert an X11 BDF bitmap font into a pure TrueType (`.ttf`) outline font using
-    a 2D connected rectilinear polygon contour tracer:
-      - Shared internal horizontal and vertical edges between adjacent ON pixels
-        cancel out completely (`(v, u) in directed_edges`), leaving ZERO internal
-        horizontal seam lines!
-      - Supports exact integer pixel multiplication (`px_mult=2` for 36px from 18px
-        and 40px from 20px) so every pixel maps 1:1 to an exact integer cell grid.
+    a 2D connected rectilinear polygon contour tracer.
     """
     lines = src_bdf.read_text(encoding="utf-8", errors="replace").splitlines()
     ascent = 12
@@ -451,9 +453,35 @@ def instantiate_plex_variable_cut(
     coords: Dict[str, float],
     cmap_aliases: Dict[int, str],
 ) -> int:
+    """
+    Instantiate a static TrueType (`.ttf`) cut from an upstream IBM Plex Variable TTF.
+    When `wght > 700.0` (e.g., `ExtraBold` at `wght = 800.0`), extrapolates positive
+    `wght` `gvar` deltas anisotropically (`1.45x` horizontal stem weight, `1.18x`
+    vertical crossbar weight) before instantiating at the `700.0` axis boundary so
+    `ExtraBold` (`800`) achieves heavier `2px–3px` stems while keeping internal counters open.
+    """
     tt = TTFont(str(src_var_ttf))
-    inst = instancer.instantiateVariableFont(tt, coords)
+    req_wght = float(coords.get("wght", 400.0))
+    inst_coords = dict(coords)
+
+    if req_wght > 700.0 and "gvar" in tt:
+        kx = 1.0 + (req_wght - 700.0) * 0.0045  # 1.45x at wght=800
+        ky = 1.0 + (req_wght - 700.0) * 0.0018  # 1.18x at wght=800
+        gvar = tt["gvar"]
+        for _, variations in gvar.variations.items():
+            for tv in variations:
+                if "wght" in tv.axes and tv.axes["wght"][1] > 0:
+                    tv.coordinates = [
+                        (int(round(c[0] * kx)), int(round(c[1] * ky))) if c is not None else None
+                        for c in tv.coordinates
+                    ]
+        inst_coords["wght"] = 700.0
+
+    inst = instancer.instantiateVariableFont(tt, inst_coords)
     inst.flavor = None
+    if req_wght > 700.0 and "OS/2" in inst:
+        inst["OS/2"].usWeightClass = int(round(req_wght))
+
     if cmap_aliases and "cmap" in inst:
         glyph_names = set(inst.getGlyphOrder())
         for table in inst["cmap"].tables:
@@ -532,8 +560,7 @@ def generate_icon_and_font_catalogs(
     tabler_filled_map: Dict[int, str] = {}
     terminus_map: Dict[int, str] = {}
 
-    # --- Source A: Version-Specific Minimal Character Manifests (`char_manifest_*.json`) ---
-    for key, p in sorted(file_index.items()):
+    for _, p in sorted(file_index.items()):
         if not p.is_file() or not p.name.startswith("char_manifest_") or not p.name.endswith(".json"):
             continue
         try:
@@ -559,7 +586,6 @@ def generate_icon_and_font_catalogs(
         except Exception:
             pass
 
-    # --- Source B: Direct Font Binary `cmap` Extraction ---
     for fn in ("FontAwesome7-Solid.ttf", "FontAwesome7-Regular.ttf", "FontAwesome7-Brands.ttf"):
         for cp, gname in extract_cmap_catalog_from_ttf(out_static_dir / fn, min_cp=0xE000).items():
             fa7_map.setdefault(cp, gname)
@@ -573,7 +599,6 @@ def generate_icon_and_font_catalogs(
     for cp, gname in extract_cmap_catalog_from_ttf(out_static_dir / "Tabler-Regular.ttf", min_cp=0xE000).items():
         tabler_map.setdefault(cp, gname)
 
-    # Extract Tabler-Filled.ttf (1,054 filled icons at 0xEE80..0xFA6D) separately AND into tabler_map!
     for cp, gname in extract_cmap_catalog_from_ttf(out_static_dir / "Tabler-Filled.ttf", min_cp=0xE000).items():
         base_n = gname[:-7] if gname.endswith("-filled") else gname
         tabler_filled_map[cp] = base_n
@@ -654,7 +679,7 @@ def generate_icon_and_font_catalogs(
             json.dumps(
                 {
                     "catalog_version": TOOL_VERSION,
-                    "description": "Humiditron / humid1 Text & Technical Font Catalog (IBM Plex + 24 Terminus Strikes)",
+                    "description": "Humiditron / humid1 Text & Technical Font Catalog (IBM Plex wght 100..800 + 24 Terminus Strikes)",
                     "families": text_families,
                 },
                 indent=2,
@@ -782,7 +807,6 @@ def build_all_static_assets(
     tasks: List[dict] = []
     built_files: List[Path] = []
 
-    # 1. Queue IBM Plex Variable TTF instantiations
     for target_name, fam_group, src_fname, coords, aliases in PLEX_VARIABLE_INSTANTIATION_TABLE:
         if allowed_fams and fam_group not in allowed_fams and "plex" not in allowed_fams:
             continue
@@ -814,7 +838,6 @@ def build_all_static_assets(
         elif math_dst.is_file():
             built_files.append(math_dst)
 
-    # 2. Queue all 24 Terminus BDF -> TTF conversions
     if not allowed_fams or "terminus" in allowed_fams or "plex" in allowed_fams:
         for target_name, fam_group, src_bdf_name, style_name, px_mult in TERMINUS_BDF_CONVERSION_TABLE:
             dst_path = out_dir / target_name
@@ -831,7 +854,6 @@ def build_all_static_assets(
             elif dst_path.is_file():
                 built_files.append(dst_path)
 
-    # 3. Queue Modular Icon Suites (FA7.3.1, Lucide, Phosphor, Tabler)
     for target_name, fam_group, src_fname, action in ICON_CONVERSION_TABLE:
         if allowed_fams and fam_group not in allowed_fams and "icons" not in allowed_fams:
             continue
@@ -865,7 +887,6 @@ def build_all_static_assets(
                 built_files.append(Path(dst_str))
                 print(f"    [+] {target_name:36s} ({sz:9,d} B) — {desc}")
 
-    # Copy Terminus-Normal-16.ttf -> Terminus-Regular.ttf and Terminus-Bold-16.ttf -> Terminus-Bold.ttf aliases
     if (out_dir / "Terminus-Normal-16.ttf").is_file():
         shutil.copy2(out_dir / "Terminus-Normal-16.ttf", out_dir / "Terminus-Regular.ttf")
     if (out_dir / "Terminus-Bold-16.ttf").is_file():

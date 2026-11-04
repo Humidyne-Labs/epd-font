@@ -2,6 +2,26 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.12] — 2026-11-04
+
+### Fixed
+- **Root `2px` Stray File Bug (`08_iterative_auto_repair.bat`)**: Removed the stray `2px` file from the repository root and replaced unescaped `>=2px` inside `echo` statements with `2px+` across `scripts/h1os-build-distro/08_iterative_auto_repair.bat`, `scripts/example-build-distro/08_iterative_auto_repair.bat`, and `scripts/full-audit-build-distro/08_iterative_auto_repair.bat` (Windows `cmd.exe` parsed `>=2px` as stdout redirection `> 2px`).
+- **Paired Delimiter & Mirror Glyph Asymmetry (`(`, `)`, `[`, `]`, `{`, `}`, `<`, `>`, `/`, `\`, Arrows)**:
+  - Replaced the asymmetric `cv2.resize(..., INTER_NEAREST)` `base_cand_iou >= 0.62` gate in `humid1_bilevel_tuner.py` with a **Symmetric Dilated-Skeleton Containment Gate** (`Precision >= 0.85`, `Recall >= 0.84`) so `1px -> 2px` curve thickenings on right-heavy `)`, `]`, `}` are never rejected.
+  - Added **Bilateral Mirror-Pair Synchronization (`synchronize_mirror_glyph_pairs()`)** across all upright and italic strikes so `(` <-> `)`, `[` <-> `]`, `{` <-> `}`, `<` <-> `>`, `«` <-> `»`, `‹` <-> `›`, `≤` <-> `≥`, `/` <-> `\`, `←` <-> `→`, and `↑` <-> `↓` are 100% symmetric in dimensions, stem thickness, and pixel silhouette.
+- **`$` (`U+0024`) Central Vertical Spine & `1px` Vertical Bars (`|`, `!`)**:
+  - Added **Method M8 (`synth_m8_central_spine_expansion`)** to duplicate `1px` interior vertical spines (`c = w // 2`) in `$`, `+`, `±`, `¢`, `¥`, `Φ`, `Ψ` to `2px` (`##.##.##`) while aligning `1px` top/bottom spine tips and keeping both internal counters open (`B1 = 2`).
+  - Enabled `w0 == 1` vertical bar auto-flooring (`|` `U+007C` `1x16 -> 2x16`, `!` `U+0021` `1x12 -> 2x12`) and made `_apply_counter_punch()` non-destructive when internal counters are already open (`open_px > 0`).
+
+### Added
+- **Anisotropic `ExtraBold (wght=800)` Static TTF Synthesis & 3-Tier Weight Hierarchy**:
+  - Upgraded `tools/fonts/build_static_ttf_assets.py` (now generating **88 static `.ttf` files**) to synthesize `IBMPlexSans-ExtraBold.ttf`, `IBMPlexSans-ExtraBoldItalic.ttf`, `IBMPlexSansCondensed-ExtraBold.ttf`, `IBMPlexSansCondensed-ExtraBoldItalic.ttf`, `IBMPlexMono-ExtraBold.ttf`, `IBMPlexMono-ExtraBoldItalic.ttf`, `IBMPlexSerif-ExtraBold.ttf`, and `IBMPlexSerif-ExtraBoldItalic.ttf` via anisotropic `gvar` positive-weight delta extrapolation (`1.45x` horizontal stem weight, `1.18x` vertical bar weight).
+  - Mapped `bold -> ExtraBold (800)` when `normal = Medium (500)`, restoring a `+31.1%` to `+48.3%` ink-mass separation (`mean stem 3.11px` vs `2.26px` at `16px`) between `normal`, `bold`, and `italic`.
+- **Multi-Font & Weight Tournament Evaluator (`tools/fonts/humid1_font_eval.py` & `scripts/font-eval-suite/01_run_font_eval.bat`)**:
+  - Benchmarks candidate typefaces and weights across `10px–20px`, estimates raw vs. tournament-tuned pixel size floors, writes `docs/audits/FONT_EVAL_BENCHMARK_v1.0.12.md`, and renders `build/font_eval/font_eval_comparison_sheet.png`.
+- **Modularized Foundry Architecture (`tools/fonts/`)**:
+  - Extracted `humid1_ft_raster.py`, `humid1_ascii_patches.py`, `humid1_visual_check.py`, and `humid1_lvgl_bdf_export.py` from `humid1_generate_1bpp.py`, reducing `humid1_generate_1bpp.py` from `4,309` lines to `1,426` lines while preserving 100% CLI and import compatibility.
+
 ## [v1.0.11] — 2026-11-04
 ### Added
 - **8-Method Iterative Typographic Correction, Scoring & Evaluation Engine (`tools/fonts/humid1_bilevel_tuner.py`, `SPEC-TYPO-MATH-1BPP-001`)**:

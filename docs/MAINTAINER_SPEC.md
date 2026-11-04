@@ -1,6 +1,6 @@
-# Formal Typography & Maintainer Specification — `epd-font` (v1.0.11)
+# Formal Typography & Maintainer Specification — `epd-font` (v1.0.12)
 
-**Document ID**: `HUMIDITRON-SPEC-EPD-FONT-1.0.11`  
+**Document ID**: `HUMIDITRON-SPEC-EPD-FONT-1.0.12`  
 **Repository**: `https://github.com/Humidyne-Labs/epd-font`  
 **License**: MIT License (Tooling & C Emitter) / SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT (Upstream Fonts)
 
@@ -8,7 +8,7 @@
 
 ## 1. Architectural Overview
 
-`epd-font` v1.0.11 separates raw upstream font curation (`assets/`), intermediate TrueType & metadata synthesis (`build/static_ttfs/` and `build/metadata/`), optical pixel-grid patching (`font_icon_epd_patches.json` + `build/<workflow>/ascii_patches/`), and zero-dependency firmware emission (`dist/<workflow>_distro/`).
+`epd-font` v1.0.12 separates raw upstream font curation (`assets/`), intermediate TrueType & metadata synthesis (`build/static_ttfs/` and `build/metadata/`), optical pixel-grid patching (`font_icon_epd_patches.json` + `build/<workflow>/ascii_patches/`), and zero-dependency firmware emission (`dist/<workflow>_distro/`).
 
 ### 1.1 Supported Typeface & Icon Families (56 Static `.ttf` Cuts)
 
@@ -31,7 +31,7 @@
 
 Upstream `Phosphor*.ttf` binaries include 30 zero-width (`0×0` bounding box, `0` advance width) ASCII characters (`0x0020..0x007A`, including `0x0069 'i'`) in their `cmap` table to act as OpenType `GSUB` ligature anchors on desktop platforms, while storing all `1,513` real icons in the Private Use Area (`0xE000..0xEE83`) under generic `uniE000` glyph names.
 
-In `v1.0.11`, `build_static_ttf_assets.py` enforces two invariants on all icon `.ttf` binaries:
+In `v1.0.12`, `build_static_ttf_assets.py` enforces two invariants on all icon `.ttf` binaries:
 1. **Non-PUA Ligature Stub Stripping (`strip_non_pua=True`)**: All `cmap` entries with `cp < 0xE000` are stripped from icon `.ttf` binaries during static asset compilation.
 2. **Self-Describing Semantic Glyph Names**: `build_static_ttf_assets.py` reads `assets/icon_assets/phosphor_icons_v2.1.0/metadata/selection.json` and bakes the human-readable icon names (`"alarm"`, `"wifi-high"`, `"battery-full"`) directly into the `glyf`, `hmtx`, `cmap`, and `post` tables of every `Phosphor-*.ttf` binary as well as `build/metadata/phosphor_catalog.json`.
 
@@ -50,7 +50,7 @@ Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distr
   [00_setup_env.bat]             (One-time Python dependency installation: fonttools, Pillow, freetype-py, numpy, opencv-python)
           │
           ▼
-  [01_build_static_ttfs.bat]     (Instantiate 80 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
+  [01_build_static_ttfs.bat]     (Instantiate 88 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
           │
           ▼
   [04_dump_ascii_patches.bat]    (Dump baseline 1-BPP strikes -> build/<target>/ascii_patches/<symbol>/U+XXXX_<name>.txt)

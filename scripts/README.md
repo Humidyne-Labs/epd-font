@@ -15,7 +15,7 @@ Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distr
   [00_setup_env.bat]             (One-time Python dependency installation: fonttools, Pillow, freetype-py, numpy, opencv-python)
           │
           ▼
-  [01_build_static_ttfs.bat]     (Instantiate 80 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
+  [01_build_static_ttfs.bat]     (Instantiate 88 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
           │
           ▼
   [04_dump_ascii_patches.bat]    (Dump baseline 1-BPP strikes -> build/<target>/ascii_patches/<symbol>/U+XXXX_<name>.txt)

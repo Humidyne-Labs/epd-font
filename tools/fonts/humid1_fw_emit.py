@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_fw_emit.py (v1.0.11)
+humid1_fw_emit.py (v1.0.12)
 ========================
 Portable, Zero-Dependency Firmware Build-Time Font Emitter for H1OS & humid1-os.
 
@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
-TOOL_VERSION = "1.0.11"
+TOOL_VERSION = "1.0.12"
 
 
 @dataclass
@@ -917,7 +917,7 @@ def main() -> None:
     total_c_disk = sum(f.stat().st_size for f in out_dir.glob("*.c")) + sum(f.stat().st_size for f in out_dir.glob("*.h"))
     sz_lines = [
         "=" * 96,
-        "HUMIDYNE LABS / HUMIDITRON `epd-font` v1.0.11 — FIRMWARE EMITTER FLASH & DISK SIZE REPORT",
+        "HUMIDYNE LABS / HUMIDITRON `epd-font` v1.0.12 — FIRMWARE EMITTER FLASH & DISK SIZE REPORT",
         "=" * 96,
         f"  Scheme ID                    : {scheme.get('scheme_id', 'custom')}",
         f"  Total Emitted Strikes        : {len(emitted_symbols)}",

@@ -1,9 +1,9 @@
 {
   "repository": "https://github.com/Humidyne-Labs/epd-font",
   "organization": "Humidyne Labs / Humiditron",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "release_archive_tag": "v1.0.9",
-  "previous_version": "1.0.7",
+  "previous_version": "1.0.11",
   "release_date": "2026-11-04",
   "repository_license": "MIT",
   "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
@@ -88,5 +88,7 @@
       "char_manifest": "assets/icon_assets/tabler_icons_v3.50.0/char_manifest_tabler_v3.50.0.json",
       "license": "MIT"
     }
-  }
+  },
+  "static_ttf_count": 88,
+  "patch_count": 1816
 }

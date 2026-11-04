@@ -13,5 +13,5 @@ if errorlevel 1 (
     if "%EPD_NO_PAUSE%"=="" pause
     exit /b 1
 )
-echo [+] Closed-loop >=2px stem auto-floor and counter repair completed in build\example\inspect_repairs.
+echo [+] Closed-loop 2px+ stem auto-floor and counter repair completed in build\example\inspect_repairs.
 if "%EPD_NO_PAUSE%"=="" pause

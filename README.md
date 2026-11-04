@@ -1,6 +1,6 @@
-# `epd-font` (v1.0.11) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
+# `epd-font` (v1.0.12) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
 
-[![Version](https://img.shields.io/badge/version-v1.0.11-blue.svg)](VERSION.json)
+[![Version](https://img.shields.io/badge/version-v1.0.12-blue.svg)](VERSION.json)
 [![Repository](https://img.shields.io/badge/github-Humidyne--Labs%2Fepd--font-181717.svg)](https://github.com/Humidyne-Labs/epd-font)
 [![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL--1.1%20%2F%20ISC-green.svg)](LICENSE)
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 1. Key Capabilities in v1.0.11
+## 1. Key Capabilities in v1.0.12
 
 1. **80 Standardized Static TrueType (`.ttf`) Binaries (`build/static_ttfs/`)**:
    - **IBM Plex Suite (41 cuts)**: `Sans` (`Thin 100`..`Bold 700` + Italics), `Sans Condensed` (`wdth=85`), `Mono`, `Serif`, and `Math`.
@@ -30,15 +30,15 @@
 
 ---
 
-## 2. Repository Directory Structure (`v1.0.11`)
+## 2. Repository Directory Structure (`v1.0.12`)
 
 ```text
 epd-font/
 ├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron code & tooling)
-├── VERSION.json                             # Release & upstream asset version manifest (v1.0.11)
+├── VERSION.json                             # Release & upstream asset version manifest (v1.0.12)
 ├── font_icon_epd_patches.json               # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
 ├── README.md                                # Primary repository overview & quick-start
-├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.11)
+├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.12)
 ├── docs/
 │   ├── HOW_TO_GUIDE.md                      # Complete installation, CLI, scheme & CMake integration guide
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp typography & rasterization specification
@@ -80,7 +80,7 @@ Double-click or run `99_run_full_pipeline.bat` inside any of the 4 workflow fold
 # 1. Install host Python dependencies
 pip install "fonttools>=4.40.0" "Pillow>=10.0.0" "freetype-py>=2.4.0"
 
-# 2. Synthesize all 80 static .ttf files into build/static_ttfs/ and catalogs into build/metadata/
+# 2. Synthesize all 88 static .ttf files into build/static_ttfs/ and catalogs into build/metadata/
 python tools/fonts/build_static_ttf_assets.py --verify
 
 # 3. Build 1-bpp C/H fonts, BDFs, CSVs, and Strike Vault using any general scheme
@@ -100,8 +100,8 @@ python tools/agent/tools/icon_search.py --query thermometer
 
 - **[Complete How-To Guide (`docs/HOW_TO_GUIDE.md`)](docs/HOW_TO_GUIDE.md)** — Step-by-step installation, CLI reference, 16 schemes guide, custom ASCII patching, and CMake integration.
 - **[Maintainer & Architecture Specification (`docs/MAINTAINER_SPEC.md`)](docs/MAINTAINER_SPEC.md)** — Formal 1-bpp rasterization math, Terminus BDF-to-TTF synthesis, and PUA icon catalog architecture.
-- **[Formal v1.0.11 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.11.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.11.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
-- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.11`.
+- **[Formal v1.0.12 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.12.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.12.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
+- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.12`.
 
 
 ## Authoritative Script Execution Order (`00`–`08` & `99`)
@@ -112,7 +112,7 @@ Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distr
   [00_setup_env.bat]             (One-time Python dependency installation: fonttools, Pillow, freetype-py, numpy, opencv-python)
           │
           ▼
-  [01_build_static_ttfs.bat]     (Instantiate 80 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
+  [01_build_static_ttfs.bat]     (Instantiate 88 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
           │
           ▼
   [04_dump_ascii_patches.bat]    (Dump baseline 1-BPP strikes -> build/<target>/ascii_patches/<symbol>/U+XXXX_<name>.txt)

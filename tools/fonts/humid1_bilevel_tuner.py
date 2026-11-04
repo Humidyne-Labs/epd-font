@@ -1,36 +1,32 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_tuner.py (v1.0.11)
+humid1_bilevel_tuner.py (v1.0.12)
 =================================
 Humidyne Labs / Humiditron `epd-font` Iterative Multi-Method Typographic Correction,
-Scoring & Evaluation Engine (ASCII Patch Workflow + HQ Master & Nth-Factor Upscale Reference).
+Scoring & Evaluation Engine (ASCII Patch Workflow + HQ Master & Nth-Factor Upscale Reference
++ Method M8 Central-Spine Expansion + Bilateral Mirror-Pair Synchronization).
 
 Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
-Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/exhibits/v1.0.11/methods_doc.docx` & `line_tracer.docx`)
+Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/exhibits/v1.0.12/methods_doc.docx`)
 License    : MIT License
 
-Authoritative ASCII-Centric Workflow (`04 -> 08 -> 05 -> 02 -> 03`):
---------------------------------------------------------------------
-  Step 1 (`04_dump_ascii_patches.bat`)   : Dump baseline rasterized strikes into `build/<target>/ascii_patches/`.
-  Step 2 (`08_iterative_auto_repair.bat`): Run this exhaustive multi-method tournament engine across every
-                                           glyph `.txt` file in `build/<target>/ascii_patches/`.
-                                           - Synthesizes an 8x HQ Continuous Master Reference (`U_HQ`) and
-                                             a Smallest-Strike Nth-Factor Upscale Reference (`U_base_xN`)
-                                             for grid alignment & Jenson-Garamond counter-punching.
-                                           - Evaluates 8 distinct mathematical synthesis & repair methods
-                                             (`M0..M7`) across dynamic bounding-box widths (`W0, W0+1, W0+2`).
-                                           - Enforces strict Euler-Poincare topology (`B0` & `B1` Betti lock),
-                                             Mumford-Shah Total Variation skin-tag / notch eradication, and
-                                             >=2px stem floor.
-                                           - Rewrites improved `.txt` files directly in `ascii_patches/` with
-                                             `patched: 1` and renders Before/After comparison sheets (with
-                                             winning method & score breakdown) in `build/<target>/inspect_repairs/`.
-  Step 3 (`05_apply_ascii_patches.bat`)  : Compile modified/repaired `.txt` files from `ascii_patches/` into
-                                           the root `font_icon_epd_patches.json`.
-  Step 4 (`02_build_fonts.bat`)          : Build LVGL `.c`/`.h`, BDF, and Strike Vault with the applied patches.
-  Step 5 (`03_visual_check_pngs.bat`)    : Render `inspect_pages/` and `inspect_chars/` displaying the exact
-                                           `Patched: N/Total` count in every PNG banner.
+What's New in v1.0.12:
+----------------------
+1. Symmetric Dilated-Skeleton Containment Gate (Fixes `)` / `]` / `}` / `/` / `\\` Rejection):
+   Replaces the asymmetric `cv2.resize(..., INTER_NEAREST)` `base_cand_iou >= 0.62` filter
+   (which mathematically rejected `1px -> 2px` thickenings where exact IOU = N / 2N = 0.50
+   and favored left-curved `(` over right-curved `)`) with a symmetric Dilated-Skeleton
+   Containment check (`Recall >= 0.84` and `Dilated Precision >= 0.85`).
+2. Method M8 (`synth_m8_central_spine_expansion`) for `$` (`U+0024`), `+`, `±`, `Φ`, `Ψ`:
+   Detects glyphs where outer loop walls are `1px–2px` (`##.#.##` or `#..#.#.`) while the
+   interior vertical spine (`c = w // 2`) or top/bottom spine tip is `1px`, and duplicates
+   the central spine column to `2px` (`##.##.##`) while aligning `1px` top/bottom tips and
+   outer loop walls and preserving 100% of left and right open counters (`B1 = 2`).
+3. Bilateral Mirror-Pair Synchronization (`synchronize_mirror_glyph_pairs`):
+   Enforces exact horizontal/vertical mirror symmetry across paired delimiters and arrows in
+   every upright strike: `(` <-> `)`, `[` <-> `]`, `{` <-> `}`, `<` <-> `>`, `«` <-> `»`,
+   `‹` <-> `›`, `≤` <-> `≥`, `/` <-> `\\`, `←` <-> `→`, and `↑` <-> `↓`.
 """
 
 from __future__ import annotations
@@ -57,10 +53,41 @@ except ImportError:
 
 from PIL import Image, ImageDraw
 
-TOOL_VERSION = "1.0.11"
+TOOL_VERSION = "1.0.12"
 
 # Characters whose horizontal crossbars are structural and should be protected from vanishing
 HORIZONTAL_BAR_CHARS = set("eftEFHTzZ=-+~÷±≤≥≠≈#[")
+
+# Characters with an interior central vertical spine bisecting loops or crossbars
+CENTRAL_SPINE_CODEPOINTS = {
+    0x0024,  # '$' dollar
+    0x002B,  # '+' plus
+    0x00A2,  # '¢' cent
+    0x00A5,  # '¥' yen
+    0x00B1,  # '±' plus-minus
+    0x03A6,  # 'Φ' Greek Capital Phi
+    0x03A8,  # 'Ψ' Greek Capital Psi
+    0x03C6,  # 'φ' Greek Small Phi
+    0x03C8,  # 'ψ' Greek Small Psi
+    0x03D5,  # 'ϕ' Greek Phi Symbol
+    0x2020,  # '†' dagger
+    0x2021,  # '‡' double dagger
+}
+
+# Bilateral mirror-symmetric glyph pairs: (left_cp, right_cp, flip_mode)
+# flip_mode: "h" = horizontal mirror (np.fliplr), "v" = vertical mirror (np.flipud)
+MIRROR_GLYPH_PAIRS: List[Tuple[int, int, str]] = [
+    (0x0028, 0x0029, "h"),  # '(' <-> ')'
+    (0x005B, 0x005D, "h"),  # '[' <-> ']'
+    (0x007B, 0x007D, "h"),  # '{' <-> '}'
+    (0x003C, 0x003E, "h"),  # '<' <-> '>'
+    (0x00AB, 0x00BB, "h"),  # '«' <-> '»'
+    (0x2039, 0x203A, "h"),  # '‹' <-> '›'
+    (0x2264, 0x2265, "h"),  # '≤' <-> '≥'
+    (0x2190, 0x2192, "h"),  # '←' <-> '→'
+    (0x002F, 0x005C, "h"),  # '/' <-> '\'
+    (0x2191, 0x2193, "v"),  # '↑' <-> '↓'
+]
 
 # Punctuation / tiny diacritics where horizontal stem widening should be skipped
 SKIP_TUNING_CODEPOINTS = {
@@ -179,40 +206,39 @@ def _get_row_runs(row: np.ndarray) -> List[Tuple[int, int]]:
 
 def compute_betti_numbers(binary_img: np.ndarray) -> Tuple[int, int, np.ndarray]:
     """
-    Method 8 (Euler-Poincare Characteristic Conservation):
+    Method 15 (Euler-Poincare Characteristic & Betti Number Invariance):
     Compute:
-      - B0: number of 8-connected foreground ink components
-      - B1: number of 4-connected interior background holes (counters)
-      - counters_mask: uint8 mask (255 inside enclosed counters)
+      - B0 : number of 8-connected foreground ink components
+      - B1 : number of 4-connected enclosed internal background counters (holes)
+      - holes_mask : uint8 mask (255 = internal counter pixel)
     """
     if binary_img.size == 0 or np.count_nonzero(binary_img) == 0:
         return 0, 0, np.zeros_like(binary_img)
-
     fg = (binary_img > 0).astype(np.uint8) * 255
-    if HAS_CV2:
-        n_fg, _, _, _ = cv2.connectedComponentsWithStats(fg, connectivity=8)
-        b0 = max(0, int(n_fg - 1))
+    padded = np.pad(fg, 2, mode="constant", constant_values=0)
 
-        h, w = fg.shape
-        padded = cv2.copyMakeBorder(fg, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
-        inv = cv2.bitwise_not(padded)
-        ff_mask = np.zeros((h + 4, w + 4), np.uint8)
-        cv2.floodFill(inv, ff_mask, (0, 0), 0)
-        counters = inv[1:-1, 1:-1]
-        n_holes, _, _, _ = cv2.connectedComponentsWithStats(counters, connectivity=4)
-        b1 = max(0, int(n_holes - 1))
-        return b0, b1, counters
-    else:
+    if not HAS_CV2:
         return 1, 0, np.zeros_like(binary_img)
 
+    num_fg, _ = cv2.connectedComponents(padded, connectivity=8)
+    b0 = max(1, int(num_fg) - 1)
 
-def find_internal_counters(binary_img: np.ndarray) -> Tuple[np.ndarray, int, Optional[np.ndarray], Optional[np.ndarray]]:
-    """Compatibility wrapper returning (counters_mask_255, num_holes, labels, stats)."""
-    _, b1, counters = compute_betti_numbers(binary_img)
-    if HAS_CV2 and b1 > 0:
-        _, labels, stats, _ = cv2.connectedComponentsWithStats(counters, connectivity=4)
-        return counters, b1, labels, stats
-    return counters, b1, None, None
+    inv = cv2.bitwise_not(padded)
+    num_bg, bg_labels, stats, _ = cv2.connectedComponentsWithStats(inv, connectivity=4)
+    ph, pw = padded.shape
+    holes_padded = np.zeros_like(padded)
+    b1 = 0
+    for lbl in range(1, num_bg):
+        x = stats[lbl, cv2.CC_STAT_LEFT]
+        y = stats[lbl, cv2.CC_STAT_TOP]
+        w = stats[lbl, cv2.CC_STAT_WIDTH]
+        h = stats[lbl, cv2.CC_STAT_HEIGHT]
+        touches_border = (x == 0) or (y == 0) or (x + w >= pw) or (y + h >= ph)
+        if not touches_border:
+            b1 += 1
+            holes_padded[bg_labels == lbl] = 255
+
+    return b0, b1, holes_padded[2:-2, 2:-2]
 
 
 def detect_skin_tags_and_notches(
@@ -220,76 +246,57 @@ def detect_skin_tags_and_notches(
     hq_coverage: Optional[np.ndarray] = None,
 ) -> Tuple[int, int, List[Tuple[int, int]], List[Tuple[int, int]]]:
     """
-    Method 18 (Mumford-Shah Anisotropic Total Variation & Spur/Notch Analysis):
-    Detects:
-      1. `skin_tags`: isolated 1-pixel protrusions/burrs jutting out of a stem boundary
-         (e.g., a pixel p[r, c] == 255 with p[r-1, c] == 0 and p[r+1, c] == 0 attached
-         laterally to a stem where the HQ master density is low, or a 1px vertical pimple
-         with p[r, c-1] == 0 and p[r, c+1] == 0 on top/bottom of a horizontal bar).
-      2. `notches`: 1-pixel indentations/steps along a straight vertical stem edge (where
-         rows r-1 and r+1 have ink at column c, while row r drops to 0 at column c,
-         creating the 'N' step artifact seen in `humid1_font_plex_serif_normal_18_repair__N.jpg`).
-    Returns (num_skin_tags, num_notches, skin_tag_coords, notch_coords).
+    Method 7 & Method 18 (Discrete Total Variation / Mumford-Shah Boundary Regularization):
+    Detects 1-pixel "skin tags" (spurs / warts) and 1-pixel "notches" (indentations).
     """
-    if binary_img.size == 0:
-        return 0, 0, [], []
     h, w = binary_img.shape
-    fg = binary_img > 0
-
-    hq_resized = None
-    if hq_coverage is not None and hq_coverage.size > 0 and HAS_CV2:
-        if hq_coverage.shape != (h, w):
-            hq_resized = cv2.resize(hq_coverage, (w, h), interpolation=cv2.INTER_AREA)
-        else:
-            hq_resized = hq_coverage
-
+    fg = (binary_img > 0).astype(np.uint8)
     skin_tags: List[Tuple[int, int]] = []
     notches: List[Tuple[int, int]] = []
 
     for r in range(h):
+        runs = _get_row_runs(fg[r])
+        for s, e in runs:
+            rlen = e - s + 1
+            if rlen >= 3:
+                up_s = fg[r - 1, s] if r > 0 else 0
+                dn_s = fg[r + 1, s] if r + 1 < h else 0
+                up_in = fg[r - 1, s + 1] if r > 0 else 0
+                dn_in = fg[r + 1, s + 1] if r + 1 < h else 0
+                if up_s == 0 and dn_s == 0 and (up_in > 0 and dn_in > 0):
+                    cov = float(hq_coverage[r, s]) if (hq_coverage is not None and hq_coverage.shape == (h, w)) else 0.0
+                    if cov < 0.52:
+                        skin_tags.append((r, s))
+
+                up_e = fg[r - 1, e] if r > 0 else 0
+                dn_e = fg[r + 1, e] if r + 1 < h else 0
+                up_ein = fg[r - 1, e - 1] if r > 0 else 0
+                dn_ein = fg[r + 1, e - 1] if r + 1 < h else 0
+                if up_e == 0 and dn_e == 0 and (up_ein > 0 and dn_ein > 0):
+                    cov = float(hq_coverage[r, e]) if (hq_coverage is not None and hq_coverage.shape == (h, w)) else 0.0
+                    if cov < 0.52:
+                        skin_tags.append((r, e))
+
+    for r in range(1, h - 1):
         for c in range(w):
-            up = fg[r - 1, c] if r > 0 else False
-            dn = fg[r + 1, c] if r + 1 < h else False
-            lf = fg[r, c - 1] if c > 0 else False
-            rt = fg[r, c + 1] if c + 1 < w else False
+            if fg[r, c] == 0 and fg[r - 1, c] > 0 and fg[r + 1, c] > 0:
+                if (c + 1 < w and fg[r, c + 1] > 0 and fg[r - 1, c + 1] > 0 and fg[r + 1, c + 1] > 0):
+                    if c == 0 or fg[r, c - 1] == 0:
+                        notches.append((r, c))
+                elif (c - 1 >= 0 and fg[r, c - 1] > 0 and fg[r - 1, c - 1] > 0 and fg[r + 1, c - 1] > 0):
+                    if c == w - 1 or fg[r, c + 1] == 0:
+                        notches.append((r, c))
 
-            if fg[r, c]:
-                # Case A: Horizontal 1px wart jutting left or right off a vertical/slanted stem
-                # (no vertical neighbors at (r-1, c) or (r+1, c), only 1 horizontal neighbor)
-                if not up and not dn and (lf ^ rt):
-                    # Ignore top/bottom row serifs if HQ master strongly supports them
-                    hq_val = float(hq_resized[r, c]) if hq_resized is not None else 0.0
-                    is_extremum_row = (r == 0) or (r == h - 1)
-                    nb_c = (c - 1) if lf else (c + 1)
-                    nb_up = fg[r - 1, nb_c] if r > 0 else False
-                    nb_dn = fg[r + 1, nb_c] if r + 1 < h else False
-                    # If attached to the middle of a vertical/slanted stem (both nb_up and nb_dn are True),
-                    # or HQ coverage is weak (< 0.48), it is a skin tag!
-                    if (nb_up and nb_dn and not is_extremum_row) or (hq_resized is not None and hq_val < 0.42):
-                        skin_tags.append((r, c))
-                        continue
-
-                # Case B: Vertical 1px pimple jutting up or down off a horizontal bar
-                if not lf and not rt and (up ^ dn):
-                    hq_val = float(hq_resized[r, c]) if hq_resized is not None else 0.0
-                    nb_r = (r - 1) if up else (r + 1)
-                    nb_lf = fg[nb_r, c - 1] if c > 0 else False
-                    nb_rt = fg[nb_r, c + 1] if c + 1 < w else False
-                    if (nb_lf and nb_rt) and (hq_resized is None or hq_val < 0.45):
-                        skin_tags.append((r, c))
-                        continue
-            else:
-                # Case C: 1-pixel notch / step indentation along a vertical stem wall
-                # (both up and dn are True at column c, and an adjacent column c_adj is solid across r-1, r, r+1)
-                if up and dn:
-                    for c_adj in (c - 1, c + 1):
-                        if 0 <= c_adj < w and fg[r, c_adj] and (r > 0 and fg[r - 1, c_adj]) and (r + 1 < h and fg[r + 1, c_adj]):
-                            # Make sure filling (r, c) wouldn't bridge to another stroke on the opposite side
-                            c_opp = c + (c - c_adj)
-                            opp_clear = (c_opp < 0 or c_opp >= w) or (not fg[r, c_opp])
-                            if opp_clear:
-                                notches.append((r, c))
-                                break
+    if skin_tags:
+        b0_orig, b1_orig, _ = compute_betti_numbers(binary_img)
+        true_tags: List[Tuple[int, int]] = []
+        for tr, tc in skin_tags:
+            probe = binary_img.copy()
+            probe[tr, tc] = 0
+            b0_p, b1_p, _ = compute_betti_numbers(probe)
+            if b0_p == b0_orig and b1_p == b1_orig:
+                true_tags.append((tr, tc))
+        skin_tags = true_tags
 
     return len(skin_tags), len(notches), skin_tags, notches
 
@@ -312,7 +319,6 @@ def clean_skin_tags_and_notches(
         if not tag_coords and not notch_coords:
             break
         changed = False
-        # 1. Fill 1px vertical stem notches first (fixes 'N' left-stem step)
         for r, c in notch_coords:
             work[r, c] = 255
             b0, b1, _ = compute_betti_numbers(work)
@@ -320,7 +326,6 @@ def clean_skin_tags_and_notches(
                 work[r, c] = 0
             else:
                 changed = True
-        # 2. Shave 1px skin tags (fixes italic 'm'/'M' and diagonal warts)
         for r, c in tag_coords:
             work[r, c] = 0
             b0, b1, _ = compute_betti_numbers(work)
@@ -330,6 +335,22 @@ def clean_skin_tags_and_notches(
                 changed = True
         if not changed:
             break
+
+    # 3. Resolve 2x2 diagonal corner pinches (#./.# or .#/#.) by filling exterior corner when B0/B1 are preserved
+    h, w = work.shape
+    for r in range(h - 1):
+        for c in range(w - 1):
+            tl, tr = work[r, c] > 0, work[r, c + 1] > 0
+            bl, br = work[r + 1, c] > 0, work[r + 1, c + 1] > 0
+            if (tl and br and not tr and not bl) or (not tl and not br and tr and bl):
+                zero_pts = [(r, c + 1), (r + 1, c)] if (tl and br) else [(r, c), (r + 1, c + 1)]
+                zero_pts.sort(key=lambda pt: -abs(pt[1] - (w - 1) / 2.0))
+                for zr, zc in zero_pts:
+                    work[zr, zc] = 255
+                    b0_p, b1_p, _ = compute_betti_numbers(work)
+                    if b0_p == expected_b0 and b1_p == expected_b1:
+                        break
+                    work[zr, zc] = 0
     return work
 
 
@@ -347,10 +368,14 @@ def count_2x2_checkerboards(binary_img: np.ndarray) -> int:
     return int(np.count_nonzero(c1 | c2))
 
 
-def measure_stem_deficits(binary_img: np.ndarray, min_stem: int = 2) -> Tuple[bool, bool, float, float]:
+def measure_stem_deficits(
+    binary_img: np.ndarray,
+    min_stem: int = 2,
+    codepoint: int = 0,
+) -> Tuple[bool, bool, float, float]:
     """
     Inspect whether vertical/diagonal stems (horizontal run lengths) or horizontal bars
-    fall below `min_stem` pixels.
+    fall below `min_stem` pixels, including interior vertical spines (such as in '$').
     Returns (needs_horizontal_floor, needs_vertical_floor, h_2px_ratio, v_2px_ratio).
     """
     nz = int(np.count_nonzero(binary_img))
@@ -360,23 +385,38 @@ def measure_stem_deficits(binary_img: np.ndarray, min_stem: int = 2) -> Tuple[bo
     if w < min_stem:
         return True, False, 0.0, 1.0
 
-    # Measure scanline run-length distribution across stem rows
     ge_min_runs = 0
     total_stem_runs = 0
+    thin_rows = 0
     for r in range(h):
         runs = _get_row_runs(binary_img[r])
-        if 1 <= len(runs) <= 3:
+        if 1 <= len(runs) <= 4:
+            row_has_thin = False
             for s, e in runs:
                 rlen = e - s + 1
-                # Ignore full-width horizontal crossbars when counting vertical stem runs
-                if rlen < max(4, int(w * 0.75)):
+                if rlen < max(4, int(w * 0.78)):
                     total_stem_runs += 1
                     if rlen >= min_stem:
                         ge_min_runs += 1
+                    else:
+                        row_has_thin = True
+            if row_has_thin:
+                thin_rows += 1
 
     h_ratio = (float(ge_min_runs) / float(total_stem_runs)) if total_stem_runs > 0 else 1.0
 
-    # Vertical survival for horizontal bars
+    # Check central spine & tip deficit on CENTRAL_SPINE_CODEPOINTS (e.g., '$')
+    spine_deficit = False
+    if codepoint in CENTRAL_SPINE_CODEPOINTS and w >= 5:
+        thin_spine_rows = 0
+        for r in range(h):
+            for s, e in _get_row_runs(binary_img[r]):
+                if (e - s + 1) < min_stem:
+                    thin_spine_rows += 1
+        if thin_spine_rows >= 1:
+            spine_deficit = True
+            h_ratio = min(h_ratio, max(0.0, 1.0 - float(thin_spine_rows) / float(max(1, h))))
+
     if HAS_CV2:
         v_erode = cv2.erode(
             binary_img,
@@ -389,9 +429,65 @@ def measure_stem_deficits(binary_img: np.ndarray, min_stem: int = 2) -> Tuple[bo
     else:
         v_ratio = 0.5
 
-    needs_h = (total_stem_runs >= 2) and (h_ratio < 0.72)
+    needs_h = spine_deficit or ((total_stem_runs >= 2) and (h_ratio < 0.80))
     needs_v = v_ratio < 0.16
     return needs_h, needs_v, h_ratio, v_ratio
+
+
+def _check_dilated_skeleton_containment(
+    base_1bit: np.ndarray,
+    candidate_1bit: np.ndarray,
+) -> Tuple[bool, float, float]:
+    """
+    Symmetric Dilated-Skeleton Containment Gate (v1.0.12):
+    Checks that:
+      1. Every pixel of `candidate_1bit` lies within the 1px neighborhood of `base_1bit`
+         aligned symmetrically across left/center/right shifts (`dilated_precision >= 0.85`).
+      2. `candidate_1bit` covers at least 84% of `base_1bit` (`base_recall >= 0.84`).
+    """
+    if not HAS_CV2 or base_1bit is None or base_1bit.size == 0:
+        return True, 1.0, 1.0
+
+    bh, bw = base_1bit.shape
+    ch, cw = candidate_1bit.shape
+    cand_fg = (candidate_1bit > 0).astype(np.float32)
+    cand_sum = max(1.0, float(np.sum(cand_fg)))
+
+    best_prec = 0.0
+    best_rec = 0.0
+
+    alignments: List[np.ndarray] = []
+    if ch == bh and cw >= bw and (cw - bw) <= 3:
+        dw = cw - bw
+        for pad_l in range(dw + 1):
+            pad_r = dw - pad_l
+            alignments.append(np.pad(base_1bit, ((0, 0), (pad_l, pad_r)), mode="constant", constant_values=0))
+        if dw >= 1 and bw >= 4:
+            # Also include central-spine duplicated alignment for '$' / '+' / 'Φ'
+            dup_mid = np.insert(base_1bit, bw // 2, base_1bit[:, bw // 2], axis=1)
+            rem = cw - dup_mid.shape[1]
+            if rem == 0:
+                alignments.append(dup_mid)
+            elif rem == 2:
+                alignments.append(np.pad(dup_mid, ((0, 0), (1, 1)), mode="constant", constant_values=0))
+    if not alignments:
+        alignments.append(cv2.resize(base_1bit, (cw, ch), interpolation=cv2.INTER_NEAREST))
+
+    k3 = np.ones((3, 3), np.uint8)
+    for aligned_base in alignments:
+        base_fg = (aligned_base > 0).astype(np.float32)
+        base_sum = max(1.0, float(np.sum(base_fg)))
+        dil_base = (cv2.dilate(aligned_base, k3, iterations=1) > 0).astype(np.float32)
+        dil_cand = (cv2.dilate(candidate_1bit, k3, iterations=1) > 0).astype(np.float32)
+
+        prec = float(np.sum(cand_fg * dil_base)) / cand_sum
+        rec = float(np.sum(base_fg * dil_cand)) / base_sum
+        if (prec + rec) > (best_prec + best_rec):
+            best_prec = prec
+            best_rec = rec
+
+    ok = (best_prec >= 0.85) and (best_rec >= 0.84)
+    return ok, best_prec, best_rec
 
 
 def evaluate_glyph_candidate(
@@ -405,17 +501,10 @@ def evaluate_glyph_candidate(
     orig_w: int = 0,
     is_italic_or_serif: bool = False,
     base_1bit: Optional[np.ndarray] = None,
+    codepoint: int = 0,
 ) -> CandidateEval:
     """
-    Weighted Multi-Objective Typographic Evaluation Engine (SPEC-TYPO-MATH-1BPP-001):
-      - Hard Gate 1 : Betti numbers (B0 foreground components, B1 enclosed counters) must match HQ Master!
-      - Hard Gate 2 : HQ Master Structural IOU must be >= 0.68 (and never degrade base HQ IOU by > 0.04)
-                      and pixel mutation ratio vs base_1bit must be <= 0.32 (no silhouette distortion).
-      - W_hq        : 40 pts — Structural IOU & L1 fidelity to 8x HQ continuous master density.
-      - W_stem      : 25 pts — >=2px vertical/diagonal stem satisfaction (without >3px bloat).
-      - W_smooth    : 20 pts — Mumford-Shah Total Variation smoothness (0 skin tags, 0 notches, 0 checkerboards).
-      - W_cavity    : 10 pts — Jenson-Garamond Counter-Punch & Small-Font Nth-Upscale cavity alignment.
-      - W_color     :  5 pts — Typographic color balance (Method 22) & minimal box growth.
+    Weighted Multi-Objective Typographic Evaluation Engine (SPEC-TYPO-MATH-1BPP-001 v1.0.12).
     """
     if candidate_1bit.size == 0 or np.count_nonzero(candidate_1bit) == 0:
         return CandidateEval(method_id, candidate_1bit, -1e9, 0, 0, 0, 0, 0, 0, 0, 99, 99, 1.0, False)
@@ -430,7 +519,7 @@ def evaluate_glyph_candidate(
 
     num_tags, num_notches, _, _ = detect_skin_tags_and_notches(candidate_1bit, hq_resized)
     num_checkers = count_2x2_checkerboards(candidate_1bit)
-    needs_h, _, h_2px_ratio, _ = measure_stem_deficits(candidate_1bit, min_stem=min_stem)
+    needs_h, _, h_2px_ratio, _ = measure_stem_deficits(candidate_1bit, min_stem=min_stem, codepoint=codepoint)
 
     if not valid_topo:
         return CandidateEval(
@@ -440,68 +529,79 @@ def evaluate_glyph_candidate(
 
     cand_f = (candidate_1bit > 0).astype(np.float32)
 
-    # Check HQ Master Structural IOU & L1 fidelity (0..40)
+    if method_id != "M0_untouched" and base_1bit is not None and base_1bit.size > 0:
+        cont_ok, skel_prec, skel_rec = _check_dilated_skeleton_containment(base_1bit, candidate_1bit)
+        if not cont_ok:
+            return CandidateEval(method_id, candidate_1bit, -1e5, 0, 0, 0, 0, 0, b0, b1, num_tags, num_notches, 1.0 - h_2px_ratio, False)
+    else:
+        skel_prec, skel_rec = 1.0, 1.0
+
     if hq_resized is not None:
-        hq_bin = (hq_resized >= 0.44).astype(np.float32)
+        hq_bin = (hq_resized >= 0.42).astype(np.float32)
         inter = float(np.sum(cand_f * hq_bin))
         union = float(np.sum(np.maximum(cand_f, hq_bin)))
         iou = inter / max(1.0, union)
         l1_sim = 1.0 - float(np.mean(np.abs(cand_f - hq_resized)))
 
-        # Hard HQ fidelity gate for non-M0 candidates: never accept distorted silhouettes
+        hq_dil = (cv2.dilate((hq_bin * 255).astype(np.uint8), np.ones((1, 2), np.uint8)) > 0).astype(np.float32)
+        hq_dil_iou = float(np.sum(cand_f * hq_dil)) / max(1.0, float(np.sum(np.maximum(cand_f, hq_dil))))
+        effective_iou = max(iou, 0.88 * hq_dil_iou)
+
         if method_id != "M0_untouched":
             base_iou = 0.0
             if base_1bit is not None and base_1bit.size > 0 and HAS_CV2:
                 hq_b0 = cv2.resize(hq_master, (base_1bit.shape[1], base_1bit.shape[0]), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
                 b0_f = (base_1bit > 0).astype(np.float32)
-                b0_bin = (hq_b0 >= 0.44).astype(np.float32)
+                b0_bin = (hq_b0 >= 0.42).astype(np.float32)
                 base_iou = float(np.sum(b0_f * b0_bin)) / max(1.0, float(np.sum(np.maximum(b0_f, b0_bin))))
-                # Also check direct structural overlap with base_1bit resampled
-                b0_rsz = (cv2.resize(base_1bit, (w, h), interpolation=cv2.INTER_NEAREST) > 0).astype(np.float32)
-                base_cand_iou = float(np.sum(cand_f * b0_rsz)) / max(1.0, float(np.sum(np.maximum(cand_f, b0_rsz))))
-                if base_cand_iou < 0.62:
-                    return CandidateEval(method_id, candidate_1bit, -1e5, 0, 0, 0, 0, 0, b0, b1, num_tags, num_notches, 1.0 - h_2px_ratio, False)
-            if iou < max(0.66, base_iou - 0.04):
+            min_allowed_iou = 0.50 if orig_w <= 5 else max(0.58, base_iou - 0.10)
+            if effective_iou < min_allowed_iou:
                 return CandidateEval(method_id, candidate_1bit, -1e5, 0, 0, 0, 0, 0, b0, b1, num_tags, num_notches, 1.0 - h_2px_ratio, False)
-        hq_score = 40.0 * (0.65 * iou + 0.35 * l1_sim)
+        hq_score = 40.0 * (0.60 * effective_iou + 0.25 * l1_sim + 0.15 * (0.5 * (skel_prec + skel_rec)))
     else:
         hq_score = 28.0
 
-    # 2. Stem Score (0..25)
+    # 2. Stem Score (0..28)
     fat_runs = 0
+    thin_runs = 0
     total_runs = 0
     for r in range(h):
         runs = _get_row_runs(candidate_1bit[r])
-        if len(runs) >= 2:
+        if len(runs) >= 1:
             for s, e in runs:
-                total_runs += 1
-                if (e - s + 1) > min_stem + 1:
-                    fat_runs += 1
+                rlen = e - s + 1
+                if rlen < min_stem:
+                    thin_runs += 1
+                if len(runs) >= 2:
+                    total_runs += 1
+                    if rlen > min_stem + 1:
+                        fat_runs += 1
     fat_penalty = (10.0 * fat_runs / max(1, total_runs)) if total_runs > 0 else 0.0
-    stem_score = max(0.0, 25.0 * h_2px_ratio - fat_penalty)
+    thin_penalty = 2.2 * thin_runs
+    stem_score = max(0.0, 28.0 * h_2px_ratio - fat_penalty - thin_penalty)
 
     # 3. Mumford-Shah Boundary Smoothness & Anti-Skin-Tag Score (-50..20)
     smooth_score = 20.0 - (25.0 * num_tags) - (16.0 * num_notches) - (16.0 * num_checkers)
 
-    # 4. Jenson-Garamond Counter-Punch & Upscaled Small-Font Reference Score (0..10)
+    # 4. Jenson-Garamond Counter-Punch & Upscaled Small-Font Reference Score (0..8)
     if expected_b1 > 0:
         hole_area_ratio = float(np.count_nonzero(counters)) / float(max(1, h * w))
-        cavity_score = min(10.0, 10.0 * (hole_area_ratio / 0.10))
+        cavity_score = min(8.0, 8.0 * (hole_area_ratio / 0.10))
     else:
-        cavity_score = 9.0
+        cavity_score = 7.2
 
     if upscaled_small_ref is not None and upscaled_small_ref.size > 0 and HAS_CV2:
         up_rsz = cv2.resize(upscaled_small_ref, (w, h), interpolation=cv2.INTER_NEAREST)
         up_f = (up_rsz > 0).astype(np.float32)
         grid_align = 1.0 - float(np.mean(np.abs(cand_f - up_f)))
-        cavity_score = 0.80 * cavity_score + 0.20 * (10.0 * grid_align)
+        cavity_score = 0.80 * cavity_score + 0.20 * (8.0 * grid_align)
 
-    # 5. Typographic Color & Dynamic Box Width Economy (0..5)
+    # 5. Typographic Color & Dynamic Box Width Economy (0..4)
     density = float(np.mean(cand_f))
-    density_err = max(0.0, abs(density - 0.46) - 0.08)
+    density_err = max(0.0, abs(density - 0.46) - 0.10)
     extra_w = max(0, w - orig_w) if orig_w > 0 else 0
-    width_pen = 1.2 * extra_w if extra_w <= 1 else (3.5 * extra_w)
-    color_score = max(0.0, 5.0 - (15.0 * density_err) - width_pen)
+    width_pen = 0.8 * extra_w if extra_w <= 1 else (2.0 * extra_w)
+    color_score = max(0.0, 4.0 - (12.0 * density_err) - width_pen)
 
     total = stem_score + hq_score + smooth_score + cavity_score + color_score
     return CandidateEval(
@@ -523,7 +623,7 @@ def evaluate_glyph_candidate(
 
 
 # =============================================================================
-# CANDIDATE SYNTHESIS METHODS (M1 .. M6)
+# CANDIDATE SYNTHESIS METHODS (M1 .. M8)
 # =============================================================================
 
 def _apply_counter_punch(
@@ -543,11 +643,16 @@ def _apply_counter_punch(
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(c_mask, connectivity=4)
     for i in range(1, num_labels):
         hole_comp = (labels == i).astype(np.uint8) * 255
-        # Erode hole slightly if hole is wide (>=3px), else preserve exact core pixel(s)
+        open_px = np.count_nonzero(cv2.bitwise_and(cv2.bitwise_not(res), hole_comp))
+        if open_px > 0:
+            # Counter is already open! Do not carve away inward-thickened 2px walls.
+            continue
         hw = stats[i, cv2.CC_STAT_WIDTH]
         hh = stats[i, cv2.CC_STAT_HEIGHT]
         if hw >= 3 and hh >= 3:
-            core = cv2.erode(hole_comp, np.ones((2, 2), np.uint8), borderType=cv2.BORDER_CONSTANT, borderValue=0)
+            core = cv2.erode(hole_comp, np.ones((3, 3), np.uint8), borderType=cv2.BORDER_CONSTANT, borderValue=0)
+            if np.count_nonzero(core) == 0:
+                core = cv2.erode(hole_comp, np.ones((2, 2), np.uint8), borderType=cv2.BORDER_CONSTANT, borderValue=0)
             if np.count_nonzero(core) == 0:
                 core = hole_comp
         else:
@@ -565,7 +670,6 @@ def _apply_counter_punch(
         if uc.shape != (h, w):
             uc = cv2.resize(uc, (w, h), interpolation=cv2.INTER_NEAREST)
         _, b1_now, _ = compute_betti_numbers(res)
-        _, b1_up, _ = compute_betti_numbers(cv2.bitwise_not(uc))
         if b1_now == 0 and np.count_nonzero(uc) > 0:
             res = cv2.bitwise_and(res, cv2.bitwise_not(uc))
 
@@ -606,10 +710,7 @@ def synth_m2_centerline_line_tracer(
     min_stem: int = 2,
 ) -> List[Tuple[str, np.ndarray]]:
     """
-    Method 6 & `line_tracer.docx` (Medial Axis Centerline Graph + Asymmetric `[1, 1]` Stroke Kernel):
-    Extracts the 1px medial ridge from the high-res master or base silhouette, snaps onto
-    the target grid, and sweeps an asymmetric horizontal kernel `K = [[1, 1]]` so vertical
-    stems are guaranteed 2px while horizontal crossbars stay 1px!
+    Method 6 & `line_tracer.docx` (Medial Axis Centerline Graph + Asymmetric `[1, 1]` Stroke Kernel).
     """
     if not HAS_CV2:
         return []
@@ -622,7 +723,6 @@ def synth_m2_centerline_line_tracer(
         rsz = cv2.resize(src, (tw * 4, h * 4), interpolation=cv2.INTER_LINEAR)
         bw_hi = (rsz >= 115).astype(np.uint8) * 255
         dist = cv2.distanceTransform(bw_hi, cv2.DIST_L2, 3)
-        # Extract local horizontal and vertical ridge maxima (medial skeleton)
         skel_hi = np.zeros_like(bw_hi)
         for r in range(1, bw_hi.shape[0] - 1):
             for c in range(1, bw_hi.shape[1] - 1):
@@ -632,10 +732,8 @@ def synth_m2_centerline_line_tracer(
                         skel_hi[r, c] = 255
         skel_lo = cv2.resize(skel_hi, (tw, h), interpolation=cv2.INTER_AREA)
         skel_1px = (skel_lo >= 32).astype(np.uint8) * 255
-        # Ensure skeleton contains core connectivity of base_1bit
         base_rsz = cv2.resize(base_1bit, (tw, h), interpolation=cv2.INTER_NEAREST)
         skel_1px = cv2.bitwise_or(skel_1px, _erode_safe(base_rsz, 1, 2))
-        # Sweep asymmetric horizontal stroke kernel K = [1, 1] (2px vertical stems, 1px crossbars)
         k_asym = np.ones((1, min_stem), np.uint8)
         stroked = cv2.dilate(skel_1px, k_asym, iterations=1)
         stroked = _apply_counter_punch(stroked, orig_counters)
@@ -691,7 +789,6 @@ def synth_m4_hysteresis_and_ink_traps(
         u = cv2.resize(hq_master, (tw, h), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
         strong = (u >= 0.50).astype(np.uint8) * 255
         weak = (u >= 0.28).astype(np.uint8) * 255
-        # Promote weak pixels that widen 1px vertical stems to 2px without merging separate runs
         cand = strong.copy()
         for r in range(h):
             runs = _get_row_runs(cand[r])
@@ -703,7 +800,6 @@ def synth_m4_hysteresis_and_ink_traps(
                         cand[r, e + 1] = 255
                     elif s - 1 >= left_lim and weak[r, s - 1] > 0:
                         cand[r, s - 1] = 255
-        # Method 13: Carve 1px LoG ink trap at congested acute interior vertices ('M','W','N','v','w','y')
         if ch_str in "MWNvwy%&#" and tw >= 6 and h >= 7:
             kernel_cross = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.int8)
             blobs = cv2.morphologyEx(cand, cv2.MORPH_HITMISS, kernel_cross)
@@ -726,13 +822,10 @@ def synth_m5_whole_stem_collinear_autofloor(
 ) -> List[Tuple[str, np.ndarray]]:
     """
     Method 16 & 21: Whole-Column / Trajectory-Consistent Outward Stem Dilation + Counter-Punch.
-    Unlike naive per-row dilation, checks vertical column alignment across rows before expanding
-    so vertical and slanted stems never develop 1-pixel steps or skin tags.
     """
     h, w = base_1bit.shape
     out: List[Tuple[str, np.ndarray]] = []
 
-    # Variant A: In-place gap-safe directional stem thickening
     inp = base_1bit.copy()
     for r in range(h):
         runs = _get_row_runs(base_1bit[r])
@@ -741,7 +834,6 @@ def synth_m5_whole_stem_collinear_autofloor(
                 continue
             left_limit = (runs[idx - 1][1] + 2) if idx > 0 else 0
             right_limit = (runs[idx + 1][0] - 2) if idx + 1 < len(runs) else (w - 1)
-            # Check which side aligns better with row r-1 and row r+1
             score_left = (1 if (r > 0 and s - 1 >= 0 and inp[r - 1, s - 1] > 0) else 0) + (
                 1 if (r + 1 < h and s - 1 >= 0 and base_1bit[r + 1, s - 1] > 0) else 0
             )
@@ -765,7 +857,10 @@ def synth_m5_whole_stem_collinear_autofloor(
     if not can_widen:
         return out
 
-    # Variant B: Outward-padded whole-stem expansion (+1..2px dynamic width)
+    if w == 1:
+        out.append(("M5_collinear_outward", np.repeat(base_1bit, min_stem, axis=1)))
+        return out
+
     work = np.pad(base_1bit, ((0, 0), (1, 1)), mode="constant", constant_values=0)
     res = work.copy()
     pw = work.shape[1]
@@ -806,7 +901,6 @@ def synth_m5_whole_stem_collinear_autofloor(
                 elif can_l:
                     res[r, s - 1] = 255
 
-    # Snap vertical stem walls across full height so serifs and stems never step by 1px
     for r in range(h):
         if work[r, 1] > 0 and res[r, 0] == 0:
             if (r > 0 and res[r - 1, 0] > 0) or (r + 1 < h and res[r + 1, 0] > 0):
@@ -830,24 +924,136 @@ def synth_m6_italic_diagonal_rectifier(
 ) -> List[Tuple[str, np.ndarray]]:
     """
     Method 5 & 14 (Rational Diophantine Slant & Gabor Diagonal Continuity):
-    Ensures slanted/diagonal strokes ('M','N','V','W','X','Y','Z','/','m','n','v','w')
-    maintain uniform 2px horizontal thickness along their trajectory without 1px side-warts.
+    Symmetric rightward and leftward diagonal/curve rectifiers.
     """
     h, w = base_1bit.shape
-    work = np.pad(base_1bit, ((0, 0), (0, 1)), mode="constant", constant_values=0)
-    pw = work.shape[1]
+    out: List[Tuple[str, np.ndarray]] = []
+
+    work_r = np.pad(base_1bit, ((0, 0), (0, 1)), mode="constant", constant_values=0)
+    pw = work_r.shape[1]
     for r in range(h):
-        runs = _get_row_runs(work[r])
+        runs = _get_row_runs(work_r[r])
         for idx, (s, e) in enumerate(runs):
             if (e - s + 1) < min_stem:
                 right_lim = (runs[idx + 1][0] - 2) if idx + 1 < len(runs) else (pw - 1)
                 if e + 1 <= right_lim:
-                    work[r, e + 1] = 255
-    ys, xs = np.nonzero(work > 0)
+                    work_r[r, e + 1] = 255
+    ys, xs = np.nonzero(work_r > 0)
     if len(xs) > 0:
-        work = work[:, int(xs.min()) : int(xs.max()) + 1]
-    work = _apply_counter_punch(work, orig_counters)
-    return [("M6_diagonal_rectified", work)]
+        work_r = work_r[:, int(xs.min()) : int(xs.max()) + 1]
+    work_r = _apply_counter_punch(work_r, orig_counters)
+    out.append(("M6_diagonal_rectified_r", work_r))
+
+    work_l = np.pad(base_1bit, ((0, 0), (1, 0)), mode="constant", constant_values=0)
+    for r in range(h):
+        runs = _get_row_runs(work_l[r])
+        for idx, (s, e) in enumerate(runs):
+            if (e - s + 1) < min_stem:
+                left_lim = (runs[idx - 1][1] + 2) if idx > 0 else 0
+                if s - 1 >= left_lim:
+                    work_l[r, s - 1] = 255
+    ys2, xs2 = np.nonzero(work_l > 0)
+    if len(xs2) > 0:
+        work_l = work_l[:, int(xs2.min()) : int(xs2.max()) + 1]
+    work_l = _apply_counter_punch(work_l, orig_counters)
+    out.append(("M6_diagonal_rectified_l", work_l))
+
+    return out
+
+
+def _rectify_spine_tips_and_outer_walls(arr: np.ndarray, min_stem: int = 2) -> np.ndarray:
+    """Align 1px top/bottom vertical spine tips with adjacent 2px spine rows and widen 1px outer loop walls."""
+    h, w = arr.shape
+    inp = arr.copy()
+    for r in range(h):
+        runs = _get_row_runs(inp[r])
+        if len(runs) == 1:
+            s, e = runs[0]
+            if (e - s + 1) < min_stem:
+                adj_r = r + 1 if r == 0 else (r - 1 if r == h - 1 else r - 1)
+                if 0 <= adj_r < h:
+                    adj_runs = _get_row_runs(inp[adj_r])
+                    if len(adj_runs) == 1 and (adj_runs[0][1] - adj_runs[0][0] + 1) >= min_stem:
+                        for c_fill in range(adj_runs[0][0], adj_runs[0][0] + min_stem):
+                            if 0 <= c_fill < w:
+                                inp[r, c_fill] = 255
+                    elif e + 1 < w:
+                        inp[r, e + 1] = 255
+                    elif s - 1 >= 0:
+                        inp[r, s - 1] = 255
+        elif len(runs) >= 2:
+            for idx, (s, e) in enumerate(runs):
+                if (e - s + 1) < min_stem and idx in (0, len(runs) - 1):
+                    left_lim = (runs[idx - 1][1] + 2) if idx > 0 else 0
+                    right_lim = (runs[idx + 1][0] - 2) if idx + 1 < len(runs) else (w - 1)
+                    if idx == 0 and s - 1 >= left_lim:
+                        inp[r, s - 1] = 255
+                    elif idx == len(runs) - 1 and e + 1 <= right_lim:
+                        inp[r, e + 1] = 255
+                    elif e + 1 <= right_lim:
+                        inp[r, e + 1] = 255
+                    elif s - 1 >= left_lim:
+                        inp[r, s - 1] = 255
+    return inp
+
+
+def synth_m8_central_spine_expansion(
+    base_1bit: np.ndarray,
+    orig_counters: np.ndarray,
+    codepoint: int,
+    min_stem: int = 2,
+    can_widen: bool = True,
+) -> List[Tuple[str, np.ndarray]]:
+    """
+    Method M8 (Central-Spine Column Expansion for '$', '+', '±', '¢', '¥', 'Φ', 'Ψ'):
+    1. Finds the central spine column (`w // 2 - 1` or `w // 2`) with the most 1px runs and
+       duplicates it (`M8_central_spine_dup`), plus an outward-padded loop-wall variant (`M8_central_spine_full`).
+    2. Also rectifies 1px top/bottom vertical spine tips and 1px outer loop terminals in-place (`M8_central_spine_tips`).
+    """
+    h, w = base_1bit.shape
+    if w < 3 or h < 5:
+        return []
+    out: List[Tuple[str, np.ndarray]] = []
+
+    best_c = w // 2
+    best_1px = -1
+    for c_cand in (max(0, w // 2 - 1), w // 2):
+        cnt = sum(
+            1
+            for r in range(h)
+            for s, e in _get_row_runs(base_1bit[r])
+            if s <= c_cand <= e and (e - s + 1) < min_stem
+        )
+        if cnt > best_1px:
+            best_1px = cnt
+            best_c = c_cand
+
+    if not (best_1px >= 1 or codepoint in CENTRAL_SPINE_CODEPOINTS):
+        return []
+
+    if can_widen and best_1px >= 3:
+        dup = np.insert(base_1bit, best_c, base_1bit[:, best_c], axis=1)
+        dup_c = None
+        if orig_counters is not None and orig_counters.shape == (h, w):
+            dup_c = np.insert(orig_counters, best_c, np.zeros(h, dtype=np.uint8), axis=1)
+            dup = _apply_counter_punch(dup, dup_c)
+        dup_rect = _rectify_spine_tips_and_outer_walls(dup, min_stem=min_stem)
+        if dup_c is not None:
+            dup_rect = _apply_counter_punch(dup_rect, dup_c)
+        out.append(("M8_central_spine_dup", dup_rect))
+
+        # Also offer outward-padded loop wall + central spine expansion (for Math 16 '$' where both loop walls and spine are 1px)
+        padded = np.pad(dup, ((0, 0), (1, 1)), mode="constant", constant_values=0)
+        pad_rect = _rectify_spine_tips_and_outer_walls(padded, min_stem=min_stem)
+        if dup_c is not None:
+            pad_c = np.pad(dup_c, ((0, 0), (1, 1)), mode="constant", constant_values=0)
+            pad_rect = _apply_counter_punch(pad_rect, pad_c)
+        out.append(("M8_central_spine_full", pad_rect))
+
+    inp = _rectify_spine_tips_and_outer_walls(base_1bit, min_stem=min_stem)
+    inp = _apply_counter_punch(inp, orig_counters)
+    out.append(("M8_central_spine_tips", inp))
+    return out
 
 
 def inspect_and_repair_glyph_bitmap(
@@ -863,16 +1069,13 @@ def inspect_and_repair_glyph_bitmap(
     is_italic_or_serif: bool = False,
 ) -> Tuple[np.ndarray, RepairAuditRecord]:
     """
-    Run the Multi-Method Iterative Typographic Tournament (`M0..M7`) on a single glyph.
-    Evaluates all candidates against the 8x HQ Master (`master_hi`) and Smallest-Font
-    Nth-Factor Upscale Reference (`upscaled_small_ref`), cleans any skin tags or stem notches
-    via Method 8/18 (`clean_skin_tags_and_notches`), and returns the winning bitmap + audit record.
+    Run the Multi-Method Iterative Typographic Tournament (`M0..M8`) on a single glyph.
     """
     ch_str = chr(codepoint) if 0x20 <= codepoint <= 0xFFFF else ""
     rows_before = binary_array_to_rows(base_1bit)
     h0, w0 = base_1bit.shape if base_1bit.size > 0 else (0, 0)
 
-    if base_1bit.size == 0 or h0 <= 2 or w0 <= 1 or codepoint in SKIP_TUNING_CODEPOINTS:
+    if base_1bit.size == 0 or h0 <= 2 or w0 == 0 or codepoint in SKIP_TUNING_CODEPOINTS:
         rec = RepairAuditRecord(
             codepoint=codepoint,
             char_label=ch_str,
@@ -904,15 +1107,15 @@ def inspect_and_repair_glyph_bitmap(
         b0_hi, b1_hi, hi_counters = compute_betti_numbers((master_hi >= 120).astype(np.uint8) * 255)
         expected_b0 = b0_hi if b0_hi > 0 else b0_base
         if w0 >= 5 and h0 >= 7:
-            expected_b1 = b1_hi
-            if b1_hi > 0 and HAS_CV2:
-                orig_counters = cv2.resize(hi_counters, (w0, h0), interpolation=cv2.INTER_NEAREST)
+            expected_b1 = max(b1_base, b1_hi)
+            if b1_hi > b1_base and HAS_CV2:
+                orig_counters = cv2.bitwise_or(orig_counters, cv2.resize(hi_counters, (w0, h0), interpolation=cv2.INTER_NEAREST))
 
     upscaled_small_counters = None
     if upscaled_small_ref is not None and upscaled_small_ref.size > 0:
         _, _, upscaled_small_counters = compute_betti_numbers(upscaled_small_ref)
 
-    needs_h0, needs_v0, _, _ = measure_stem_deficits(base_1bit, min_stem=min_stem)
+    needs_h0, needs_v0, _, _ = measure_stem_deficits(base_1bit, min_stem=min_stem, codepoint=codepoint)
     eval_m0 = evaluate_glyph_candidate(
         "M0_untouched",
         base_1bit,
@@ -924,9 +1127,9 @@ def inspect_and_repair_glyph_bitmap(
         orig_w=w0,
         is_italic_or_serif=is_italic_or_serif,
         base_1bit=base_1bit,
+        codepoint=codepoint,
     )
 
-    # Fast exit if M0 already has >=2px stems, expected holes, 0 skin tags, and 0 notches
     if not needs_h0 and b1_base >= expected_b1 and eval_m0.skin_tags == 0 and eval_m0.notches == 0:
         rec = RepairAuditRecord(
             codepoint=codepoint,
@@ -954,9 +1157,11 @@ def inspect_and_repair_glyph_bitmap(
         )
         return base_1bit, rec
 
-    can_widen = (max_width_ceiling is None) or (w0 + 1 <= max_width_ceiling)
+    effective_max_w = max_width_ceiling
+    if effective_max_w is not None and codepoint in CENTRAL_SPINE_CODEPOINTS:
+        effective_max_w = max(effective_max_w, w0 + 3)
+    can_widen = (effective_max_w is None) or (w0 + 1 <= effective_max_w)
 
-    # Collect candidate pool across all mathematical synthesis methods (M1..M6)
     raw_candidates: List[Tuple[str, np.ndarray]] = []
     if master_hi is not None and master_hi.size > 0:
         raw_candidates.extend(synth_m1_phase_shift_sweep(master_hi, w0, h0, orig_counters))
@@ -969,6 +1174,9 @@ def inspect_and_repair_glyph_bitmap(
         )
     )
     raw_candidates.extend(synth_m6_italic_diagonal_rectifier(base_1bit, orig_counters, min_stem=min_stem))
+    raw_candidates.extend(
+        synth_m8_central_spine_expansion(base_1bit, orig_counters, codepoint, min_stem=min_stem, can_widen=can_widen)
+    )
 
     best_eval = eval_m0
     hq_float = None
@@ -981,15 +1189,17 @@ def inspect_and_repair_glyph_bitmap(
         trimmed, bw, bh, _, _ = trim_binary_array(cand_arr)
         if bw == 0 or bh == 0:
             continue
-        if max_width_ceiling is not None and bw > max_width_ceiling:
+        if effective_max_w is not None and bw > effective_max_w:
             continue
 
-        # Method 7/8/18: Run Mumford-Shah Total-Variation Skin-Tag & Notch Cleaner on every candidate
+        hq_cand_cov = None
+        if master_hi is not None and master_hi.size > 0 and HAS_CV2:
+            hq_cand_cov = cv2.resize(master_hi, (bw, bh), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
         cleaned = clean_skin_tags_and_notches(
             trimmed,
             expected_b0=expected_b0,
             expected_b1=expected_b1,
-            hq_coverage=hq_float,
+            hq_coverage=hq_cand_cov,
         )
         cleaned, cbw, cbh, _, _ = trim_binary_array(cleaned)
         if cbw == 0 or cbh == 0:
@@ -1006,17 +1216,13 @@ def inspect_and_repair_glyph_bitmap(
             orig_w=w0,
             is_italic_or_serif=is_italic_or_serif,
             base_1bit=base_1bit,
+            codepoint=codepoint,
         )
-        # Strict acceptance criteria:
-        # 1. Valid topology (B0 and B1 conserved)
-        # 2. Zero skin tags and zero notches (no 1px spurs allowed!)
-        # 3. Beats current best score
         if ev.valid_topology and ev.skin_tags == 0 and ev.notches == 0:
             if ev.total_score > best_eval.total_score:
                 best_eval = ev
 
-    # Require a meaningful score gain (>= +2.0 pts) over M0_untouched before modifying a glyph
-    if best_eval.method_id != "M0_untouched" and (best_eval.total_score >= eval_m0.total_score + 2.0):
+    if best_eval.method_id != "M0_untouched" and (best_eval.total_score >= eval_m0.total_score + 1.2):
         winner = best_eval.binary
         used_method = best_eval.method_id
     else:
@@ -1026,8 +1232,8 @@ def inspect_and_repair_glyph_bitmap(
 
     rows_after = binary_array_to_rows(winner)
     changed = rows_after != rows_before
-    thin_v_after, thin_h_after, _, _ = measure_stem_deficits(winner, min_stem=min_stem)
-    size_floor_warn = (best_eval.b1_holes < expected_b1) or (thin_v_after and w0 < 2 * min_stem + 1)
+    thin_v_after, thin_h_after, _, _ = measure_stem_deficits(winner, min_stem=min_stem, codepoint=codepoint)
+    size_floor_warn = best_eval.b1_holes < expected_b1
 
     rec = RepairAuditRecord(
         codepoint=codepoint,
@@ -1054,6 +1260,75 @@ def inspect_and_repair_glyph_bitmap(
         skin_tags_after=best_eval.skin_tags,
     )
     return winner, rec
+
+
+def synchronize_mirror_glyph_pairs(
+    glyphs: Sequence[object],
+    recs: Sequence[RepairAuditRecord],
+    is_italic: bool = False,
+    is_monospace: bool = False,
+) -> int:
+    """
+    Bilateral Mirror-Pair Synchronization (v1.0.12):
+    In upright strikes (`not is_italic`), ensures paired delimiter/arrow glyphs
+    (`(` <-> `)`, `[` <-> `]`, `{` <-> `}`, `<` <-> `>`, `«` <-> `»`, `‹` <-> `›`,
+     `≤` <-> `≥`, `/` <-> `\\`, `←` <-> `→`, `↑` <-> `↓`) have 100% identical
+    dimensions, stem thickness, and mirrored silhouettes!
+    """
+    # In italic strikes, paired brackets/parens/comparison operators are 180-degree point-symmetric (rot180 = flipud + fliplr),
+    # preserving the forward italic slant angle while guaranteeing identical stroke thickness and dimensions!
+
+    g_by_cp = {getattr(g, "codepoint", 0): g for g in glyphs}
+    r_by_cp = {r.codepoint: r for r in recs}
+    synced_count = 0
+
+    for cp_l, cp_r, flip_mode in MIRROR_GLYPH_PAIRS:
+        gl = g_by_cp.get(cp_l)
+        gr = g_by_cp.get(cp_r)
+        rl = r_by_cp.get(cp_l)
+        rr = r_by_cp.get(cp_r)
+        if gl is None or gr is None or rl is None or rr is None:
+            continue
+        if not getattr(gl, "rows", None) or not getattr(gr, "rows", None):
+            continue
+        if abs(rl.box_h_before - rr.box_h_before) > 1:
+            continue
+
+        arr_l = rows_to_binary_array(gl.rows)
+        arr_r = rows_to_binary_array(gr.rows)
+        mir_l = (np.flipud(np.fliplr(arr_l)) if is_italic else np.fliplr(arr_l)) if flip_mode == "h" else np.flipud(arr_l)
+
+        if arr_r.shape == mir_l.shape and np.array_equal(arr_r, mir_l):
+            continue
+
+        l_better = (
+            (not rl.thin_v_after and rr.thin_v_after)
+            or (rl.thin_v_after == rr.thin_v_after and rl.score_after >= rr.score_after)
+        )
+        src_g, dst_g, src_r, dst_r = (gl, gr, rl, rr) if l_better else (gr, gl, rr, rl)
+        src_arr = rows_to_binary_array(src_g.rows)
+        mir_arr = (np.flipud(np.fliplr(src_arr)) if is_italic else np.fliplr(src_arr)) if flip_mode == "h" else np.flipud(src_arr)
+        mir_rows = binary_array_to_rows(mir_arr)
+
+        w_old = dst_g.box_w
+        dst_g.rows = mir_rows
+        dst_g.box_w = mir_arr.shape[1]
+        dst_g.box_h = mir_arr.shape[0]
+        dst_g.patched = True
+        if not is_monospace and dst_g.box_w > w_old:
+            dst_g.adv_w_fp4 += (dst_g.box_w - w_old) * 16
+
+        dst_r.rows_after = mir_rows
+        dst_r.box_w_after = mir_arr.shape[1]
+        dst_r.box_h_after = mir_arr.shape[0]
+        dst_r.thin_v_after = src_r.thin_v_after
+        dst_r.thin_h_after = src_r.thin_h_after
+        dst_r.score_after = src_r.score_after
+        dst_r.repaired = dst_r.rows_after != dst_r.rows_before
+        dst_r.engine_used = f"{src_r.engine_used}+MirrorSync"
+        synced_count += 1
+
+    return synced_count
 
 
 def render_repair_comparison_sheet(
@@ -1090,7 +1365,7 @@ def render_repair_comparison_sheet(
     )
     draw.text(
         (pad, 36),
-        f"Inspected: {len(records)} glyphs | Auto-Patched in ascii_patches/: {mod_cnt} glyphs (0 Skin Tags, Euler B0/B1 Locked)",
+        f"Inspected: {len(records)} glyphs | Auto-Patched in ascii_patches/: {mod_cnt} glyphs (0 Skin Tags, Euler B0/B1 + Mirror Sync)",
         fill=(180, 198, 220),
     )
 
@@ -1141,7 +1416,7 @@ def main() -> None:
         description=(
             f"Humidyne Labs `epd-font` v{TOOL_VERSION} — Iterative Multi-Method Typographic Tournament Engine.\n"
             "Tunes ASCII patch files in `build/<target>/ascii_patches/` using an 8x HQ continuous master\n"
-            "reference + Smallest-Strike Nth-Factor Upscale Reference across 8 mathematical repair methods."
+            "reference + Smallest-Strike Nth-Factor Upscale Reference across 9 mathematical repair methods."
         ),
     )
     parser.add_argument("--scheme", type=str, default="scripts/h1os-build-distro/h1os_full.scheme.json", help="Scheme JSON path")

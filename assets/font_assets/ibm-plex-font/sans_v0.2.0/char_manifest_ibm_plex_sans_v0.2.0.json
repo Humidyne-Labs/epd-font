@@ -1,6 +1,6 @@
 {
-  "manifest_schema": "epd-font-char-manifest-v1.0.7",
-  "generator": "tools/fonts/generate_char_manifests.py (v1.0.7)",
+  "manifest_schema": "epd-font-char-manifest-v1.0.8",
+  "generator": "tools/fonts/generate_char_manifests.py (v1.0.8)",
   "family_id": "ibm_plex_sans",
   "upstream_name": "IBM Plex Sans Variable (also source for Condensed wdth=85)",
   "upstream_version": "0.2.0",

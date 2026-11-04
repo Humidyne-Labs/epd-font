@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-generate_plex_1bpp.py (v1.0.7)
+humid1_generate_1bpp.py (v1.0.8)
 ==============================
 Humidyne Labs / Humiditron `epd-font` General-Purpose 1-BPP Bilevel Font & Modular Icon Studio
 (IBM Plex + Terminus + Font Awesome 7, Lucide, Phosphor, Tabler + Custom TrueType Fonts).
@@ -20,14 +20,14 @@ Four Integrated Workflows (Subcommands or Flat CLI Flags):
                   are consistent TrueType (.ttf) binaries.
   2. patch      : Dump rasterized strikes into named folders of human-editable ASCII .txt
                   glyph files (ascii_patches/<strike_symbol>/U+XXXX_<name>.txt), and compile
-                  edited ASCII .txt folders back into plex_epd_patches.json.
+                  edited ASCII .txt folders back into font_icon_epd_patches.json.
   3. check      : Generate full-font visual inspection PNG sheets for every individual strike
                   (inspect_pngs/<strike_symbol>.png showing every glyph at 1x and 4x grid zoom),
                   render multi-mode rasterization comparison sheets, and run the 200x200 SSD1681
                   horizontal string-width audit across all 5 H1OS screens.
   4. build      : Automated CMake / CLI firmware code generator producing LVGL v9 1-bpp .c
                   files, plex_fonts.h, backward-compatible h1os_fonts.h, Adobe BDF 2.1 strikes,
-                  and CSV metric tables (with automatic ingestion of both plex_epd_patches.json
+                  and CSV metric tables (with automatic ingestion of both font_icon_epd_patches.json
                   and ascii_patches/ folders).
 
 Author: Humidyne Labs Typography Toolchain
@@ -38,7 +38,28 @@ from __future__ import annotations
 
 import argparse
 import csv
+import concurrent.futures
 import ctypes
+import time
+
+FT_LOAD_NO_HINTING = 1 << 1
+
+
+def format_strike_symbol(family: str, role: str, size_px: int) -> str:
+    """
+    Canonical v1.0.8 `humid1_` symbol naming convention:
+      - IBM Plex families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
+      - Terminus family (terminus)                        -> humid1_font_terminus_<role>_<size>
+      - Modular Icon families (icon_fa7, icon_lucide...)  -> humid1_<family>_<role>_<size>
+      - Custom font families                              -> humid1_font_<family>_<role>_<size>
+    """
+    if family in ("sans", "cond", "mono", "serif", "math"):
+        return f"humid1_font_plex_{family}_{role}_{size_px}"
+    elif family == "terminus":
+        return f"humid1_font_terminus_{role}_{size_px}"
+    elif family.startswith("icon_"):
+        return f"humid1_{family}_{role}_{size_px}"
+    return f"humid1_font_{family}_{role}_{size_px}"
 import ctypes.util
 import json
 import math
@@ -173,8 +194,12 @@ def load_icon_name_registry(static_dir: Path) -> None:
                 pass
 
 def get_semantic_glyph_name(code: int, family: str = "") -> str:
+    hex_k = f"0x{code:04X}"
+    if family == "icon_tabler" and "icon_tabler_filled" in ICON_NAME_REGISTRY:
+        if hex_k in ICON_NAME_REGISTRY["icon_tabler_filled"]:
+            raw = ICON_NAME_REGISTRY["icon_tabler_filled"][hex_k]
+            return re.sub(r"[^A-Za-z0-9_-]+", "_", raw).strip("_")
     if family and family in ICON_NAME_REGISTRY:
-        hex_k = f"0x{code:04X}"
         if hex_k in ICON_NAME_REGISTRY[family]:
             raw = ICON_NAME_REGISTRY[family][hex_k]
             return re.sub(r"[^A-Za-z0-9_-]+", "_", raw).strip("_")
@@ -728,6 +753,8 @@ def resolve_freetype_flags(raster_mode: str, size_px: int) -> int:
         Executes embedded TrueType bytecode instructions (fpgm/prep/cvt) + 1-bit dropout control.
       - 'gray-threshold': Legacy 8-bit grayscale thresholding (autohint <= 18px, unhinted > 18px).
     """
+    if raster_mode == "exact-mono":
+        return FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME
     if raster_mode == "autohint-mono":
         return FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME
     if raster_mode == "bytecode-mono":
@@ -1230,7 +1257,7 @@ def build_patches_json_from_ascii_root(
 ) -> int:
     """
     Scan all `<ascii_root_dir>/<strike_symbol>/` subdirectories, compile modified (or all)
-    `U+*.txt` files, and merge them into `out_json_path` (`plex_epd_patches.json`).
+    `U+*.txt` files, and merge them into `out_json_path` (`font_icon_epd_patches.json`).
     """
     manifest: dict = {
         "$schema": "https://humidyne-labs.github.io/schemas/plex_epd_patches_v3.json",
@@ -1310,7 +1337,60 @@ def _load_ui_fonts(static_dir: Optional[Path] = None):
     return {k: default_f for k in ("title", "subtitle", "section", "label", "mono", "mono_sm", "mono_lg")}
 
 
+MAX_GLYPHS_PER_PNG_PAGE = 256
+
 def render_full_font_inspection_png(
+    out_png: Path,
+    font_symbol_name: str,
+    family: str,
+    role: str,
+    size_px: int,
+    raster_mode: str,
+    line_height: int,
+    base_line: int,
+    glyphs: Sequence[GlyphStrike],
+    rom_bytes: int,
+    static_dir: Optional[Path] = None,
+) -> int:
+    valid_all = [g for g in glyphs if g.codepoint > 0]
+    if len(valid_all) > MAX_GLYPHS_PER_PNG_PAGE:
+        total_pages = int(math.ceil(len(valid_all) / float(MAX_GLYPHS_PER_PNG_PAGE)))
+        for p_idx in range(total_pages):
+            chunk = valid_all[p_idx * MAX_GLYPHS_PER_PNG_PAGE : (p_idx + 1) * MAX_GLYPHS_PER_PNG_PAGE]
+            cp_start = chunk[0].codepoint
+            cp_end = chunk[-1].codepoint
+            page_png = out_png.parent / f"{font_symbol_name}_p{p_idx+1:02d}_of_{total_pages:02d}_U+{cp_start:04X}-U+{cp_end:04X}.png"
+            _render_single_page_inspection_png(
+                out_png=page_png,
+                font_symbol_name=f"{font_symbol_name} [Page {p_idx+1}/{total_pages}: U+{cp_start:04X}..U+{cp_end:04X}]",
+                family=family,
+                role=role,
+                size_px=size_px,
+                raster_mode=raster_mode,
+                line_height=line_height,
+                base_line=base_line,
+                glyphs=chunk,
+                rom_bytes=rom_bytes,
+                static_dir=static_dir,
+            )
+        return total_pages
+    _render_single_page_inspection_png(
+        out_png=out_png,
+        font_symbol_name=font_symbol_name,
+        family=family,
+        role=role,
+        size_px=size_px,
+        raster_mode=raster_mode,
+        line_height=line_height,
+        base_line=base_line,
+        glyphs=valid_all,
+        rom_bytes=rom_bytes,
+        static_dir=static_dir,
+    )
+    return 1
+
+
+def _render_single_page_inspection_png(
     out_png: Path,
     font_symbol_name: str,
     family: str,
@@ -1901,7 +1981,7 @@ def export_bdf_strike(
     descent = base_line
     lines = [
         "STARTFONT 2.1",
-        f"COMMENT Generated by Humidyne Labs generate_plex_1bpp.py ({font_symbol_name})",
+        f"COMMENT Generated by Humidyne Labs humid1_generate_1bpp.py ({font_symbol_name})",
         f"FONT -Humidyne-{font_symbol_name}-R-Normal--{size_px}-{size_px*10}-{dpi}-{dpi}-P-0-ISO10646-1",
         f"SIZE {size_px} {dpi} {dpi}",
         f"FONTBOUNDINGBOX {size_px} {line_height} 0 {-descent}",
@@ -2285,15 +2365,14 @@ def generate_headers(
     out_dir: Path,
     compiled_symbols: Sequence[Tuple[str, str, str, int, int]],
 ) -> None:
-    """Generate plex_fonts.h and backward-compatible h1os_fonts.h."""
+    """Generate humid1_fonts.h (plus backward-compatible plex_fonts.h, epd_fonts.h, and h1os_fonts.h)."""
     sym_set = {item[0] for item in compiled_symbols}
 
-    def pick_sym(preferred: str, fallback: str = "plex_sans_normal_14") -> str:
-        if preferred in sym_set:
-            return preferred
-        if fallback in sym_set:
-            return fallback
-        return compiled_symbols[0][0]
+    def pick_sym(preferred: str, fallback: str = "humid1_font_plex_sans_normal_14") -> str:
+        for cand in (preferred, f"humid1_font_{preferred}", f"humid1_{preferred}", fallback, "humid1_font_plex_sans_normal_14"):
+            if cand in sym_set:
+                return cand
+        return compiled_symbols[0][0] if compiled_symbols else "humid1_font_plex_sans_normal_14"
 
     plex_h = out_dir / "plex_fonts.h"
     p_lines = [
@@ -2301,7 +2380,7 @@ def generate_headers(
         " * @file plex_fonts.h",
         " * @brief Humidyne Labs / Humiditron 1-BPP Bilevel EPD Typography & Iconography Suite",
         " *",
-        " * Auto-generated by tools/fonts/generate_plex_1bpp.py (v1.0.7)",
+        " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v1.0.8)",
         " * SPDX-License-Identifier: MIT AND OFL-1.1",
         " */",
         "",
@@ -2350,9 +2429,11 @@ def generate_headers(
         "#endif",
         "",
     ])
-    plex_h.write_text("\n".join(p_lines), encoding="utf-8")
-    epd_h = out_dir / "epd_fonts.h"
-    epd_h.write_text("\n".join(p_lines).replace("@file plex_fonts.h", "@file epd_fonts.h"), encoding="utf-8")
+    p_text = "\n".join(p_lines)
+    p_text_humid1 = p_text.replace("#define PLEX_FONT_", "#define HUMID1_FONT_") + "\n" + p_text
+    (out_dir / "humid1_fonts.h").write_text(p_text_humid1.replace("@file plex_fonts.h", "@file humid1_fonts.h"), encoding="utf-8")
+    plex_h.write_text(p_text, encoding="utf-8")
+    (out_dir / "epd_fonts.h").write_text(p_text.replace("@file plex_fonts.h", "@file epd_fonts.h"), encoding="utf-8")
 
     h1os_h = out_dir / "h1os_fonts.h"
     default_sym = pick_sym("plex_sans_normal_14")
@@ -2362,7 +2443,7 @@ def generate_headers(
         " * @brief H1OS Build-Time Generated 1-BPP Bilevel Typography Suite (IBM Plex EPD)",
         " *",
         " * Drop-in backward-compatible header for H1OS & humid1-os.",
-        " * Auto-generated by tools/fonts/generate_plex_1bpp.py (v2.0)",
+        " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v2.0)",
         " * SPDX-License-Identifier: Apache-2.0 / SIL OFL-1.1",
         " */",
         "",
@@ -2486,8 +2567,14 @@ def run_screen_width_audit(
         ]
 
     for scr_name, row_desc, l_str, r_str, sans_sym, mono_sym, min_gap in rows_to_run:
+        if sans_sym not in strike_cache and f"humid1_font_{sans_sym}" in strike_cache:
+            sans_sym = f"humid1_font_{sans_sym}"
+        if mono_sym not in strike_cache and f"humid1_font_{mono_sym}" in strike_cache:
+            mono_sym = f"humid1_font_{mono_sym}"
         s_gmap = strike_cache.get(sans_sym, ({}, 0, 0))[0]
-        m_gmap = strike_cache.get(mono_sym, ({}, 0, 0))[0]
+        m_gmap = strike_cache.get(mono_sym, s_gmap if not strike_cache.get(mono_sym) else ({}, 0, 0))
+        if isinstance(m_gmap, tuple):
+            m_gmap = m_gmap[0]
         s_kmap = kern_cache.get(sans_sym, {})
         m_kmap = kern_cache.get(mono_sym, {})
 
@@ -2554,9 +2641,16 @@ def render_specimen_sheet(
         fallback_sym: str = "plex_sans_normal_14",
     ) -> int:
         if sym not in strike_cache:
-            return x0
+            if f"humid1_font_{sym}" in strike_cache:
+                sym = f"humid1_font_{sym}"
+            elif f"humid1_{sym}" in strike_cache:
+                sym = f"humid1_{sym}"
+            else:
+                return x0
         gmap, line_h, base_l = strike_cache[sym]
-        fb_gmap = strike_cache.get(fallback_sym, ({}, 0, 0))[0]
+        fb_gmap = (
+            strike_cache.get(fallback_sym, strike_cache.get(f"humid1_font_{fallback_sym}", ({}, 0, 0)))[0]
+        )
         cx = x0
         baseline_y = y0 + (line_h - base_l) * scale
         for ch in text:
@@ -2594,9 +2688,27 @@ def render_specimen_sheet(
     epd = Image.new("RGB", (200, 200), (255, 255, 255))
     epd_draw = ImageDraw.Draw(epd)
 
+    def _resolve_sym(s: str) -> Optional[str]:
+        for c in (
+            s,
+            f"humid1_font_{s}",
+            f"humid1_{s}",
+            s.replace("_bold_", "_normal_"),
+            f"humid1_font_{s.replace('_bold_', '_normal_')}",
+            "humid1_font_plex_sans_normal_14",
+            "plex_sans_normal_14",
+        ):
+            if c in strike_cache:
+                return c
+        return next(iter(strike_cache.keys()), None)
+
     def draw_epd_text(x0: int, y0: int, text: str, sym: str, fg=(0, 0, 0), align_right_x: Optional[int] = None):
-        gmap, line_h, base_l = strike_cache[sym]
-        fb_gmap = strike_cache.get("plex_sans_normal_14", ({}, 0, 0))[0]
+        r_sym = _resolve_sym(sym)
+        if not r_sym:
+            return
+        gmap, line_h, base_l = strike_cache[r_sym]
+        fb_sym_r = _resolve_sym("humid1_font_plex_sans_normal_14")
+        fb_gmap = strike_cache.get(fb_sym_r, ({}, 0, 0))[0] if fb_sym_r else {}
         if align_right_x is not None:
             w = sum(
                 (((gmap.get(ord(c)) or fb_gmap.get(ord(c))).adv_w_fp4 + 8) >> 4)
@@ -2730,7 +2842,7 @@ def render_specimen_sheet(
 # 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v0.0.6)
 # =============================================================================
 
-def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "") -> str:
+def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "", style: str = "") -> str:
     """
     Convert a character_set entry from a scheme JSON into a comma-separated hex/dec range string.
     Supports three ways of scoping characters/icons in `schemes/*.json`:
@@ -2743,6 +2855,8 @@ def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "") 
         parts.append(str(cs_entry["ranges"]).strip())
 
     vendor = cs_entry.get("vendor", default_vendor)
+    if vendor == "icon_tabler" and style == "filled" and "icon_tabler_filled" in ICON_NAME_REGISTRY.get("by_name", {}):
+        vendor = "icon_tabler_filled"
     by_name_map = ICON_NAME_REGISTRY.get("by_name", {}).get(vendor, {})
     if not by_name_map and vendor in ICON_NAME_REGISTRY and isinstance(ICON_NAME_REGISTRY[vendor], dict):
         # Build reverse name -> hex lookup from cp -> name map
@@ -2774,6 +2888,7 @@ DEFAULT_ICON_FALLBACK_RANGES = {
     "icon_lucide": "0xE01D,0xE053,0xE054,0xE070,0xE0B4,0xE17C,0xE1A1,0xE1AA,0xE1D8,0xE1FB",
     "icon_phosphor": "0xE002,0xE026,0xE06A,0xE094,0xE13E,0xE14E,0xE1F4,0xE208,0xE270,0xE482,0xE4EA,0xE60C",
     "icon_tabler": "0xEA02,0xEA08,0xEA30,0xEA31,0xEA32,0xEA34,0xEA38,0xEA52,0xEB3D,0xEB52",
+    "icon_tabler_filled": "0xEE80,0xF327,0xF667,0xF668,0xF669,0xF66A,0xF66B,0xF66C,0xF66D,0xF66E",
 }
 
 def load_plan_from_scheme_json(scheme_path: Path) -> Tuple[dict, List[Tuple[str, str, List[int], str, bool, Optional[str], str]]]:
@@ -2797,7 +2912,7 @@ def load_plan_from_scheme_json(scheme_path: Path) -> Tuple[dict, List[Tuple[str,
         u_ranges = []
         for cn in cset_names:
             if cn in char_sets:
-                r_str = resolve_charset_spec_to_range_str(char_sets[cn], default_vendor=fam)
+                r_str = resolve_charset_spec_to_range_str(char_sets[cn], default_vendor=fam, style=style)
                 if r_str:
                     u_ranges.append(r_str)
         if u_ranges:
@@ -2822,7 +2937,7 @@ def load_plan_from_scheme_json(scheme_path: Path) -> Tuple[dict, List[Tuple[str,
 
 
 def export_strike_vault(vault_path: Path, vault_data: dict) -> int:
-    """Export pre-rasterized, patch-applied Strike Vault (.json.gz or .json) for plex_fw_emit.py."""
+    """Export pre-rasterized, patch-applied Strike Vault (.json.gz or .json) for humid1_fw_emit.py."""
     import gzip
     vault_path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(vault_data, separators=(",", ":"))
@@ -2844,7 +2959,7 @@ Unified Directory Architecture (1 Input Dir, 1 Output Dir):
   --out-dir <dir> : Single root output directory (default: <repo>/build).
                     Automatically organizes generated outputs into clean subfolders:
                       <out-dir>/fonts/          -> LVGL v9 .c modules, plex_fonts.h, h1os_fonts.h, licenses/
-                      <out-dir>/dist/           -> Pre-rasterized Strike Vault (plex_epd_vault.json.gz)
+                      <out-dir>/dist/           -> Pre-rasterized Strike Vault (humid1_epd_vault.json.gz)
                       <out-dir>/bdf/            -> Adobe BDF 2.1 bitmap font strikes
                       <out-dir>/metrics/        -> Per-strike glyph width & kerning CSV tables
                       <out-dir>/inspect_pages/  -> Auto-wrapped Page Check PNGs + 188-DPI Specimen PNG
@@ -2853,24 +2968,24 @@ Unified Directory Architecture (1 Input Dir, 1 Output Dir):
 Examples:
 ---------
   1. Build C/H Fonts, BDFs, CSVs, and Strike Vault into `<repo>/build`:
-     python tools/fonts/generate_plex_1bpp.py --workflow build
+     python tools/fonts/humid1_generate_1bpp.py --workflow build
 
   2. Run Visual Check (Page Check PNGs + Char Blueprint PNGs + 200x200 Screen Audit):
-     python tools/fonts/generate_plex_1bpp.py --workflow check
+     python tools/fonts/humid1_generate_1bpp.py --workflow check
 
   3. Dump Editable Full-Canvas 1:1 Spaced ASCII Patch Files:
-     python tools/fonts/generate_plex_1bpp.py --workflow patch --dump
+     python tools/fonts/humid1_generate_1bpp.py --workflow patch --dump
 
-  4. Compile Edited ASCII Patch Files into `plex_epd_patches.json`:
-     python tools/fonts/generate_plex_1bpp.py --workflow patch --apply
+  4. Compile Edited ASCII Patch Files into `font_icon_epd_patches.json`:
+     python tools/fonts/humid1_generate_1bpp.py --workflow patch --apply
 
   5. Execute Entire Pipeline End-to-End (`all`):
-     python tools/fonts/generate_plex_1bpp.py --workflow all
+     python tools/fonts/humid1_generate_1bpp.py --workflow all
 """
     parser = argparse.ArgumentParser(
-        prog="generate_plex_1bpp.py",
+        prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.7 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
+            "Humidyne Labs / Humiditron `epd-font` v1.0.8 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
             "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
         ),
         epilog=epilog_text,
@@ -2911,7 +3026,7 @@ Examples:
         "-p", "--patches",
         type=str,
         default=None,
-        help="Path to JSON optical patch manifest (default: tools/fonts/plex_epd_patches.json)",
+        help="Path to JSON optical patch manifest (default: tools/fonts/font_icon_epd_patches.json)",
     )
     parser.add_argument(
         "-a", "--ascii-dir",
@@ -3018,6 +3133,12 @@ Examples:
         action="store_true",
         help="Retain sub-pixel GPOS kerning pairs that round to 0px at target strike size",
     )
+    parser.add_argument(
+        "-j", "--jobs",
+        type=int,
+        default=None,
+        help="Number of parallel CPU worker processes (default: all host CPU cores)",
+    )
 
     # Hidden legacy flags for 100% backward compatibility with older scripts/commands
     parser.add_argument("--profile", choices=["h1os", "humid1", "full"], default="h1os", help=argparse.SUPPRESS)
@@ -3036,13 +3157,179 @@ Examples:
     return parser
 
 
+
+_WORKER_FT = None
+_WORKER_FT_LIB = None
+_WORKER_FONT_DIR = None
+
+
+def _execute_strike_worker_task(task: dict) -> dict:
+    """ProcessPoolExecutor worker that rasterizes and emits all artifacts for a single strike."""
+    global _WORKER_FT, _WORKER_FT_LIB, _WORKER_FONT_DIR
+    font_dir = Path(task["font_dir"])
+    if _WORKER_FT is None:
+        _WORKER_FT, _WORKER_FT_LIB = load_freetype()
+    if _WORKER_FONT_DIR != task["font_dir"]:
+        load_icon_name_registry(font_dir)
+        _WORKER_FONT_DIR = task["font_dir"]
+
+    sym_name = task["sym_name"]
+    family = task["family"]
+    role = task["role"]
+    sz = task["sz"]
+    ttf_path = Path(task["ttf_path"])
+    effective_raster_m = task["effective_raster_m"]
+    strike_ascii_dir = Path(task["strike_ascii_dir"]) if task["strike_ascii_dir"] else None
+
+    glyphs, line_h, base_l, upos, uthk, kern_pairs = rasterize_font_strike(
+        ft=_WORKER_FT,
+        ft_lib=_WORKER_FT_LIB,
+        font_path=ttf_path,
+        size_px=sz,
+        codepoints=task["codepoints"],
+        raster_mode=effective_raster_m,
+        threshold=task["threshold"],
+        fa_path=None,
+        fa_codepoints=None,
+        patch_dict=task["strike_patches"],
+        ascii_override_dir=strike_ascii_dir,
+        enable_kerning=task["enable_kern"],
+        prune_noop_kern=task["prune_noop_kern"],
+    )
+
+    if task["do_build_c"] and task["c_out_dir"]:
+        out_file = Path(task["c_out_dir"]) / f"{sym_name}.c"
+        rom_b = emit_lvgl_c_file(
+            out_file=out_file,
+            font_symbol_name=sym_name,
+            size_px=sz,
+            family=family,
+            role=role,
+            raster_mode=effective_raster_m,
+            glyphs=glyphs,
+            line_height=line_h,
+            base_line=base_l,
+            underline_pos=upos,
+            underline_thick=uthk,
+            kern_pairs=kern_pairs,
+            fallback_symbol=task["fb_sym"],
+        )
+    else:
+        rom_b = sum(len(g.pack_1bpp_bytes()) for g in glyphs) + (len(glyphs) + 1) * 8 + len(kern_pairs) * 3 + 120
+
+    ascii_dumped = 0
+    if task["dump_ascii_root"]:
+        s_dump_dir = Path(task["dump_ascii_root"]) / sym_name
+        ascii_dumped = dump_strike_to_ascii_folder(
+            s_dump_dir,
+            sym_name,
+            glyphs,
+            size_px=sz,
+            line_height=line_h,
+            base_line=base_l,
+            trouble_only=task["trouble_only"],
+            unicode_preview=task["unicode_preview"],
+            family=family,
+        )
+
+    png_pages = 0
+    if task["inspect_png_root"]:
+        png_file = Path(task["inspect_png_root"]) / f"{sym_name}.png"
+        png_pages = render_full_font_inspection_png(
+            out_png=png_file,
+            font_symbol_name=sym_name,
+            family=family,
+            role=role,
+            size_px=sz,
+            raster_mode=effective_raster_m,
+            line_height=line_h,
+            base_line=base_l,
+            glyphs=glyphs,
+            rom_bytes=rom_b,
+            static_dir=font_dir,
+        )
+
+    char_pngs = 0
+    if task["inspect_chars_root"]:
+        s_char_dir = Path(task["inspect_chars_root"]) / sym_name
+        char_pngs = render_char_by_char_folder(
+            strike_char_dir=s_char_dir,
+            font_symbol_name=sym_name,
+            family=family,
+            role=role,
+            size_px=sz,
+            raster_mode=effective_raster_m,
+            line_height=line_h,
+            base_line=base_l,
+            glyphs=glyphs,
+            char_filter=task["inspect_chars_filter"],
+            static_dir=font_dir,
+        )
+
+    if task["bdf_out_dir"]:
+        bdf_path = Path(task["bdf_out_dir"]) / f"{sym_name}.bdf"
+        export_bdf_strike(bdf_path, sym_name, sz, 188, line_h, base_l, glyphs)
+
+    if task["metrics_out_dir"]:
+        export_metric_csvs(Path(task["metrics_out_dir"]), sym_name, glyphs, kern_pairs)
+
+    vault_entry = {
+        "family": family,
+        "style": role,
+        "size_px": sz,
+        "source_ttf": task["ttf_name"],
+        "line_height": line_h,
+        "base_line": base_l,
+        "glyphs": [
+            {
+                "cp": g.codepoint,
+                "name": get_semantic_glyph_name(g.codepoint, family),
+                "gid": g.glyph_id,
+                "adv_w_fp4": g.adv_w_fp4,
+                "box_w": g.box_w,
+                "box_h": g.box_h,
+                "ofs_x": g.ofs_x,
+                "ofs_y": g.ofs_y,
+                "rows": g.rows,
+                "patched": g.patched,
+            }
+            for g in glyphs
+            if g.codepoint > 0
+        ],
+        "kern_pairs": [[l_gid, r_gid, kv] for (l_gid, r_gid, _, _, kv) in kern_pairs],
+    }
+
+    patched_cnt = sum(1 for g in glyphs if g.patched)
+    patch_tag = f" [+{patched_cnt} patches]" if patched_cnt else ""
+    log_line = (
+        f"    [+] {sym_name:<36} | {len(glyphs):>4} glyphs | {len(kern_pairs):>4} kern | "
+        f"lh={line_h:>2}px | {effective_raster_m:<13} | ~{rom_b:>7,} B ({rom_b/1024:.2f} KB){patch_tag}"
+    )
+    return {
+        "sym_name": sym_name,
+        "family": family,
+        "role": role,
+        "sz": sz,
+        "rom_b": rom_b,
+        "glyphs": glyphs,
+        "line_h": line_h,
+        "base_l": base_l,
+        "kern_pairs": kern_pairs,
+        "ascii_dumped": ascii_dumped,
+        "png_pages": png_pages,
+        "char_pngs": char_pngs,
+        "vault_entry": vault_entry,
+        "log_line": log_line,
+    }
+
+
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.7)
+    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.8)
     raw_src_arg = args.src_dir or args.font_dir
     if raw_src_arg:
         cand_src = Path(raw_src_arg).resolve()
@@ -3079,13 +3366,13 @@ def main() -> None:
 
     dist_root = Path(args.dist_dir).resolve() if args.dist_dir else (repo_root / "dist").resolve()
 
-    # Root-tracked patch manifest (`<repo>/epd_font_patches.json` with fallback to `tools/fonts/plex_epd_patches.json`)
+    # Root-tracked patch manifest (`<repo>/font_icon_epd_patches.json` with fallback to `tools/fonts/font_icon_epd_patches.json`)
     if args.patches:
         patches_path = Path(args.patches).resolve()
-    elif (repo_root / "epd_font_patches.json").is_file():
-        patches_path = (repo_root / "epd_font_patches.json").resolve()
+    elif (repo_root / "font_icon_epd_patches.json").is_file():
+        patches_path = (repo_root / "font_icon_epd_patches.json").resolve()
     else:
-        patches_path = (script_dir / "plex_epd_patches.json").resolve()
+        patches_path = (script_dir / "font_icon_epd_patches.json").resolve()
 
     # `ascii_patches` MUST exist inside `build/` (`<root_out>/ascii_patches`)
     default_ascii_dir = Path(args.ascii_dir).resolve() if args.ascii_dir else (root_out / "ascii_patches").resolve()
@@ -3108,8 +3395,8 @@ def main() -> None:
     )
     bdf_out_dir = Path(args.export_bdf).resolve() if args.export_bdf else ((root_out / "bdf") if do_build_c else None)
     metrics_out_dir = Path(args.metrics_dir).resolve() if args.metrics_dir else ((root_out / "metrics") if (do_build_c or do_check_png) else None)
-    vault_out_path = Path(args.export_vault).resolve() if args.export_vault else ((dist_root / "plex_epd_vault.json.gz") if do_build_c else None)
-    specimen_out_path = Path(args.render_preview).resolve() if args.render_preview else ((root_out / "inspect_pages" / "plex_epd_specimen_188dpi.png") if do_check_png else None)
+    vault_out_path = Path(args.export_vault).resolve() if args.export_vault else ((dist_root / "humid1_epd_vault.json.gz") if do_build_c else None)
+    specimen_out_path = Path(args.render_preview).resolve() if args.render_preview else ((root_out / "inspect_pages" / "humid1_epd_specimen_188dpi.png") if do_check_png else None)
 
     # Step 2: Compile ASCII .txt edits into patches_path JSON if requested
     if apply_ascii_root and apply_ascii_root.is_dir():
@@ -3166,7 +3453,7 @@ def main() -> None:
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
     kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
     vault_data: dict = {
-        "vault_version": "1.0.7",
+        "vault_version": "1.0.8",
         "raster_mode": raster_m,
         "normal_weight": normal_w,
         "strikes": {},
@@ -3176,6 +3463,11 @@ def main() -> None:
     total_png_inspected = 0
     total_char_pngs = 0
 
+    # Build list of strike tasks and execute across all host CPU cores via ProcessPoolExecutor!
+    t_start = time.perf_counter()
+    max_workers = args.jobs if (args.jobs and args.jobs > 0) else (os.cpu_count() or 4)
+    strike_tasks: List[dict] = []
+
     for family, role, prof_sizes, range_str, inc_fa5, fb_pattern, fa_range_str in raw_plan:
         if role.startswith("custom:"):
             ttf_name = role.split("custom:", 1)[1]
@@ -3183,10 +3475,6 @@ def main() -> None:
         else:
             fam_map = family_roles.get(family, family_roles["sans"])
             ttf_name = fam_map.get(role, fam_map.get("normal", "IBMPlexSans-Regular.ttf"))
-        ttf_path = font_dir / ttf_name
-        if not ttf_path.is_file():
-            print(f"[!] Missing static TTF binary: {ttf_path}\n    Run `scripts\\01_build_static_ttfs.bat` first.", file=sys.stderr)
-            sys.exit(1)
 
         sizes_to_build = args.sizes if args.sizes is not None else prof_sizes
         floor_px = SUBFAMILY_FLOORS.get(family, 10)
@@ -3194,57 +3482,91 @@ def main() -> None:
 
         codepoints = parse_unicode_range(range_str)
         if family.startswith("icon_"):
-            # Enforce PUA filter (cp >= 0xE000) at ingestion layer so upstream icon TTFs need zero modification
             codepoints = [cp for cp in codepoints if cp >= 0xE000]
+            if family == "icon_tabler" and role == "filled" and not codepoints:
+                codepoints = parse_unicode_range(DEFAULT_ICON_FALLBACK_RANGES["icon_tabler_filled"])
         enable_kern = family in ("sans", "cond", "serif")
 
         for sz in valid_sizes:
-            sym_name = f"plex_{family}_{role}_{sz}"
+            # For Terminus, select the exact size-specific native .ttf (Terminus-Normal-<sz>.ttf / Terminus-Bold-<sz>.ttf)
+            strike_ttf_name = ttf_name
+            if family == "terminus":
+                if "bold" in role.lower() and (font_dir / f"Terminus-Bold-{sz}.ttf").is_file():
+                    strike_ttf_name = f"Terminus-Bold-{sz}.ttf"
+                elif "vga" in role.lower() and (font_dir / f"Terminus-VGA-{sz}.ttf").is_file():
+                    strike_ttf_name = f"Terminus-VGA-{sz}.ttf"
+                elif (font_dir / f"Terminus-Normal-{sz}.ttf").is_file():
+                    strike_ttf_name = f"Terminus-Normal-{sz}.ttf"
+
+            ttf_path = font_dir / strike_ttf_name
+            if not ttf_path.is_file():
+                print(f"[!] Missing static TTF binary: {ttf_path}\n    Run `01_build_static_ttfs.bat` first.", file=sys.stderr)
+                sys.exit(1)
+
+            sym_name = format_strike_symbol(family, role, sz)
+            legacy_sym_name = f"plex_{family}_{role}_{sz}"
             fb_sym = fb_pattern.format(size=sz) if fb_pattern else None
-            if fb_sym and fb_sym == sym_name:
+            if fb_sym and not fb_sym.startswith("humid1_"):
+                if fb_sym.startswith("plex_sans_") or fb_sym.startswith("plex_mono_") or fb_sym.startswith("plex_cond_") or fb_sym.startswith("plex_serif_") or fb_sym.startswith("plex_math_"):
+                    fb_sym = f"humid1_font_{fb_sym}"
+                elif fb_sym.startswith("plex_terminus_"):
+                    fb_sym = f"humid1_font_{fb_sym[5:]}"
+            if fb_sym == sym_name:
                 fb_sym = None
 
-            strike_patches = patch_manifest.get("patches", {}).get(sym_name, {})
-            strike_ascii_dir = (ascii_ingest_root / sym_name) if ascii_ingest_root else None
-
-            effective_raster_m = "bytecode-mono" if family == "terminus" else raster_m
-            glyphs, line_h, base_l, upos, uthk, kern_pairs = rasterize_font_strike(
-                ft=ft,
-                ft_lib=ft_lib,
-                font_path=ttf_path,
-                size_px=sz,
-                codepoints=codepoints,
-                raster_mode=effective_raster_m,
-                threshold=args.threshold,
-                fa_path=None,
-                fa_codepoints=None,
-                patch_dict=strike_patches,
-                ascii_override_dir=strike_ascii_dir,
-                enable_kerning=enable_kern,
-                prune_noop_kern=not args.keep_noop_kern,
+            strike_patches = (
+                patch_manifest.get("patches", {}).get(sym_name)
+                or patch_manifest.get("patches", {}).get(legacy_sym_name)
+                or {}
             )
+            strike_ascii_dir = (ascii_ingest_root / sym_name) if ascii_ingest_root else None
+            effective_raster_m = "exact-mono" if family == "terminus" else raster_m
 
-            if do_build_c:
-                out_file = c_out_dir / f"{sym_name}.c"
-                rom_b = emit_lvgl_c_file(
-                    out_file=out_file,
-                    font_symbol_name=sym_name,
-                    size_px=sz,
-                    family=family,
-                    role=role,
-                    raster_mode=raster_m,
-                    glyphs=glyphs,
-                    line_height=line_h,
-                    base_line=base_l,
-                    underline_pos=upos,
-                    underline_thick=uthk,
-                    kern_pairs=kern_pairs,
-                    fallback_symbol=fb_sym,
-                )
-            else:
-                rom_b = sum(len(g.pack_1bpp_bytes()) for g in glyphs) + (len(glyphs) + 1) * 8 + len(kern_pairs) * 3 + 120
+            strike_tasks.append({
+                "sym_name": sym_name,
+                "family": family,
+                "role": role,
+                "sz": sz,
+                "ttf_name": strike_ttf_name,
+                "ttf_path": str(ttf_path),
+                "font_dir": str(font_dir),
+                "codepoints": codepoints,
+                "effective_raster_m": effective_raster_m,
+                "threshold": args.threshold,
+                "strike_patches": strike_patches,
+                "strike_ascii_dir": str(strike_ascii_dir) if strike_ascii_dir else None,
+                "enable_kern": enable_kern,
+                "prune_noop_kern": not args.keep_noop_kern,
+                "do_build_c": do_build_c,
+                "c_out_dir": str(c_out_dir) if do_build_c else None,
+                "fb_sym": fb_sym,
+                "dump_ascii_root": str(dump_ascii_root) if dump_ascii_root else None,
+                "trouble_only": args.trouble_only,
+                "unicode_preview": args.unicode_preview,
+                "inspect_png_root": str(inspect_png_root) if inspect_png_root else None,
+                "inspect_chars_root": str(inspect_chars_root) if inspect_chars_root else None,
+                "inspect_chars_filter": args.inspect_chars_filter,
+                "bdf_out_dir": str(bdf_out_dir) if (bdf_out_dir and sz <= 32) else None,
+                "metrics_out_dir": str(metrics_out_dir) if metrics_out_dir else None,
+            })
+
+    print(f"[*] Processing {len(strike_tasks)} font/icon strikes in parallel across {max_workers} CPU worker processes...")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as pool:
+        for res in pool.map(_execute_strike_worker_task, strike_tasks):
+            sym_name = res["sym_name"]
+            family = res["family"]
+            role = res["role"]
+            sz = res["sz"]
+            rom_b = res["rom_b"]
+            glyphs = res["glyphs"]
+            line_h = res["line_h"]
+            base_l = res["base_l"]
+            kern_pairs = res["kern_pairs"]
 
             total_rom_bytes += rom_b
+            total_ascii_dumped += res["ascii_dumped"]
+            total_png_inspected += res["png_pages"]
+            total_char_pngs += res["char_pngs"]
             compiled_symbols.append((sym_name, family, role, sz, rom_b))
 
             gmap = {g.codepoint: g for g in glyphs}
@@ -3252,92 +3574,12 @@ def main() -> None:
             kern_cache[sym_name] = {(lc, rc): kv for _, _, lc, rc, kv in kern_pairs}
 
             if vault_out_path:
-                vault_data["strikes"][sym_name] = {
-                    "family": family,
-                    "style": role,
-                    "size_px": sz,
-                    "source_ttf": ttf_name,
-                    "line_height": line_h,
-                    "base_line": base_l,
-                    "glyphs": [
-                        {
-                            "cp": g.codepoint,
-                            "name": get_semantic_glyph_name(g.codepoint, family),
-                            "gid": g.glyph_id,
-                            "adv_w_fp4": g.adv_w_fp4,
-                            "box_w": g.box_w,
-                            "box_h": g.box_h,
-                            "ofs_x": g.ofs_x,
-                            "ofs_y": g.ofs_y,
-                            "rows": g.rows,
-                            "patched": g.patched,
-                        }
-                        for g in glyphs
-                        if g.codepoint > 0
-                    ],
-                    "kern_pairs": [[l_gid, r_gid, kv] for (l_gid, r_gid, _, _, kv) in kern_pairs],
-                }
+                vault_data["strikes"][sym_name] = res["vault_entry"]
 
-            if dump_ascii_root:
-                s_dump_dir = dump_ascii_root / sym_name
-                total_ascii_dumped += dump_strike_to_ascii_folder(
-                    s_dump_dir,
-                    sym_name,
-                    glyphs,
-                    size_px=sz,
-                    line_height=line_h,
-                    base_line=base_l,
-                    trouble_only=args.trouble_only,
-                    unicode_preview=args.unicode_preview,
-                    family=family,
-                )
+            print(res["log_line"])
 
-            if inspect_png_root:
-                png_file = inspect_png_root / f"{sym_name}.png"
-                render_full_font_inspection_png(
-                    out_png=png_file,
-                    font_symbol_name=sym_name,
-                    family=family,
-                    role=role,
-                    size_px=sz,
-                    raster_mode=raster_m,
-                    line_height=line_h,
-                    base_line=base_l,
-                    glyphs=glyphs,
-                    rom_bytes=rom_b,
-                    static_dir=font_dir,
-                )
-                total_png_inspected += 1
-
-            if inspect_chars_root:
-                s_char_dir = inspect_chars_root / sym_name
-                total_char_pngs += render_char_by_char_folder(
-                    strike_char_dir=s_char_dir,
-                    font_symbol_name=sym_name,
-                    family=family,
-                    role=role,
-                    size_px=sz,
-                    raster_mode=raster_m,
-                    line_height=line_h,
-                    base_line=base_l,
-                    glyphs=glyphs,
-                    char_filter=args.inspect_chars_filter,
-                    static_dir=font_dir,
-                )
-
-            if bdf_out_dir and sz <= 24:
-                bdf_path = bdf_out_dir / f"{sym_name}.bdf"
-                export_bdf_strike(bdf_path, sym_name, sz, 188, line_h, base_l, glyphs)
-
-            if metrics_out_dir:
-                export_metric_csvs(metrics_out_dir, sym_name, glyphs, kern_pairs)
-
-            patched_cnt = sum(1 for g in glyphs if g.patched)
-            patch_tag = f" [+{patched_cnt} patches]" if patched_cnt else ""
-            print(
-                f"    [+] {sym_name:<26} | {len(glyphs):>3} glyphs | {len(kern_pairs):>4} kern | "
-                f"lh={line_h:>2}px | {raster_m:<13} | ~{rom_b:>6,} B ({rom_b/1024:.2f} KB){patch_tag}"
-            )
+    elapsed_s = time.perf_counter() - t_start
+    print(f"[+] Completed {len(strike_tasks)} strikes in {elapsed_s:.2f}s using {max_workers} CPU cores.")
 
     if do_build_c:
         generate_headers(c_out_dir, compiled_symbols)
@@ -3362,7 +3604,7 @@ def main() -> None:
         f"{len(compiled_symbols)} strikes, total ROM = {total_rom_bytes:,} bytes ({total_rom_bytes/1024:.1f} KB)."
     )
 
-    if (args.audit_screens or do_check_png) and "plex_sans_normal_14" in strike_cache:
+    if (args.audit_screens or do_check_png) and strike_cache:
         mont_dir = Path(args.montserrat_metrics_dir).resolve() if args.montserrat_metrics_dir else None
         tdisp = (scheme_cfg or {}).get("target_display", {})
         s_dpi = args.dpi if args.dpi is not None else float(tdisp.get("dpi", 188.3))
@@ -3383,7 +3625,7 @@ def main() -> None:
             custom_rows=c_rows,
         )
 
-    if specimen_out_path and "plex_sans_normal_14" in strike_cache:
+    if specimen_out_path and strike_cache:
         render_specimen_sheet(specimen_out_path, strike_cache)
 
 

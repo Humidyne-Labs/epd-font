@@ -1,6 +1,6 @@
 {
-  "manifest_schema": "epd-font-char-manifest-v1.0.7",
-  "generator": "tools/fonts/generate_char_manifests.py (v1.0.7)",
+  "manifest_schema": "epd-font-char-manifest-v1.0.8",
+  "generator": "tools/fonts/generate_char_manifests.py (v1.0.8)",
   "family_id": "icon_fa7",
   "upstream_name": "Font Awesome Free v7.0.0 / v7.3.1",
   "upstream_version": "7.3.1",

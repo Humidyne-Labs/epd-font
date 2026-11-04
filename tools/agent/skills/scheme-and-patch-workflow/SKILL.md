@@ -14,9 +14,9 @@ description: Customize declarative JSON font schemes, dump/apply Full-Canvas 1:1
    ```
 3. **Dump Editable 1:1 ASCII Patches into `build/<target>/ascii_patches/`**:
    ```bash
-   python tools/fonts/generate_plex_1bpp.py --workflow patch --dump --scheme tools/fonts/schemes/humid1_reference.scheme.json --out-dir build/default
+   python tools/fonts/humid1_generate_1bpp.py --workflow patch --dump --scheme tools/fonts/schemes/humid1_reference.scheme.json --out-dir build/default
    ```
-4. **Compile Modified ASCII Patches into Root `epd_font_patches.json`**:
+4. **Compile Modified ASCII Patches into Root `font_icon_epd_patches.json`**:
    ```bash
-   python tools/fonts/generate_plex_1bpp.py --workflow patch --apply --ascii-dir build/default/ascii_patches --patches epd_font_patches.json
+   python tools/fonts/humid1_generate_1bpp.py --workflow patch --apply --ascii-dir build/default/ascii_patches --patches font_icon_epd_patches.json
    ```

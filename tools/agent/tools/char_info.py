@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-char_info.py (v1.0.7) — Agent-First Deterministic Character & Icon Metric Inspector
+char_info.py (v1.0.8) — Agent-First Deterministic Character & Icon Metric Inspector
 ===================================================================================
 Queries exact 1-bpp glyph metrics (advance width, bounding box, bearing offsets,
 UTF-8 C literal, and 1:1 ASCII bitmap) from a compiled Strike Vault (`dist/*/*.json.gz`),
@@ -34,11 +34,11 @@ def load_vault(repo_root: Path, vault_arg: Optional[str] = None) -> Dict:
     if vault_arg:
         candidates.append(Path(vault_arg))
     candidates.extend([
-        repo_root / "dist" / "plex_epd_vault.json.gz",
-        repo_root / "dist" / "h1os_distro" / "plex_epd_vault.json.gz",
-        repo_root / "dist" / "example_distro" / "plex_epd_vault.json.gz",
-        repo_root / "dist" / "audit_distro" / "plex_epd_vault.json.gz",
-        repo_root / "build" / "dist" / "plex_epd_vault.json.gz",
+        repo_root / "dist" / "humid1_epd_vault.json.gz",
+        repo_root / "dist" / "h1os_distro" / "humid1_epd_vault.json.gz",
+        repo_root / "dist" / "example_distro" / "humid1_epd_vault.json.gz",
+        repo_root / "dist" / "audit_distro" / "humid1_epd_vault.json.gz",
+        repo_root / "build" / "dist" / "humid1_epd_vault.json.gz",
     ])
     for c in candidates:
         if c.is_file():
@@ -86,9 +86,9 @@ def main() -> None:
         prog="char_info.py",
         description="Deterministic 1-bpp character & icon metric inspector for AI agents and engineers.",
     )
-    parser.add_argument("--strike", "-s", type=str, default="plex_sans_normal_14", help="Strike symbol (e.g. plex_sans_normal_14, plex_icon_phosphor_fill_20)")
+    parser.add_argument("--strike", "-s", type=str, default="humid1_font_plex_sans_normal_14", help="Strike symbol (e.g. plex_sans_normal_14, plex_icon_phosphor_fill_20)")
     parser.add_argument("--char", "-c", type=str, required=True, help="Character ('A', '@'), hex ('0x0040', 'U+E006'), or icon name ('alarm', 'wifi-high')")
-    parser.add_argument("--vault", "-v", type=str, default=None, help="Optional path to plex_epd_vault.json.gz")
+    parser.add_argument("--vault", "-v", type=str, default=None, help="Optional path to humid1_epd_vault.json.gz")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     args = parser.parse_args()
 
@@ -96,6 +96,11 @@ def main() -> None:
     vault = load_vault(repo_root, args.vault)
     strikes = vault.get("strikes", {})
 
+    if args.strike not in strikes:
+        for alt in (f"humid1_font_{args.strike}", f"humid1_{args.strike}", f"humid1_font_plex_{args.strike}"):
+            if alt in strikes:
+                args.strike = alt
+                break
     if args.strike not in strikes:
         print(f"[!] Strike '{args.strike}' not found in vault. Available strikes: {', '.join(sorted(strikes.keys())[:15])}...", file=sys.stderr)
         sys.exit(1)

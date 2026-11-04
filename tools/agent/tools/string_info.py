@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-string_info.py (v1.0.7) — Agent-First Deterministic String Layout & Screen Budget Calculator
+string_info.py (v1.0.8) — Agent-First Deterministic String Layout & Screen Budget Calculator
 ============================================================================================
 Computes exact LVGL v9 1-bpp pixel width, kerning adjustments, bounding height, line wrapping,
 and horizontal screen clearance (`usable_width = screen_width - 2 * safe_margin`) for any string
@@ -33,10 +33,10 @@ def load_vault(repo_root: Path, vault_arg: Optional[str] = None) -> Dict:
     if vault_arg:
         candidates.append(Path(vault_arg))
     candidates.extend([
-        repo_root / "dist" / "plex_epd_vault.json.gz",
-        repo_root / "dist" / "h1os_distro" / "plex_epd_vault.json.gz",
-        repo_root / "dist" / "example_distro" / "plex_epd_vault.json.gz",
-        repo_root / "dist" / "audit_distro" / "plex_epd_vault.json.gz",
+        repo_root / "dist" / "humid1_epd_vault.json.gz",
+        repo_root / "dist" / "h1os_distro" / "humid1_epd_vault.json.gz",
+        repo_root / "dist" / "example_distro" / "humid1_epd_vault.json.gz",
+        repo_root / "dist" / "audit_distro" / "humid1_epd_vault.json.gz",
     ])
     for c in candidates:
         if c.is_file():
@@ -88,14 +88,14 @@ def main() -> None:
         prog="string_info.py",
         description="Deterministic LVGL v9 1-bpp string pixel width, kerning & screen budget calculator.",
     )
-    parser.add_argument("--strike", "-s", type=str, default="plex_sans_normal_14", help="Primary strike symbol (default: plex_sans_normal_14)")
+    parser.add_argument("--strike", "-s", type=str, default="humid1_font_plex_sans_normal_14", help="Primary strike symbol (default: plex_sans_normal_14)")
     parser.add_argument("--text", "-t", type=str, required=True, help="Text string to measure")
     parser.add_argument("--right-text", "-r", type=str, default=None, help="Optional right-aligned telemetry string on the same row")
     parser.add_argument("--right-strike", type=str, default=None, help="Optional strike symbol for --right-text (default: same as --strike)")
     parser.add_argument("--screen-width", type=int, default=200, help="Target screen width in pixels (default: 200)")
     parser.add_argument("--safe-margin", type=int, default=6, help="Safe margin on each side in pixels (default: 6)")
     parser.add_argument("--min-gap", type=int, default=8, help="Minimum required pixel gap between left and right text (default: 8)")
-    parser.add_argument("--vault", "-v", type=str, default=None, help="Optional path to plex_epd_vault.json.gz")
+    parser.add_argument("--vault", "-v", type=str, default=None, help="Optional path to humid1_epd_vault.json.gz")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     args = parser.parse_args()
 
@@ -104,16 +104,26 @@ def main() -> None:
     strikes = vault.get("strikes", {})
 
     if args.strike not in strikes:
+        for alt in (f"humid1_font_{args.strike}", f"humid1_{args.strike}", f"humid1_font_plex_{args.strike}"):
+            if alt in strikes:
+                args.strike = alt
+                break
+    if args.strike not in strikes:
         print(f"[!] Strike '{args.strike}' not found in vault.", file=sys.stderr)
         sys.exit(1)
 
-    fb_strike = strikes.get("plex_sans_normal_14")
+    fb_strike = strikes.get("humid1_font_plex_sans_normal_14")
     left_w, left_bd = measure_string_exact(args.text, strikes[args.strike], fb_strike)
 
     right_w = 0
     right_bd = []
     r_strike_name = args.right_strike or args.strike
     if args.right_text:
+        if r_strike_name not in strikes:
+            for alt in (f"humid1_font_{r_strike_name}", f"humid1_{r_strike_name}", f"humid1_font_plex_{r_strike_name}"):
+                if alt in strikes:
+                    r_strike_name = alt
+                    break
         if r_strike_name not in strikes:
             print(f"[!] Right strike '{r_strike_name}' not found in vault.", file=sys.stderr)
             sys.exit(1)

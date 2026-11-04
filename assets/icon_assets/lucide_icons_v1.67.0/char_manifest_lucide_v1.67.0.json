@@ -1,6 +1,6 @@
 {
-  "manifest_schema": "epd-font-char-manifest-v1.0.7",
-  "generator": "tools/fonts/generate_char_manifests.py (v1.0.7)",
+  "manifest_schema": "epd-font-char-manifest-v1.0.8",
+  "generator": "tools/fonts/generate_char_manifests.py (v1.0.8)",
   "family_id": "icon_lucide",
   "upstream_name": "Lucide Icons v1.67.0",
   "upstream_version": "1.67.0",

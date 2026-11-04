@@ -4,6 +4,46 @@ All notable changes to the **`epd-font`** repository (`https://github.com/Humidy
 
 ---
 
+## [v1.0.8] — 2026-11-03 (22 Native Terminus TTF Strikes, Multi-Core Parallelism, Tabler Filled Fix & `humid1_` Naming Overhaul)
+
+### Fixed
+- **Eliminated Terminus 18–40pt Horizontal White Scanline Gaps & 12–14pt Downscaling Blur**:
+  - **Root Cause 1**: In `v1.0.7`, only `ter-u16n.bdf` and `ter-u16b.bdf` were converted to `.ttf`, forcing 12–14pt and 18–40pt strikes to scale from the 16px grid instead of using Terminus's native hand-drawn BDF strikes (`ter-u12n/b.bdf`, `ter-u14n/b.bdf`, `ter-u18n/b.bdf`, `ter-u20n/b.bdf`, `ter-u22n/b.bdf`, `ter-u24n/b.bdf`, `ter-u28n/b.bdf`, `ter-u32n/b.bdf`).
+  - **Root Cause 2**: Each horizontal pixel row in `convert_bdf_to_quadratic_ttf()` was emitted as a separate rectangle contour (`[y_bot, y_top]`), and `bytecode-mono` omitted `FT_LOAD_NO_HINTING` (`0x2`), causing FreeType's Auto-Hinter (`autofit`) to snap and separate shared horizontal edges between adjacent pixel rows (creating CRT-like horizontal white scanlines across 18, 20, 24, 28, 36, and 40pt).
+  - **Fix**:
+    1. Hosted all 20 Terminus `.bdf` master files + `OFL.TXT` directly in `assets/font_assets/terminus_v4.49.1/` (removing the redundant `.tar.gz` archive).
+    2. Built **24 individual Terminus `.ttf` files** in `build/static_ttfs/`: 22 size-specific Normal & Bold strikes (`Terminus-Normal-{12,14,16,18,20,22,24,28,32,36,40}.ttf` and `Terminus-Bold-{12,14,16,18,20,22,24,28,32,36,40}.ttf`, where `36` is an exact 2× integer strike of `18` and `40` is an exact 2× integer strike of `20`) plus `Terminus-VGA-14.ttf` and `Terminus-VGA-16.ttf`.
+    3. Rewrote `convert_bdf_to_quadratic_ttf()` with a **2D connected rectilinear polygon contour tracer** where shared internal horizontal and vertical edges between adjacent ON pixels cancel out 100%, leaving zero internal seam lines.
+    4. Added `exact-mono` (`FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME`) for Terminus in `humid1_generate_1bpp.py` so FreeType never runs its Auto-Hinter on pixel-grid Terminus strikes.
+- **Fixed `humid1_icon_tabler_filled_12..40` Producing Empty PNGs and Empty ASCII Folders**:
+  - **Root Cause**: `Tabler-Filled.ttf` (`1,054` filled icons at `0xEE80..0xFA6D`) has zero codepoint overlap with `Tabler-Regular.ttf` (`5,203` outline icons at `0xEA02..`). Previously, `tabler` `filled` strikes referenced `tabler_core` (`0xEA02..`), matching 0 glyphs in `Tabler-Filled.ttf`.
+  - **Fix**: Added dedicated `icon_tabler_filled` catalog (`build/metadata/tabler_filled_catalog.json`), added `tabler_filled_core` and `tabler_filled_all` character sets, and routed `icon_tabler` `style="filled"` strikes to `icon_tabler_filled`. Verified `humid1_icon_tabler_filled_12..40` now rasterizes all `1,051` filled glyphs, dumps all `1,051` ASCII `.txt` files, and renders 5 paginated Page Check PNGs per strike.
+- **Fixed `KeyError: 'plex_mono_bold_14'` in `render_specimen_sheet` on `example.scheme.json`**:
+  - Added `_resolve_sym()` fallback resolution in `render_specimen_sheet` and `run_screen_width_audit` so schemes that build a subset of strikes (like `example.scheme.json`) never fail with `KeyError`.
+- **Fixed Windows `.bat` `echo` Command-Breaking Strings**:
+  - Removed all unescaped `&`, `(`, `)`, `<`, `>`, and `|` characters inside `echo` lines across every `.bat` file in `scripts/*/` so `cmd.exe` never misinterprets words after `&` (such as `'humid1-os'` or `'Char'`) as shell commands.
+
+### Added
+- **Multi-Core Host CPU Parallelism (`ProcessPoolExecutor` Across All Cores)**:
+  - Upgraded both `build_static_ttf_assets.py` and `humid1_generate_1bpp.py` to execute font instantiation, BDF/OTF-to-TTF synthesis, FreeType strike rasterization, LVGL `.c` emission, ASCII `.txt` dumping, and PNG rendering concurrently across all host CPU cores (`os.cpu_count()`, configurable via `-j` / `--jobs`).
+- **Paginated Full-Catalog Icon Audit PNGs (`MAX_GLYPHS_PER_PNG_PAGE = 256`)**:
+  - Updated `full_audit_distro.scheme.json` to include **all** valid icons across all 4 vendors (`2,349` FA v7.3.1, `2,043` Lucide, `1,513` Phosphor, `5,203` Tabler Outline, `1,054` Tabler Filled) and updated `render_full_font_inspection_png()` to automatically split large strikes into clean 256-glyph pages (`<symbol>_p01_of_05_U+EE80-U+F788.png`, etc.).
+
+### Changed
+- **Unified `humid1_` Naming Convention Across Scripts, Symbols, Vault, Headers & Patch Manifest**:
+  - Renamed `generate_plex_1bpp.py` $ightarrow$ **`tools/fonts/humid1_generate_1bpp.py`**.
+  - Renamed `plex_fw_emit.py` $ightarrow$ **`tools/fonts/humid1_fw_emit.py`**.
+  - Renamed `plex_epd_vault.json.gz` $ightarrow$ **`humid1_epd_vault.json.gz`**.
+  - Consolidated patch manifests into a single root-tracked **`font_icon_epd_patches.json`** (removed duplicate `epd_font_patches.json` and `tools/fonts/plex_epd_patches.json`).
+  - Standardized all generated strike symbols and folder names under the `humid1_` prefix:
+    - IBM Plex fonts: `humid1_font_plex_<family>_<style>_<size>` (e.g., `humid1_font_plex_cond_normal_12`)
+    - Terminus fonts: `humid1_font_terminus_<style>_<size>` (e.g., `humid1_font_terminus_normal_40`)
+    - Modular icons: `humid1_icon_<vendor>_<style>_<size>` (e.g., `humid1_icon_fa7_regular_12`, `humid1_icon_tabler_filled_36`)
+  - Removed redundant `scripts/full-audit-build-dev/` directory in favor of `scripts/full-audit-build-distro/`.
+  - Preserved Font Awesome **v7.3.1** (`assets/icon_assets/font_awsome_v7.3.1`).
+
+---
+
 ## [v1.0.7] — 2026-11-03 (Audit Remediation, General-Purpose Overhaul, Terminus TTF & Agent-First Suite)
 
 ### Fixed

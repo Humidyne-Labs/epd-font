@@ -1,15 +1,25 @@
 {
   "repository": "https://github.com/Humidyne-Labs/epd-font",
   "organization": "Humidyne Labs / Humiditron",
-  "version": "1.0.7",
-  "release_archive_tag": "v1.0.7",
-  "previous_version": "1.0.6",
+  "version": "1.0.8",
+  "release_archive_tag": "v1.0.8",
+  "previous_version": "1.0.7",
   "release_date": "2026-11-03",
   "repository_license": "MIT",
   "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
-  "root_patch_manifest": "epd_font_patches.json",
+  "root_patch_manifest": "font_icon_epd_patches.json",
+  "naming_scheme": {
+    "prefix": "humid1_",
+    "plex_fonts": "humid1_font_plex_<family>_<style>_<size>",
+    "terminus_fonts": "humid1_font_terminus_<style>_<size>",
+    "icons": "humid1_icon_<vendor>_<style>_<size>",
+    "primary_header": "humid1_fonts.h",
+    "strike_vault": "humid1_epd_vault.json.gz",
+    "generator_script": "tools/fonts/humid1_generate_1bpp.py",
+    "firmware_emitter": "tools/fonts/humid1_fw_emit.py"
+  },
   "build_hierarchy": {
-    "static_ttfs": "build/static_ttfs",
+    "static_ttfs": "build/static_ttfs (80 .ttf files including 24 Terminus strikes)",
     "metadata": "build/metadata",
     "ascii_patches": "build/<workflow>/ascii_patches",
     "dist": "dist/<workflow>_distro"
@@ -45,7 +55,7 @@
     },
     "terminus_font": {
       "version": "4.49.1",
-      "type": "bdf_master_to_ttf",
+      "type": "20_bdf_masters_to_24_ttfs",
       "path": "assets/font_assets/terminus_v4.49.1",
       "char_manifest": "assets/font_assets/terminus_v4.49.1/char_manifest_terminus_v4.49.1.json",
       "license": "OFL-1.1"

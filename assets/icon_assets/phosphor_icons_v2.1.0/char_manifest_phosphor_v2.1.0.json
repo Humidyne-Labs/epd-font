@@ -1,6 +1,6 @@
 {
-  "manifest_schema": "epd-font-char-manifest-v1.0.7",
-  "generator": "tools/fonts/generate_char_manifests.py (v1.0.7)",
+  "manifest_schema": "epd-font-char-manifest-v1.0.8",
+  "generator": "tools/fonts/generate_char_manifests.py (v1.0.8)",
   "family_id": "icon_phosphor",
   "upstream_name": "Phosphor Icons v2.1.0",
   "upstream_version": "2.1.0",

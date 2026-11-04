@@ -1,6 +1,6 @@
 {
-  "manifest_schema": "epd-font-char-manifest-v1.0.7",
-  "generator": "tools/fonts/generate_char_manifests.py (v1.0.7)",
+  "manifest_schema": "epd-font-char-manifest-v1.0.8",
+  "generator": "tools/fonts/generate_char_manifests.py (v1.0.8)",
   "family_id": "icon_tabler",
   "upstream_name": "Tabler Icons v3.50.0",
   "upstream_version": "3.50.0",

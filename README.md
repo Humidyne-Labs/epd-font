@@ -1,6 +1,6 @@
-# `epd-font` (v1.0.7) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
+# `epd-font` (v1.0.8) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
 
-[![Version](https://img.shields.io/badge/version-v1.0.7-blue.svg)](VERSION.json)
+[![Version](https://img.shields.io/badge/version-v1.0.8-blue.svg)](VERSION.json)
 [![Repository](https://img.shields.io/badge/github-Humidyne--Labs%2Fepd--font-181717.svg)](https://github.com/Humidyne-Labs/epd-font)
 [![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL--1.1%20%2F%20ISC-green.svg)](LICENSE)
 
@@ -8,21 +8,21 @@
 
 ---
 
-## 1. Key Capabilities in v1.0.7
+## 1. Key Capabilities in v1.0.8
 
-1. **56 Standardized Static TrueType (`.ttf`) Binaries (`build/static_ttfs/`)**:
+1. **80 Standardized Static TrueType (`.ttf`) Binaries (`build/static_ttfs/`)**:
    - **IBM Plex Suite (41 cuts)**: `Sans` (`Thin 100`..`Bold 700` + Italics), `Sans Condensed` (`wdth=85`), `Mono`, `Serif`, and `Math`.
-   - **Terminus Font v4.49.1 (2 cuts)**: `Terminus-Regular.ttf` and `Terminus-Bold.ttf` (`1,356` glyphs each, automatically synthesized from `assets/font_assets/terminus-font-4.49.1.tar.gz` into pure quadratic `.ttf` outlines).
+   - **Terminus Font v4.49.1 (26 cuts: 22 size-specific Normal/Bold 12-40pt + VGA 14/16 + Regular/Bold aliases)**: `Terminus-Regular.ttf` and `Terminus-Bold.ttf` (`1,356` glyphs each, automatically synthesized from `assets/font_assets/terminus-font-4.49.1.tar.gz` into pure quadratic `.ttf` outlines).
    - **4 Modular Icon Suites (13 cuts, 12,200+ indexed PUA icons)**:
-     - **Font Awesome v7.2.0** (`Solid`, `Regular`, `Brands` — `2,396` icons)
+     - **Font Awesome v7.3.1** (`Solid`, `Regular`, `Brands` — `2,396` icons)
      - **Lucide v1.16.0** (`Regular` — `2,043` icons)
      - **Phosphor v2.1.0** (`Thin`, `Light`, `Regular`, `Bold`, `Fill` — `1,513` PUA-sanitized icons with semantic glyph names baked in)
      - **Tabler v3.41.1** (`Thin200`, `Light300`, `Regular`, `Filled` — `6,257` icons)
    - **Custom `.ttf` Support**: Drop any third-party `.ttf` into `build/static_ttfs/` and reference `"ttf_file": "YourFont.ttf"` in any `.scheme.json`.
 2. **Clean Git-Friendly `build/` vs `dist/` vs Root Patch Architecture**:
    - **`build/`** (gitignored): Houses all generated intermediate artifacts—`build/static_ttfs/`, `build/metadata/`, `build/<workflow>/ascii_patches/`, `build/<workflow>/fonts/`, `build/<workflow>/bdf/`, `build/<workflow>/metrics/`, `build/<workflow>/inspect_pages/`, and `build/<workflow>/inspect_chars/`.
-   - **`dist/`** (gitignored): Houses self-contained distribution bundles (`dist/example_distro/`, `dist/audit_distro/`, `dist/h1os_distro/`) containing the pre-rasterized Strike Vault (`plex_epd_vault.json.gz`), zero-dependency emitter (`plex_fw_emit.py`), `.c`/`.h` sources, and licenses.
-   - **`epd_font_patches.json`** (root-tracked in Git): Persists hand-edited 1:1 ASCII pixel patches at the repository root so `build/` and `dist/` can be deleted or ignored without ever losing pixel-level glyph refinements.
+   - **`dist/`** (gitignored): Houses self-contained distribution bundles (`dist/example_distro/`, `dist/audit_distro/`, `dist/h1os_distro/`) containing the pre-rasterized Strike Vault (`humid1_epd_vault.json.gz`), zero-dependency emitter (`humid1_fw_emit.py`), `.c`/`.h` sources, and licenses.
+   - **`font_icon_epd_patches.json`** (root-tracked in Git): Persists hand-edited 1:1 ASCII pixel patches at the repository root so `build/` and `dist/` can be deleted or ignored without ever losing pixel-level glyph refinements.
 3. **Configurable Display Geometry (`--dpi`, `--screen-width`, `--screen-height`, `--safe-margin`)**:
    - No hardcoded panel assumptions: configure target resolution, DPI, and safe margins via CLI flags or the `"target_display"` object in any `.scheme.json`.
 4. **Agent-First Tooling Suite (`tools/agent/`)**:
@@ -30,24 +30,23 @@
 
 ---
 
-## 2. Repository Directory Structure (`v1.0.7`)
+## 2. Repository Directory Structure (`v1.0.8`)
 
 ```text
 epd-font/
 ├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron code & tooling)
-├── VERSION.json                             # Release & upstream asset version manifest (v1.0.7)
-├── epd_font_patches.json                    # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
+├── VERSION.json                             # Release & upstream asset version manifest (v1.0.8)
+├── font_icon_epd_patches.json                    # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
 ├── README.md                                # Primary repository overview & quick-start
-├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.7)
+├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.8)
 ├── docs/
 │   ├── HOW_TO_GUIDE.md                      # Complete installation, CLI, scheme & CMake integration guide
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp typography & rasterization specification
 │   └── audits/
 │       ├── humiditron_audit_1.0.6-revved-to-1.0.7.txt
-│       └── HUMIDITRON_AUDIT_REPORT_v1.0.7.md # Formal v1.0.7 engineering & audit report
+│       └── HUMIDITRON_AUDIT_REPORT_v1.0.8.md # Formal v1.0.8 engineering & audit report
 ├── scripts/                                 # Self-contained Windows (.bat) workflow directories:
-│   ├── full-audit-build-dev/                #   1. All fonts & icons (12-40pt) + full char-by-char PNGs & ASCII dumps
-│   ├── full-audit-build-distro/             #   2. All fonts & icons (12-40pt) master audit distribution bundle
+│   │   ├── full-audit-build-distro/             #   2. All fonts & icons (12-40pt) master audit distribution bundle
 │   ├── h1os-build-distro/                   #   3. H1OS & humid1-os schemes (h1os_full & h1os_lite) + distro builder
 │   └── example-build-distro/                #   4. General-purpose embedded project example workflow
 ├── assets/                                  # Immutable upstream raw font & icon source archives/trees
@@ -56,8 +55,8 @@ epd-font/
 ├── tools/
 │   ├── fonts/
 │   │   ├── build_static_ttf_assets.py       # Raw assets -> build/static_ttfs/*.ttf + build/metadata/*.json
-│   │   ├── generate_plex_1bpp.py            # Master 4-workflow 1-bpp studio (gen-assets, patch, check, build)
-│   │   ├── plex_fw_emit.py                  # Portable zero-dependency CMake firmware emitter (< 0.15s)
+│   │   ├── humid1_generate_1bpp.py            # Master 4-workflow 1-bpp studio (gen-assets, patch, check, build)
+│   │   ├── humid1_fw_emit.py                  # Portable zero-dependency CMake firmware emitter (< 0.15s)
 │   │   └── schemes/                         # 16 curated general-purpose declarative JSON font schemes
 │   └── agent/                               # Agent-First deterministic inspection suite (zero guessing!)
 │       ├── tools/                           #   - char_info.py, string_info.py, icon_search.py, font_catalog_info.py
@@ -83,17 +82,17 @@ Double-click or run `99_run_full_pipeline.bat` inside any of the 4 workflow fold
 # 1. Install host Python dependencies
 pip install "fonttools>=4.40.0" "Pillow>=10.0.0" "freetype-py>=2.4.0"
 
-# 2. Synthesize all 56 static .ttf files into build/static_ttfs/ and catalogs into build/metadata/
+# 2. Synthesize all 80 static .ttf files into build/static_ttfs/ and catalogs into build/metadata/
 python tools/fonts/build_static_ttf_assets.py --verify
 
 # 3. Build 1-bpp C/H fonts, BDFs, CSVs, and Strike Vault using any general scheme
-python tools/fonts/generate_plex_1bpp.py --workflow build \
+python tools/fonts/humid1_generate_1bpp.py --workflow build \
   --scheme tools/fonts/schemes/humid1_reference.scheme.json \
   --out-dir build/humid1 --dist-dir dist/humid1_distro
 
 # 4. Query exact glyph/string metrics & search icons via the Agent-First tools
-python tools/agent/tools/char_info.py --strike plex_icon_phosphor_fill_20 --char alarm
-python tools/agent/tools/string_info.py --strike plex_sans_normal_14 --text "Vapor Pressure" --right-text "42.8 hPa" --right-strike plex_mono_bold_14
+python tools/agent/tools/char_info.py --strike humid1_icon_phosphor_fill_20 --char alarm
+python tools/agent/tools/string_info.py --strike humid1_font_plex_sans_normal_14 --text "Vapor Pressure" --right-text "42.8 hPa" --right-strike humid1_font_plex_mono_bold_14
 python tools/agent/tools/icon_search.py --query thermometer
 ```
 
@@ -103,5 +102,5 @@ python tools/agent/tools/icon_search.py --query thermometer
 
 - **[Complete How-To Guide (`docs/HOW_TO_GUIDE.md`)](docs/HOW_TO_GUIDE.md)** — Step-by-step installation, CLI reference, 16 schemes guide, custom ASCII patching, and CMake integration.
 - **[Maintainer & Architecture Specification (`docs/MAINTAINER_SPEC.md`)](docs/MAINTAINER_SPEC.md)** — Formal 1-bpp rasterization math, Terminus BDF-to-TTF synthesis, and PUA icon catalog architecture.
-- **[Formal v1.0.7 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.7.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.7.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
-- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.7`.
+- **[Formal v1.0.8 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.8.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.8.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
+- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.8`.

@@ -3,7 +3,8 @@ setlocal
 set EPD_NO_PAUSE=1
 cd /d "%~dp0"
 echo ============================================================================
-echo [99] Humidyne Labs / Humiditron epd-font v1.0.7 - Full End-to-End Pipeline (Full 12-40pt Master Audit Distro Workflow)
+echo [99] Humidyne Labs - Humiditron epd-font v1.0.8 - Full End-to-End Pipeline
+echo      Workflow : Full 12-40pt Master Audit and Distribution Workflow
 echo ============================================================================
 call 01_build_static_ttfs.bat
 if errorlevel 1 exit /b 1
@@ -16,7 +17,7 @@ if errorlevel 1 exit /b 1
 call 07_package_distro.bat
 if errorlevel 1 exit /b 1
 echo ============================================================================
-echo [+] Full pipeline (Full 12-40pt Master Audit Distro Workflow) completed!
+echo [+] Full pipeline completed successfully!
 echo     Build Artifacts : build\audit\
 echo     Dist Bundle     : dist\audit_distro\
 echo ============================================================================

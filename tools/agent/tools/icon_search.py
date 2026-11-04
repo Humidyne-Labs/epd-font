@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-icon_search.py (v1.0.7) — Agent-First Multi-Vendor Icon Catalog Search & C Macro Generator
+icon_search.py (v1.0.8) — Agent-First Multi-Vendor Icon Catalog Search & C Macro Generator
 ==========================================================================================
 Searches `build/metadata/{fa7,lucide,phosphor,tabler}_catalog.json` (12,200+ icons) by
 keyword, substring, regex, or codepoint, and outputs:
@@ -68,7 +68,7 @@ def main() -> None:
                     "codepoint_hex": hex_cp,
                     "codepoint_dec": cp,
                     "c_utf8_literal": f'"{cp_to_c_utf8_escape(cp)}"',
-                    "c_define": f'#define EPD_ICON_{v.split("_")[1].upper()}_{macro_suffix} "{cp_to_c_utf8_escape(cp)}"',
+                    "c_define": f'#define HUMID1_ICON_{v.split("_")[1].upper()}_{macro_suffix} "{cp_to_c_utf8_escape(cp)}"',
                 })
                 v_cnt += 1
                 if v_cnt >= args.limit:

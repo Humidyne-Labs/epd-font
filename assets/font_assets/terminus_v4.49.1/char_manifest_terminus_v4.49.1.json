@@ -1,6 +1,6 @@
 {
-  "manifest_schema": "epd-font-char-manifest-v1.0.7",
-  "generator": "tools/fonts/generate_char_manifests.py (v1.0.7)",
+  "manifest_schema": "epd-font-char-manifest-v1.0.8",
+  "generator": "tools/fonts/generate_char_manifests.py (v1.0.8)",
   "family_id": "terminus",
   "upstream_name": "Terminus Font v4.49.1 (X11 BDF Master Molds -> TrueType)",
   "upstream_version": "4.49.1",
@@ -14,6 +14,36 @@
   "total_valid_characters": 1355,
   "master_files": [
     {
+      "filename": "ter-u12n.bdf",
+      "size_bytes": 164741,
+      "sha256": "9e942cad8173fddf34fc8a784e9ec6d2d4cfb8b82363faf65f43b236fe2f5a99",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u12b.bdf",
+      "size_bytes": 164737,
+      "sha256": "9966616478d70b8ce59ed7f1079d0dda70fd07dbfa18c9cdb1bdf59eb43490dd",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u14n.bdf",
+      "size_bytes": 172877,
+      "sha256": "fb6aaad8bebe5ee824e914635b3f4e17a82f1673dea37f083e9adde285d7de32",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u14b.bdf",
+      "size_bytes": 172873,
+      "sha256": "00dd0c08c3fae274aa66161d89ffa900cf0b0efec0f114255188c1fb68a8b0da",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u14v.bdf",
+      "size_bytes": 172873,
+      "sha256": "0fabac7d93e6b9d751ab0116840fbdc53efe021ac9ba4b148bb320336abde256",
+      "valid_codepoints": 1355
+    },
+    {
       "filename": "ter-u16n.bdf",
       "size_bytes": 181013,
       "sha256": "5197662b22bf9f3e68d4af9f969a7fefa3edae40dd82ae969a147381130fb4ae",
@@ -23,6 +53,84 @@
       "filename": "ter-u16b.bdf",
       "size_bytes": 181009,
       "sha256": "92861fecd6f94c5ecc764fc43df5a69eb000ae13a75f652c6525db0495274f0a",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u16v.bdf",
+      "size_bytes": 181009,
+      "sha256": "e3ec80ad7686d3bb83cbc314947385dab3b6071e6edc6b8e424aa0b5113c6ea1",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u18n.bdf",
+      "size_bytes": 240681,
+      "sha256": "ada1ead9eb95f57f4686415eca7305a83d23e47e0a12b48512464c490ed04ab9",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u18b.bdf",
+      "size_bytes": 240677,
+      "sha256": "9b0e1f02cc7668f3bd70a2d3c59de207985608b0ca4de5b87b8ef5904c998113",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u20n.bdf",
+      "size_bytes": 254241,
+      "sha256": "b3868699145f51f1c059b955110c35db990d10a07536995cbcf7a4a901f82178",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u20b.bdf",
+      "size_bytes": 254237,
+      "sha256": "3051598391e5f7f59f09dc5aa26a97700fcbbe57ac315495878c52fc74aba500",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u22n.bdf",
+      "size_bytes": 267801,
+      "sha256": "80c9eabfd82801ae6323931dc2352e24a93f143d4c90d4097772afce985a45c1",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u22b.bdf",
+      "size_bytes": 267797,
+      "sha256": "ace3edb2a1203ef993194d928df36f2e321e164dec22412411f14e03fc2d9cc5",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u24n.bdf",
+      "size_bytes": 281361,
+      "sha256": "ff640e9e097983355e8f70ed8fb645bd850184a0d590de17f6fc9ceec1bf8eaf",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u24b.bdf",
+      "size_bytes": 281357,
+      "sha256": "759e0dbbd137d0132cee5d83b681cea1c8a656f161e04f83e121525ea4eb1824",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u28n.bdf",
+      "size_bytes": 308481,
+      "sha256": "f9e9da69986002a9a3d0b54f5bb1db487914821204a9a75151260fff45642723",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u28b.bdf",
+      "size_bytes": 308477,
+      "sha256": "bb279d91fe685543627dc2d19801ebebb49ccaa41f8c984b53d4d001ea35f2b3",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u32n.bdf",
+      "size_bytes": 335601,
+      "sha256": "5ad01972d58adfee75077e2c65ba5947e260043031664cb8ad8f98b5473b23a4",
+      "valid_codepoints": 1355
+    },
+    {
+      "filename": "ter-u32b.bdf",
+      "size_bytes": 335597,
+      "sha256": "f6295e92ebbf95afbb6274f4621608d255c1287ec90d3fefbc50f077bf09dab4",
       "valid_codepoints": 1355
     }
   ],

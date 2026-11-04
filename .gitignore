@@ -1,5 +1,5 @@
 # ==============================================================================
-# Humidyne Labs / Humiditron `epd-font` v1.0.7 Repository .gitignore
+# Humidyne Labs / Humiditron `epd-font` v1.0.8 Repository .gitignore
 # ==============================================================================
 # Python Virtual Environments & Bytecode
 .venv/
@@ -15,8 +15,8 @@ build/
 dist/
 *.egg-info/
 
-# Explicitly keep the root hand-tuned optical patch manifest tracked in Git!
-!epd_font_patches.json
+# Explicitly keep the single root hand-tuned optical patch manifest tracked in Git!
+!font_icon_epd_patches.json
 
 # OS & Editor Artifacts
 .DS_Store

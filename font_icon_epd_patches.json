@@ -1,0 +1,7 @@
+{
+  "version": "1.0.8",
+  "repository": "https://github.com/Humidyne-Labs/epd-font",
+  "license": "MIT",
+  "description": "Single authoritative root-tracked 1-bpp optical glyph & icon patch manifest (font_icon_epd_patches.json) for Humidyne Labs / Humiditron epd-font.",
+  "patches": {}
+}

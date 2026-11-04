@@ -2,16 +2,15 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [05] Humidyne Labs / Humiditron epd-font v1.0.7 - Compile Edited ASCII Patches -> Root Patch File
-echo      Input : build\example\ascii_patches\
-echo      Output: epd_font_patches.json (Root-Tracked Git Patch Manifest)
+echo [05] Humidyne Labs - Humiditron epd-font v1.0.8 - Compile Edited ASCII Patches to Root Patch File
+echo      Input  : build\example\ascii_patches\
+echo      Output : font_icon_epd_patches.json
 echo ============================================================================
-python tools\fonts\generate_plex_1bpp.py --workflow patch --apply --ascii-dir "build\example\ascii_patches" --patches epd_font_patches.json %*
+python tools\fonts\humid1_generate_1bpp.py --workflow patch --apply --ascii-dir "build\example\ascii_patches" --patches font_icon_epd_patches.json %*
 if errorlevel 1 (
     echo [!] Applying ASCII patches failed.
     if "%EPD_NO_PAUSE%"=="" pause
     exit /b 1
 )
-copy /y epd_font_patches.json tools\fonts\plex_epd_patches.json >nul
-echo [+] Compiled modified ASCII patches into root epd_font_patches.json.
+echo [+] Compiled modified ASCII patches into root font_icon_epd_patches.json.
 if "%EPD_NO_PAUSE%"=="" pause

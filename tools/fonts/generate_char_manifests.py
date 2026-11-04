@@ -44,7 +44,7 @@ from typing import Dict, List, Optional, Tuple
 
 from fontTools.ttLib import TTFont
 
-TOOL_VERSION = "1.0.7"
+TOOL_VERSION = "1.0.8"
 
 MASTER_FAMILIES_SPEC = [
     {
@@ -112,7 +112,7 @@ MASTER_FAMILIES_SPEC = [
         "upstream_name": "Terminus Font v4.49.1 (X11 BDF Master Molds -> TrueType)",
         "upstream_url": "https://terminus-font.sourceforge.net/",
         "spdx_license": "OFL-1.1",
-        "master_files": ["terminus-font-4.49.1.tar.gz", "ter-u16n.bdf", "ter-u16b.bdf"],
+        "master_files": ["ter-u12n.bdf", "ter-u12b.bdf", "ter-u14n.bdf", "ter-u14b.bdf", "ter-u14v.bdf", "ter-u16n.bdf", "ter-u16b.bdf", "ter-u16v.bdf", "ter-u18n.bdf", "ter-u18b.bdf", "ter-u20n.bdf", "ter-u20b.bdf", "ter-u22n.bdf", "ter-u22b.bdf", "ter-u24n.bdf", "ter-u24b.bdf", "ter-u28n.bdf", "ter-u28b.bdf", "ter-u32n.bdf", "ter-u32b.bdf"],
         "min_cp": 0x0020,
         "max_cp": 0xFFFF,
         "cmap_aliases": {},
@@ -312,7 +312,7 @@ def build_char_manifest_for_spec(
     by_name = {name: hex_cp for hex_cp, name in sorted(by_codepoint.items(), key=lambda x: x[1])}
 
     manifest_payload = {
-        "manifest_schema": "epd-font-char-manifest-v1.0.7",
+        "manifest_schema": "epd-font-char-manifest-v1.0.8",
         "generator": f"tools/fonts/generate_char_manifests.py (v{TOOL_VERSION})",
         "family_id": fam_id,
         "upstream_name": spec["upstream_name"],

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.10)
+build_static_ttf_assets.py (v1.0.11)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -8,7 +8,7 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Author     : Humidyne Labs / Humiditron
 License    : MIT License (Upstream fonts retain SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT)
 
-What's New in v1.0.10:
+What's New in v1.0.11:
 ---------------------
 1. Multi-Core Parallel Execution (`ProcessPoolExecutor`):
    Automatically saturates all available CPU cores (`os.cpu_count()`, configurable via `-j/--jobs`)
@@ -54,7 +54,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.10"
+TOOL_VERSION = "1.0.11"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES

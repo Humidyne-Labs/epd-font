@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.10",
+  "schema_version": "1.0.11",
   "scheme_id": "full_audit_12_40pt",
   "project_brand": "Humidyne Labs / Humiditron Complete 12-40pt Master Audit & Distribution Suite",
   "description": "Exhaustive 12-40pt build across all text families (IBM Plex Sans, Condensed, Mono, Serif, Math, Terminus) and all 4 icon vendors (Font Awesome 7, Lucide, Phosphor, Tabler) for complete visual inspection, ASCII patch dumping, and master vault creation.",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-font_catalog_info.py (v1.0.10) — Agent-First Static TTF, Scheme & Strike Vault Inventory Tool
+font_catalog_info.py (v1.0.11) — Agent-First Static TTF, Scheme & Strike Vault Inventory Tool
 ============================================================================================
 Inspects `build/metadata/asset_manifest.json`, `tools/fonts/schemes/*.json`, and any built
 Strike Vault (`dist/*/*.json.gz`) to report available font families, weights, size floors,
@@ -28,7 +28,7 @@ def find_repo_root() -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="font_catalog_info.py",
-        description="Inventory of all static TTFs, schemes, and compiled strike vaults in epd-font v1.0.10.",
+        description="Inventory of all static TTFs, schemes, and compiled strike vaults in epd-font v1.0.11.",
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     args = parser.parse_args()
@@ -52,7 +52,7 @@ def main() -> None:
             })
 
     summary = {
-        "version": "1.0.10",
+        "version": "1.0.11",
         "total_static_ttfs": manifest.get("total_ttf_files", 0),
         "catalog_counts": manifest.get("catalog_counts", {}),
         "general_schemes_count": len(schemes_summary),
@@ -64,7 +64,7 @@ def main() -> None:
         return
 
     print("=" * 92)
-    print(f"HUMIDYNE LABS / HUMIDITRON epd-font v1.0.10 — CATALOG & SCHEME INVENTORY")
+    print(f"HUMIDYNE LABS / HUMIDITRON epd-font v1.0.11 — CATALOG & SCHEME INVENTORY")
     print("=" * 92)
     print(f"  Static TTF Binaries in build/static_ttfs/ : {summary['total_static_ttfs']}")
     for k, v in summary["catalog_counts"].items():

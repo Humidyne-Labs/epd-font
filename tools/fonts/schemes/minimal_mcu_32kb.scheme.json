@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.10",
+  "schema_version": "1.0.11",
   "scheme_id": "minimal_mcu_32kb",
   "project_brand": "Humiditron Ultra-Compact MCU Scheme (< 32 KB Flash)",
   "description": "Minimal Flash footprint for constrained Cortex-M0+/M4 or ESP32-C3 targets.",

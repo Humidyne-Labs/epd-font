@@ -2,6 +2,21 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.11] — 2026-11-04
+### Added
+- **8-Method Iterative Typographic Correction, Scoring & Evaluation Engine (`tools/fonts/humid1_bilevel_tuner.py`, `SPEC-TYPO-MATH-1BPP-001`)**:
+  - Evaluates 8 distinct mathematical synthesis & repair methods per glyph (`M0_untouched`, `M1_phase` sub-pixel phase/threshold sweep, `M2_line_tracer` medial-axis centerline + asymmetric $\begin{bmatrix}1 & 1\end{bmatrix}$ stroke kernel, `M3_sdf` signed distance field zero-level-set perturbation, `M4_hysteresis_inktrap` dual-threshold hysteresis + $\text{LoG}$ acute ink-trap carving, `M5_collinear` whole-stem collinear dilation + Jenson-Garamond counter-punch, `M6_diagonal_rectified` rational slant rectifier, and `M7_mumford_shah_clean` total-variation spur/notch cleaner).
+  - Scores every candidate out of `100.0` points against both an **$8\times$ HQ Continuous Master Reference ($U_{\text{HQ}}$)** and a **Smallest-Strike ($12\text{px}$) Nth-Factor Upscale Reference ($U_{\text{base}\times N}$)** with hard gates on Euler-Poincaré Betti numbers ($B_0, B_1$), HQ Structural IOU ($\ge 0.66$), and zero skin tags / zero notches.
+- **Prominent `PATCHED OVERRIDES ACTIVE: N / Total GLYPHS` Banner Badge in Page Check PNGs (`03_visual_check_pngs.bat`)**:
+  - Every `inspect_pages/<symbol>.png` sheet now displays `PATCHED: N/Total` in the title bar and an emerald-green status pill in the top-right corner alongside green-bordered patched glyph cells.
+
+### Fixed
+- **Eliminated 1px "Skin Tags" & Vertical Stem Step Notches (`sans_italic_12` `'M'`, `serif_normal_18` `'N'`, `terminus_normal_12` `'$'`)**:
+  - Added `detect_skin_tags_and_notches()` and `clean_skin_tags_and_notches()` enforcing Mumford-Shah Total-Variation boundary smoothness and strict Euler $B_0/B_1$ conservation, and excluded hand-drawn pixel fonts (`terminus`) from morphological auto-dilation.
+- **Unified ASCII-Centric Repair & Patch Workflow (`01 -> 04 -> 08 -> 05 -> 02 -> 03 -> 07`)**:
+  - `08_iterative_auto_repair.bat` now writes tuned glyphs directly into `build/<target>/ascii_patches/<symbol>/U+XXXX.txt` with `patched: 1` (preserving baseline `orig_signature`) and compiles all **1,818 verified patches** into `font_icon_epd_patches.json` so running `04 -> 08 -> 05 -> 02 -> 03` (or `99_run_full_pipeline.bat`) immediately reflects all patches in the `.c` files and PNG banners.
+  - Updated `docs/HOW_TO_GUIDE.md`, `README.md`, `scripts/README.md`, and `docs/MAINTAINER_SPEC.md` with complete workflow diagrams and step-by-step instructions for `08_iterative_auto_repair.bat`.
+
 ## [v1.0.10] — 2026-11-04
 ### Added
 - **Closed-Loop Iterative Bi-Level Font & Icon Auto-Repair Engine (`tools/fonts/humid1_bilevel_tuner.py` & `--workflow repair`)**:

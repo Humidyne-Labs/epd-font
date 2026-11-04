@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.10",
+  "schema_version": "1.0.11",
   "scheme_id": "h1os_epd_v1_lite",
   "project_brand": "Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite",
   "description": "Compact H1OS & humid1-os firmware scheme (Sans + Mono + Phosphor/FA7 core).",

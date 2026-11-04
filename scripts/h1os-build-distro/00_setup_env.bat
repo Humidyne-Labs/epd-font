@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [00] Humidyne Labs - Humiditron epd-font v1.0.10 - Environment Setup
+echo [00] Humidyne Labs - Humiditron epd-font v1.0.11 - Environment Setup
 echo      Workflow : H1OS and humid1-os Firmware Distribution Workflow
 echo ============================================================================
 python --version

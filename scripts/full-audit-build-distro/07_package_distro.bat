@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [07] Humidyne Labs - Humiditron epd-font v1.0.9 - Package Distribution Bundle
+echo [07] Humidyne Labs - Humiditron epd-font v1.0.10 - Package Distribution Bundle
 echo      Workflow    : Full 12-40pt Master Audit and Distribution Workflow
 echo      Dist Output : dist\audit_distro\
 echo ============================================================================
@@ -13,6 +13,7 @@ if not exist "dist\audit_distro\metadata" mkdir "dist\audit_distro\metadata"
 if not exist "dist\audit_distro\licenses" mkdir "dist\audit_distro\licenses"
 
 copy /y "scripts\full-audit-build-distro\*.scheme.json" "dist\audit_distro\schemes\" >nul
+copy /y "tools\fonts\humid1_bilevel_tuner.py" "dist\audit_distro\tools\" >nul
 copy /y "tools\fonts\humid1_fw_emit.py" "dist\audit_distro\tools\" >nul
 copy /y "font_icon_epd_patches.json" "dist\audit_distro\" >nul
 copy /y "LICENSE" "dist\audit_distro\" >nul

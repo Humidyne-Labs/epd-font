@@ -1,4 +1,4 @@
-# Complete How-To Guide — `epd-font` (v1.0.9)
+# Complete How-To Guide — `epd-font` (v1.0.10)
 
 **Repository**: `https://github.com/Humidyne-Labs/epd-font`  
 **Organization**: Humidyne Labs / Humiditron  

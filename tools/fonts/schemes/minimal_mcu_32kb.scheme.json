@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.9",
+  "schema_version": "1.0.10",
   "scheme_id": "minimal_mcu_32kb",
   "project_brand": "Humiditron Ultra-Compact MCU Scheme (< 32 KB Flash)",
   "description": "Minimal Flash footprint for constrained Cortex-M0+/M4 or ESP32-C3 targets.",
@@ -16,11 +16,14 @@
   },
   "raster_config": {
     "raster_mode": "autohint-mono",
-    "normal_weight": 400,
+    "normal_weight": 500,
     "bold_weight": 700,
     "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
-    "ascii_patches_dir": "build/ascii_patches"
+    "ascii_patches_dir": "build/ascii_patches",
+    "min_stem_px": 2,
+    "auto_floor": true,
+    "repair_engine": "hybrid"
   },
   "output_branding": {
     "symbol_prefix": "humid1_",
@@ -102,9 +105,21 @@
         "circle-info",
         "chart-line",
         "sliders",
-        "terminal"
+        "terminal",
+        "bluetooth",
+        "sd-card",
+        "power-off",
+        "play",
+        "pause",
+        "stop",
+        "plus",
+        "minus",
+        "bars",
+        "trash-can",
+        "pen",
+        "delete-left"
       ],
-      "ranges": "0xF00C,0xF00D,0xF013,0xF015,0xF017,0xF021,0xF023,0xF043,0xF058,0xF05A,0xF071,0xF0E7,0xF0F3,0xF120,0xF185,0xF1DE,0xF1EB,0xF201,0xF240-0xF244,0xF287,0xF294,0xF2C9,0xF2DB,0xF625,0xF72E"
+      "ranges": "0xF001,0xF008,0xF00B,0xF00C,0xF00D,0xF011,0xF013,0xF015,0xF017,0xF019,0xF01C,0xF021,0xF023,0xF026-0xF028,0xF03E,0xF043,0xF044,0xF048,0xF04B-0xF04D,0xF051-0xF054,0xF058,0xF05A,0xF067,0xF068,0xF06E,0xF070,0xF071,0xF074,0xF077-0xF079,0xF07B,0xF093,0xF095,0xF0C4,0xF0C5,0xF0C7,0xF0C9,0xF0E0,0xF0E7,0xF0EA,0xF0F3,0xF11C,0xF120,0xF124,0xF15B,0xF185,0xF1DE,0xF1EB,0xF1F8,0xF201,0xF240-0xF244,0xF287,0xF293,0xF294,0xF2C9,0xF2DB,0xF2ED,0xF304,0xF55A,0xF625,0xF72E,0xF7C2,0xF8A2"
     },
     "lucide_core": {
       "description": "Lucide v1.16.0 Core Embedded UI & Sensor Icons",
@@ -483,7 +498,7 @@
         "latin1_units"
       ],
       "kerning": true,
-      "fallback": "humid1_font_plex_sans_normal_14"
+      "fallback": "humid1_font_plex_sans_normal_{size}"
     },
     {
       "family": "mono",
@@ -496,7 +511,7 @@
         "digits_telemetry"
       ],
       "kerning": false,
-      "fallback": "humid1_font_plex_sans_normal_14"
+      "fallback": "humid1_font_plex_sans_bold_{size}"
     },
     {
       "family": "icon_phosphor",

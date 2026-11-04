@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.9)
+humid1_generate_1bpp.py (v1.0.10)
 ==============================
 Humidyne Labs / Humiditron `epd-font` General-Purpose 1-BPP Bilevel Font & Modular Icon Studio
 (IBM Plex + Terminus + Font Awesome 7, Lucide, Phosphor, Tabler + Custom TrueType Fonts).
@@ -47,7 +47,7 @@ FT_LOAD_NO_HINTING = 1 << 1
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.9 `humid1_` symbol naming convention:
+    Canonical v1.0.10 `humid1_` symbol naming convention:
       - IBM Plex families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Terminus family (terminus)                        -> humid1_font_terminus_<role>_<size>
       - Modular Icon families (icon_fa7, icon_lucide...)  -> humid1_<family>_<role>_<size>
@@ -283,7 +283,7 @@ VARIABLE_INSTANTIATION_MAP = [
 ]
 
 
-def get_family_roles(normal_weight: int = 400) -> Dict[str, Dict[str, str]]:
+def get_family_roles(normal_weight: int = 500) -> Dict[str, Dict[str, str]]:
     """
     Map semantic roles (thin, extralight, light, normal, text, medium, semibold, bold, italic, bold_italic)
     to instantiated static TTF filenames.
@@ -770,6 +770,63 @@ def resolve_freetype_flags(raster_mode: str, size_px: int) -> int:
     return FT_LOAD_RENDER | FT_LOAD_NO_AUTOHINT | FT_LOAD_TARGET_NORMAL
 
 
+HOMOGLYPH_EQUIVALENTS: Dict[int, List[int]] = {
+    0x0394: [0x2206],        # Greek Capital Delta <-> Math Increment
+    0x2206: [0x0394],
+    0x03A9: [0x2126],        # Greek Capital Omega <-> Ohm Sign
+    0x2126: [0x03A9],
+    0x03BC: [0x00B5],        # Greek Small Mu <-> Micro Sign
+    0x00B5: [0x03BC],
+    0x2212: [0x002D, 0x2013],# Minus Sign -> Hyphen-Minus / En-Dash
+    0x2010: [0x002D],        # Hyphen -> Hyphen-Minus
+    0x2011: [0x002D],        # Non-Breaking Hyphen -> Hyphen-Minus
+}
+
+
+def _synthesize_new_line_glyph(size_px: int, gid: int) -> GlyphStrike:
+    """Synthesize a crisp 1-BPP LV_SYMBOL_NEW_LINE (U+F8A2, return arrow '↵') glyph at `size_px`."""
+    w = max(8, int(round(size_px * 0.75)))
+    h = max(8, int(round(size_px * 0.75)))
+    stem = 2 if size_px >= 12 else 1
+    grid = [["." for _ in range(w)] for _ in range(h)]
+    # Vertical right shaft from top (r=0) down to mid-bottom (r=h-3)
+    for r in range(0, h - 2):
+        for c in range(w - stem, w):
+            grid[r][c] = "#"
+    # Horizontal bottom bar going left to arrowhead
+    bar_r0 = max(2, h - 3 - stem + 1)
+    for r in range(bar_r0, bar_r0 + stem):
+        for c in range(2, w):
+            grid[r][c] = "#"
+    # Left-pointing arrowhead at left end of horizontal bar
+    mid_r = bar_r0 + (stem // 2)
+    arm = max(2, h // 4)
+    for d in range(arm + 1):
+        for sc in range(stem):
+            c_pos = d + sc
+            if 0 <= c_pos < w:
+                if 0 <= mid_r - d < h:
+                    grid[mid_r - d][c_pos] = "#"
+                if 0 <= mid_r + d < h:
+                    grid[mid_r + d][c_pos] = "#"
+    rows = ["".join(r) for r in grid if "#" in r]
+    non_empty_c = [c for c in range(len(rows[0])) if any(row[c] == "#" for row in rows)]
+    c0, c1 = min(non_empty_c), max(non_empty_c)
+    rows = [row[c0 : c1 + 1] for row in rows]
+    bw, bh = len(rows[0]), len(rows)
+    return GlyphStrike(
+        codepoint=0xF8A2,
+        glyph_id=gid,
+        adv_w_fp4=(bw + 2) * 16,
+        box_w=bw,
+        box_h=bh,
+        ofs_x=1,
+        ofs_y=0,
+        rows=rows,
+        patched=False,
+    )
+
+
 def rasterize_font_strike(
     ft: ctypes.CDLL,
     ft_lib: ctypes.c_void_p,
@@ -784,6 +841,9 @@ def rasterize_font_strike(
     ascii_override_dir: Optional[Path] = None,
     enable_kerning: bool = True,
     prune_noop_kern: bool = True,
+    auto_floor: bool = True,
+    min_stem: int = 2,
+    repair_engine: str = "hybrid",
 ) -> Tuple[List[GlyphStrike], int, int, int, int, List[Tuple[int, int, int, int, int]]]:
     """
     Rasterize a 1-bpp font strike using FreeType2 + fontTools with optional FontAwesome 5 merge,
@@ -912,13 +972,116 @@ def rasterize_font_strike(
             patched=is_patched,
         )
 
+    # Open optional secondary faces for missing glyphs:
+    # - For FontAwesome7-Solid.ttf: fall back to FontAwesome7-Brands.ttf and FontAwesome7-Regular.ttf
+    # - For IBMPlexMono / Condensed / Serif: fall back to IBMPlexMath-Regular.ttf and IBMPlexSans-Medium.ttf
+    secondary_faces = []
+    fdir = font_path.parent
+    fname_low = font_path.name.lower()
+    is_mono_font = ("mono" in fname_low) or ("terminus" in fname_low) or ("unifont" in fname_low)
+    mono_cell_adv_fp4 = None
+    if is_mono_font and 0x0030 in cmap:
+        mono_cell_adv_fp4 = int(round(hmtx[cmap[0x0030]][0] * size_px * 16.0 / float(upem)))
+
+    sec_candidates: List[Path] = []
+    if fname_low.startswith("fontawesome7-"):
+        for s_name in ("FontAwesome7-Brands.ttf", "FontAwesome7-Regular.ttf", "FontAwesome7-Solid.ttf"):
+            sp = fdir / s_name
+            if sp.is_file() and sp.resolve() != font_path.resolve():
+                sec_candidates.append(sp)
+    elif fname_low.startswith("ibmplex"):
+        for s_name in ("IBMPlexSans-Medium.ttf", "IBMPlexMath-Regular.ttf", "IBMPlexSans-Regular.ttf"):
+            sp = fdir / s_name
+            if sp.is_file() and sp.resolve() != font_path.resolve():
+                sec_candidates.append(sp)
+
+    for sp in sec_candidates:
+        s_ptr = ctypes.POINTER(FT_FaceRec)()
+        if ft.FT_New_Face(ft_lib, str(sp).encode("utf-8"), 0, ctypes.byref(s_ptr)) == 0:
+            ft.FT_Set_Pixel_Sizes(s_ptr, 0, size_px)
+            s_tt = TTFont(str(sp))
+            secondary_faces.append((s_ptr, s_tt.getBestCmap() or {}, s_tt["hmtx"].metrics, s_tt["head"].unitsPerEm))
+
+    # Optional closed-loop auto-floor tuner import
+    tuner_mod = None
+    if auto_floor and min_stem >= 2 and not fname_low.startswith("terminus-"):
+        try:
+            import humid1_bilevel_tuner as _bt
+            tuner_mod = _bt
+        except Exception:
+            tuner_mod = None
+
     next_gid = 1
     for code in sorted(set(codepoints)):
         gs = render_single(face_ptr, cmap, hmtx, upem, code, load_flags, next_gid)
+        # 1. Check homoglyph equivalents in primary face if missing
+        if gs is None and code in HOMOGLYPH_EQUIVALENTS:
+            for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
+                gs_alt = render_single(face_ptr, cmap, hmtx, upem, alt_cp, load_flags, next_gid)
+                if gs_alt is not None:
+                    gs_alt.codepoint = code
+                    gs = gs_alt
+                    break
+        # 2. Check secondary fallback faces (e.g. FA7 Brands for 0xF287 USB / 0xF294 Bluetooth, or Plex Math/Sans for Mono Greek)
+        if gs is None and secondary_faces:
+            for s_ptr, s_cmap, s_hmtx, s_upem in secondary_faces:
+                gs_sec = render_single(s_ptr, s_cmap, s_hmtx, s_upem, code, load_flags, next_gid)
+                if gs_sec is None and code in HOMOGLYPH_EQUIVALENTS:
+                    for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
+                        gs_sec = render_single(s_ptr, s_cmap, s_hmtx, s_upem, alt_cp, load_flags, next_gid)
+                        if gs_sec is not None:
+                            gs_sec.codepoint = code
+                            break
+                if gs_sec is not None:
+                    if mono_cell_adv_fp4 is not None and gs_sec.box_w <= (mono_cell_adv_fp4 >> 4):
+                        gs_sec.adv_w_fp4 = mono_cell_adv_fp4
+                        cell_px = mono_cell_adv_fp4 >> 4
+                        gs_sec.ofs_x = max(0, (cell_px - gs_sec.box_w) // 2)
+                    gs = gs_sec
+                    break
+        # 3. Synthesize LV_SYMBOL_NEW_LINE (0xF8A2) for FontAwesome 7 if requested
+        if gs is None and code == 0xF8A2 and fname_low.startswith("fontawesome7-"):
+            gs = _synthesize_new_line_glyph(size_px, next_gid)
+
+        # 4. Closed-Loop Auto-Floor (min_stem >= 2px) for <=13px unpatched text glyphs that still have 1px stems
+        # (At >=14px, IBMPlex*-Medium wght=500 already renders native 2px stems; at 12px it drops to 1px and is auto-floored here)
+        if (
+            gs is not None
+            and tuner_mod is not None
+            and not gs.patched
+            and gs.rows
+            and size_px <= 13
+            and 0x0021 <= code <= 0x03FF
+            and not fname_low.startswith(("fontawesome", "lucide", "phosphor", "tabler"))
+        ):
+            w_orig = gs.box_w
+            arr = tuner_mod.rows_to_binary_array(gs.rows)
+            max_w = (gs.adv_w_fp4 >> 4) if is_mono_font else ((gs.adv_w_fp4 >> 4) + 2)
+            rep_arr, rec = tuner_mod.inspect_and_repair_glyph_bitmap(
+                arr,
+                codepoint=code,
+                min_stem=min_stem,
+                max_width_ceiling=max_w,
+                engine=repair_engine,
+            )
+            if rec.repaired and not rec.size_floor_warning:
+                trimmed, bw, bh, nox, noy = tuner_mod.trim_binary_array(rep_arr, gs.ofs_x, gs.ofs_y)
+                if bw > 0 and bh > 0:
+                    gs.rows = tuner_mod.binary_array_to_rows(trimmed)
+                    gs.box_w = bw
+                    gs.box_h = bh
+                    gs.ofs_x = nox
+                    gs.ofs_y = noy
+                    if not is_mono_font and bw > w_orig:
+                        gs.adv_w_fp4 += (bw - w_orig) * 16
+
         if gs is not None:
             glyphs.append(gs)
             code_to_gid[code] = next_gid
             next_gid += 1
+
+    for s_ptr, _, _, _ in secondary_faces:
+        ft.FT_Done_Face(s_ptr)
 
     if fa_path and fa_path.is_file() and fa_codepoints:
         fa_face_ptr = ctypes.POINTER(FT_FaceRec)()
@@ -2101,14 +2264,26 @@ def emit_lvgl_c_file(
 
     lines = [
         "/*******************************************************************************",
-        f" * Font: {font_symbol_name} (IBM Plex {family.capitalize()} {role.capitalize()})",
-        f" * Size: {size_px} px @ 188 DPI (SSD1681 1-bit E-Paper Display)",
+        f" * Font: {font_symbol_name} ({family} {role})",
+        f" * Size: {size_px} px @ 188.3 DPI (SSD1681 1-bit E-Paper Display)",
         " * Bpp: 1 (Uncompressed Bilevel Monochrome)",
-        f" * Raster Mode: {raster_mode} (FT_LOAD_TARGET_MONO + Dropout Control)",
-        " * License: SIL Open Font License 1.1 (IBM Corp.) / Font Awesome Free License",
+        f" * Raster Mode: {raster_mode} (FT_LOAD_TARGET_MONO + Closed-Loop Stem Floor)",
+        " * License: MIT AND OFL-1.1",
         " ******************************************************************************/",
         "",
+        "#if defined(LV_LVGL_H_INCLUDE_SIMPLE)",
         '#include "lvgl.h"',
+        "#elif defined(__has_include)",
+        '#if __has_include("lvgl.h")',
+        '#include "lvgl.h"',
+        '#elif __has_include("lvgl/lvgl.h")',
+        '#include "lvgl/lvgl.h"',
+        "#else",
+        '#include "lvgl.h"',
+        "#endif",
+        "#else",
+        '#include "lvgl.h"',
+        "#endif",
         "",
         f"#ifndef {guard_macro}",
         f"#define {guard_macro} 1",
@@ -2378,76 +2553,157 @@ def measure_lvgl_string_px(
 def generate_headers(
     out_dir: Path,
     compiled_symbols: Sequence[Tuple[str, str, str, int, int]],
+    scheme_cfg: Optional[dict] = None,
 ) -> None:
-    """Generate humid1_fonts.h (plus backward-compatible plex_fonts.h, epd_fonts.h, and h1os_fonts.h)."""
+    """
+    Generate drop-in-ready `humid1_fonts.h`, `plex_fonts.h`, `epd_fonts.h`, and `h1os_fonts.h`
+    with circular-include guards (`struct _lv_font_t`, `#ifndef LV_FONT_DECLARE`), universal
+    `__has_include("lvgl.h")` detection, and complete `HUMID1_FONT_*`, `PLEX_FONT_*`,
+    `HUMID1_ICON_*`, and `H1OS_FONT_*` semantic aliases.
+    """
     sym_set = {item[0] for item in compiled_symbols}
 
     def pick_sym(preferred: str, fallback: str = "humid1_font_plex_sans_normal_14") -> str:
-        for cand in (preferred, f"humid1_font_{preferred}", f"humid1_{preferred}", fallback, "humid1_font_plex_sans_normal_14"):
+        for cand in (
+            preferred,
+            f"humid1_font_{preferred}",
+            f"humid1_{preferred}",
+            fallback,
+            f"humid1_font_{fallback}",
+            "humid1_font_plex_sans_normal_14",
+            "humid1_font_plex_sans_bold_14",
+        ):
             if cand in sym_set:
                 return cand
         return compiled_symbols[0][0] if compiled_symbols else "humid1_font_plex_sans_normal_14"
 
-    plex_h = out_dir / "plex_fonts.h"
-    p_lines = [
-        "/**",
-        " * @file plex_fonts.h",
-        " * @brief Humidyne Labs / Humiditron 1-BPP Bilevel EPD Typography & Iconography Suite",
-        " *",
-        " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v1.0.9)",
-        " * SPDX-License-Identifier: MIT AND OFL-1.1",
-        " */",
-        "",
-        "#pragma once",
-        "",
-        '#include "lvgl.h"',
-        "",
-        "#ifdef __cplusplus",
-        'extern "C" {',
-        "#endif",
-        "",
-        "/* =========================================================================",
-        " * 1. Base LVGL v9 1-BPP Font Declarations",
-        " * ========================================================================= */",
-    ]
-    for sym, fam, role, sz, rom_b in compiled_symbols:
-        p_lines.append(f"LV_FONT_DECLARE({sym}); /* {fam} {role} {sz}px (~{rom_b:,} B ROM) */")
+    def build_primary_header_text(header_filename: str) -> str:
+        lines = [
+            "/**",
+            f" * @file {header_filename}",
+            " * @brief Humidyne Labs / Humiditron 1-BPP Bilevel EPD Typography & Iconography Suite",
+            " *",
+            " * Drop-in ready for H1OS & humid1-os (safe for direct inclusion in lv_conf.h or app code).",
+            " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v1.0.10)",
+            " * SPDX-License-Identifier: MIT AND OFL-1.1",
+            " */",
+            "",
+            "#pragma once",
+            "",
+            "#if defined(LV_LVGL_H_INCLUDE_SIMPLE)",
+            '#include "lvgl.h"',
+            "#elif defined(__has_include)",
+            '#if __has_include("lvgl.h")',
+            '#include "lvgl.h"',
+            '#elif __has_include("lvgl/lvgl.h")',
+            '#include "lvgl/lvgl.h"',
+            "#else",
+            '#include "lvgl.h"',
+            "#endif",
+            "#else",
+            '#include "lvgl.h"',
+            "#endif",
+            "",
+            "#ifdef __cplusplus",
+            'extern "C" {',
+            "#endif",
+            "",
+            "struct _lv_font_t;",
+            "#ifndef LV_FONT_T_DEFINED",
+            "typedef struct _lv_font_t lv_font_t;",
+            "#define LV_FONT_T_DEFINED",
+            "#endif",
+            "",
+            "#ifndef LV_FONT_DECLARE",
+            "#define LV_FONT_DECLARE(font_name) extern const lv_font_t font_name",
+            "#endif",
+            "",
+            "/* =========================================================================",
+            " * 1. Base LVGL v8/v9 1-BPP Font & Modular Icon Strike Declarations",
+            " * ========================================================================= */",
+        ]
+        for sym, fam, role, sz, rom_b in compiled_symbols:
+            lines.append(f"LV_FONT_DECLARE({sym}); /* {fam} {role} {sz}px (~{rom_b:,} B ROM) */")
 
-    p_lines.extend([
-        "",
-        "/* =========================================================================",
-        " * 2. Semantic UI & Telemetry Role Macros (H1OS & humid1-os)",
-        " * ========================================================================= */",
-        f"#define PLEX_FONT_UI_MICRO          (&{pick_sym('plex_sans_normal_12', 'plex_sans_normal_14')})",
-        f"#define PLEX_FONT_UI_BODY           (&{pick_sym('plex_sans_normal_14')})",
-        f"#define PLEX_FONT_UI_BODY_MD        (&{pick_sym('plex_sans_normal_16')})",
-        f"#define PLEX_FONT_UI_SUBTITLE       (&{pick_sym('plex_sans_bold_14')})",
-        f"#define PLEX_FONT_UI_TITLE          (&{pick_sym('plex_sans_bold_16')})",
-        f"#define PLEX_FONT_UI_HEADER         (&{pick_sym('plex_sans_bold_20')})",
-        f"#define PLEX_FONT_UI_META_ITALIC    (&{pick_sym('plex_sans_italic_14', 'plex_sans_normal_14')})",
-        "",
-        f"#define PLEX_FONT_TELEMETRY_SMALL   (&{pick_sym('plex_mono_normal_14')})",
-        f"#define PLEX_FONT_TELEMETRY_BODY    (&{pick_sym('plex_mono_normal_16')})",
-        f"#define PLEX_FONT_TELEMETRY_VALUE   (&{pick_sym('plex_mono_bold_20')})",
-        f"#define PLEX_FONT_TELEMETRY_HERO    (&{pick_sym('plex_mono_bold_24')})",
-        f"#define PLEX_FONT_TELEMETRY_JUMBO   (&{pick_sym('plex_mono_bold_32')})",
-        "",
-        f"#define PLEX_FONT_RIBBON_COND       (&{pick_sym('plex_cond_normal_16', 'plex_sans_normal_16')})",
-        f"#define PLEX_FONT_BANNER_COND       (&{pick_sym('plex_cond_bold_18', 'plex_sans_bold_18')})",
-        f"#define PLEX_FONT_EDITORIAL_BODY    (&{pick_sym('plex_serif_normal_18', 'plex_sans_normal_18')})",
-        f"#define PLEX_FONT_EDITORIAL_TITLE   (&{pick_sym('plex_serif_bold_24', 'plex_sans_bold_24')})",
-        f"#define PLEX_FONT_FORMULA           (&{pick_sym('plex_math_regular_16')})",
-        "",
-        "#ifdef __cplusplus",
-        "}",
-        "#endif",
-        "",
-    ])
-    p_text = "\n".join(p_lines)
-    p_text_humid1 = p_text.replace("#define PLEX_FONT_", "#define HUMID1_FONT_") + "\n" + p_text
-    (out_dir / "humid1_fonts.h").write_text(p_text_humid1.replace("@file plex_fonts.h", "@file humid1_fonts.h"), encoding="utf-8")
-    plex_h.write_text(p_text, encoding="utf-8")
-    (out_dir / "epd_fonts.h").write_text(p_text.replace("@file plex_fonts.h", "@file epd_fonts.h"), encoding="utf-8")
+        role_pairs = [
+            ("UI_MICRO",         pick_sym("plex_sans_normal_12", "plex_sans_normal_14")),
+            ("UI_BODY",          pick_sym("plex_sans_normal_14")),
+            ("UI_BODY_MD",       pick_sym("plex_sans_normal_16", "plex_sans_normal_14")),
+            ("UI_SUBTITLE",      pick_sym("plex_sans_bold_14")),
+            ("UI_TITLE",         pick_sym("plex_sans_bold_16", "plex_sans_bold_14")),
+            ("UI_HEADER",        pick_sym("plex_sans_bold_20", "plex_sans_bold_18")),
+            ("UI_META_ITALIC",   pick_sym("plex_sans_italic_14", "plex_sans_normal_14")),
+            ("TELEMETRY_SM",     pick_sym("plex_mono_normal_14")),
+            ("TELEMETRY_SMALL",  pick_sym("plex_mono_normal_14")),
+            ("TELEMETRY_BODY",   pick_sym("plex_mono_normal_16", "plex_mono_normal_14")),
+            ("TELEMETRY_MD",     pick_sym("plex_mono_bold_20", "plex_mono_normal_20")),
+            ("TELEMETRY_VALUE",  pick_sym("plex_mono_bold_20", "plex_mono_normal_20")),
+            ("TELEMETRY_LG",     pick_sym("plex_mono_bold_24", "plex_sans_bold_24")),
+            ("TELEMETRY_HERO",   pick_sym("plex_mono_bold_24", "plex_sans_bold_24")),
+            ("TELEMETRY_XL",     pick_sym("plex_mono_bold_32", "plex_sans_bold_32")),
+            ("TELEMETRY_JUMBO",  pick_sym("plex_mono_bold_32", "plex_sans_bold_32")),
+            ("RIBBON_COND",      pick_sym("plex_cond_normal_16", "plex_sans_normal_16")),
+            ("BANNER_COND",      pick_sym("plex_cond_bold_18", "plex_sans_bold_18")),
+            ("EDITORIAL_BODY",   pick_sym("plex_serif_normal_18", "plex_sans_normal_18")),
+            ("EDITORIAL_TITLE",  pick_sym("plex_serif_bold_24", "plex_sans_bold_24")),
+            ("FORMULA",          pick_sym("plex_math_regular_16", "plex_sans_normal_16")),
+            ("TERMINAL",         pick_sym("terminus_bold_16", "terminus_normal_16")),
+            ("TERMINAL_SM",      pick_sym("terminus_normal_12", "plex_mono_normal_12")),
+        ]
+
+        lines.extend([
+            "",
+            "/* =========================================================================",
+            " * 2. Canonical HUMID1_FONT_* Semantic UI & Telemetry Role Macros (H1OS)",
+            " * ========================================================================= */",
+        ])
+        emitted_macros = set()
+        for suffix, target in role_pairs:
+            m_name = f"HUMID1_FONT_{suffix}"
+            lines.append(f"#define {m_name:<28} (&{target})")
+            emitted_macros.add(m_name)
+
+        # Include any custom semantic_roles from scheme JSON
+        if scheme_cfg:
+            sem_roles = scheme_cfg.get("output_branding", {}).get("semantic_roles", {})
+            for m_name, raw_target in sem_roles.items():
+                if m_name not in emitted_macros:
+                    resolved_t = pick_sym(raw_target)
+                    lines.append(f"#define {m_name:<28} (&{resolved_t})")
+                    emitted_macros.add(m_name)
+
+        # Modular Icon Default Macros
+        icon_defaults = [
+            ("HUMID1_ICON_FA7_DEFAULT",      pick_sym("icon_fa7_solid_16", "icon_fa7_solid_14")),
+            ("HUMID1_ICON_LUCIDE_DEFAULT",   pick_sym("icon_lucide_regular_16", "icon_lucide_regular_14")),
+            ("HUMID1_ICON_PHOSPHOR_DEFAULT", pick_sym("icon_phosphor_regular_16", "icon_phosphor_regular_14")),
+            ("HUMID1_ICON_TABLER_DEFAULT",   pick_sym("icon_tabler_regular_16", "icon_tabler_regular_14")),
+        ]
+        for m_name, target in icon_defaults:
+            if m_name not in emitted_macros:
+                lines.append(f"#define {m_name:<28} (&{target})")
+                emitted_macros.add(m_name)
+
+        lines.extend([
+            "",
+            "/* =========================================================================",
+            " * 3. Backward-Compatible PLEX_FONT_* Role Aliases",
+            " * ========================================================================= */",
+        ])
+        for suffix, target in role_pairs:
+            lines.append(f"#define PLEX_FONT_{suffix:<18} (&{target})")
+
+        lines.extend([
+            "",
+            "#ifdef __cplusplus",
+            "}",
+            "#endif",
+            "",
+        ])
+        return "\n".join(lines)
+
+    for hdr_name in ("humid1_fonts.h", "plex_fonts.h", "epd_fonts.h"):
+        (out_dir / hdr_name).write_text(build_primary_header_text(hdr_name), encoding="utf-8")
 
     h1os_h = out_dir / "h1os_fonts.h"
     default_sym = pick_sym("plex_sans_normal_14")
@@ -2457,43 +2713,41 @@ def generate_headers(
         " * @brief H1OS Build-Time Generated 1-BPP Bilevel Typography Suite (IBM Plex EPD)",
         " *",
         " * Drop-in backward-compatible header for H1OS & humid1-os.",
-        " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v2.0)",
-        " * SPDX-License-Identifier: Apache-2.0 / SIL OFL-1.1",
+        " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v1.0.10)",
+        " * SPDX-License-Identifier: MIT AND OFL-1.1",
         " */",
         "",
         "#pragma once",
+        "",
+        '#include "humid1_fonts.h"',
         "",
         "#ifdef __cplusplus",
         'extern "C" {',
         "#endif",
         "",
-        "struct _lv_font_t;",
-        "#ifndef LV_FONT_T_DEFINED",
-        "typedef struct _lv_font_t lv_font_t;",
-        "#define LV_FONT_T_DEFINED",
-        "#endif",
-        "",
         "#ifndef LV_FONT_CUSTOM_DECLARE",
-        f"#define LV_FONT_CUSTOM_DECLARE extern const lv_font_t {default_sym};",
+        f"#define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE({default_sym});",
         "#endif",
         "",
         "#ifndef LV_FONT_DEFAULT",
         f"#define LV_FONT_DEFAULT (&{default_sym})",
         "#endif",
         "",
-        '#include "plex_fonts.h"',
-        "",
         "/* =========================================================================",
-        " * Backward-Compatible H1OS_FONT_<sz> Aliases (Mapped to IBM Plex EPD)",
+        " * Backward-Compatible H1OS_FONT_<sz> & Legacy Symbol Aliases",
         " * ========================================================================= */",
     ]
-    for sz in [12, 14, 16, 18, 20, 24, 28, 32, 36]:
+    for sz in [12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40]:
         pref = f"plex_sans_bold_{sz}" if sz >= 20 else f"plex_sans_normal_{sz}"
         target = pick_sym(pref, f"plex_sans_normal_{sz}")
+        s_bold = pick_sym(f"plex_sans_bold_{sz}", target)
+        m_norm = pick_sym(f"plex_mono_normal_{sz}", target)
+        m_bold = pick_sym(f"plex_mono_bold_{sz}", s_bold)
         h_lines.append(f"#define H1OS_FONT_{sz} (&{target})")
-        h_lines.append(f"#define H1OS_FONT_BOLD_{sz} (&{pick_sym(f'plex_sans_bold_{sz}', target)})")
-        h_lines.append(f"#define H1OS_FONT_MONO_{sz} (&{pick_sym(f'plex_mono_normal_{sz}', target)})")
-        h_lines.append(f"#define H1OS_FONT_MONO_BOLD_{sz} (&{pick_sym(f'plex_mono_bold_{sz}', target)})")
+        h_lines.append(f"#define H1OS_FONT_BOLD_{sz} (&{s_bold})")
+        h_lines.append(f"#define H1OS_FONT_MONO_{sz} (&{m_norm})")
+        h_lines.append(f"#define H1OS_FONT_MONO_BOLD_{sz} (&{m_bold})")
+        h_lines.append(f"#define h1os_font_montserrat_{sz}_1bpp {target}")
 
     h_lines.extend(["", "#ifdef __cplusplus", "}", "#endif", ""])
     h1os_h.write_text("\n".join(h_lines), encoding="utf-8")
@@ -2660,7 +2914,7 @@ def write_total_disk_size_report(
 
     lines = [
         "=" * 116,
-        f"HUMIDYNE LABS / HUMIDITRON `epd-font` v1.0.9 — FLASH ROM & DISK SIZE REPORT (total_disk_size.txt)",
+        f"HUMIDYNE LABS / HUMIDITRON `epd-font` v1.0.10 — FLASH ROM & DISK SIZE REPORT (total_disk_size.txt)",
         "=" * 116,
         f"  Scheme ID                    : {scheme_id}",
         f"  Target Display DPI           : {dpi:.1f} DPI (1 typographic pt = 1/72 inch = {dpi/72.0:.3f} px @ {dpi:.1f} DPI)",
@@ -2850,7 +3104,7 @@ def render_specimen_sheet(
         return cx
 
     draw.rectangle([0, 0, W, 68], fill=(18, 22, 28))
-    draw_strike_text(28, 16, "HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v1.0.9 (188 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
+    draw_strike_text(28, 16, "HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v1.0.10 (188 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
     draw_strike_text(28, 44, "Engine: FreeType 1-BPP + Terminus Exact-Mono + Full-Canvas ASCII Patch Pipeline  •  200x200 Reference Panel", "humid1_font_plex_mono_normal_14", fg=(180, 195, 210))
 
     panel_x, panel_y = 28, 90
@@ -2948,7 +3202,7 @@ def render_specimen_sheet(
                 draw.rectangle([rx, ry, rx + cell - 2, ry + cell - 2], fill=fill_c)
         px_x += 83
 
-    draw_strike_text(44, box_y + 196, "1:1 Native 188 DPI Readout (1px Normal Stems vs 2px Bold Stems):", "humid1_font_plex_sans_bold_14")
+    draw_strike_text(44, box_y + 196, "1:1 Native 188 DPI Readout (>=2px Medium Stems + Closed-Loop Auto-Floor):", "humid1_font_plex_sans_bold_14")
     draw_strike_text(44, box_y + 222, "Sans 12px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y ± µ °", "humid1_font_plex_sans_normal_12")
     draw_strike_text(44, box_y + 246, "Sans 14px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y", "humid1_font_plex_sans_normal_14")
     draw_strike_text(44, box_y + 272, "Term 12px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s g y", "humid1_font_terminus_normal_12")
@@ -2973,7 +3227,7 @@ def render_specimen_sheet(
     draw_strike_text(rx0 + 20, 106, "HUMID1 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS @ 188 DPI)", "humid1_font_plex_sans_bold_16")
 
     ladder_rows = [
-        ("Sans Normal 12px (4.6pt@188dpi, 1px stems)", "humid1_font_plex_sans_normal_12", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
+        ("Sans Normal 12px (4.6pt@188dpi, >=2px Auto-Floored)", "humid1_font_plex_sans_normal_12", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
         ("Sans Normal 14px (5.4pt@188dpi, Default UI)", "humid1_font_plex_sans_normal_14", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
         ("Sans Bold 14px (5.4pt@188dpi, 2px stems)", "humid1_font_plex_sans_bold_14", "PSYCHROMETRICS  •  SYSTEM HEALTH  •  SETTLED (99%)"),
         ("Sans Italic 14px (Metadata)", "humid1_font_plex_sans_italic_14", "(22.4°C ambient  •  TriNode thermal equilibrium active)"),
@@ -2982,7 +3236,7 @@ def render_specimen_sheet(
         ("Sans Bold 20px (7.6pt@188dpi, Section Hero)", "humid1_font_plex_sans_bold_20", "72.4°F    46.8% RH    4.12V"),
         ("Sans Bold 24px (9.2pt@188dpi, Primary Readout)", "humid1_font_plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
         ("Sans Bold 32px (12.2pt@188dpi, Jumbo Metric)", "humid1_font_plex_sans_bold_32", "72.4°F   46.8%"),
-        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", "boot: humid1-os v1.0.9  |  SPI0 40MHz  |  0x0040 @%#08"),
+        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", "boot: humid1-os v1.0.10  |  SPI0 40MHz  |  0x0040 @%#08"),
         ("Terminus Normal 16px (8x16 Native Console)", "humid1_font_terminus_normal_16", "root@humid1:~# dmesg | grep epd -> 200x200 OK"),
         ("Mono Normal 14px (Telemetry Log)", "humid1_font_plex_mono_normal_14", "2026-11-03 20:24:55  |  328K Free  |  @%#08"),
         ("Mono Bold 20px (Tabular Readout)", "humid1_font_plex_mono_bold_20", "72.4°F   46.8% RH   12.6 hPa"),
@@ -3158,7 +3412,7 @@ Examples:
     parser = argparse.ArgumentParser(
         prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.9 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
+            "Humidyne Labs / Humiditron `epd-font` v1.0.10 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
             "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
         ),
         epilog=epilog_text,
@@ -3166,15 +3420,16 @@ Examples:
     )
     parser.add_argument(
         "-w", "--workflow",
-        choices=["gen-assets", "patch", "check", "build", "all"],
+        choices=["gen-assets", "patch", "check", "build", "repair", "all"],
         default="build",
         help=(
             "Select workflow stage (default: build):\n"
             "  gen-assets : Build static .ttf files & metadata JSONs from raw assets\n"
             "  patch      : Dump (--dump) or compile (--apply) Full-Canvas 1:1 ASCII .txt glyph patches\n"
+            "  repair     : Closed-loop OpenCV auto-floor (>=2px stem) & counter-protection repair + diff PNGs\n"
             "  check      : Render Page Check PNGs, Char-by-Char Blueprint PNGs & 200x200 screen audit\n"
             "  build      : Emit LVGL v9 1-bpp .c/.h files, BDFs, CSV metrics & Strike Vault\n"
-            "  all        : Run gen-assets -> patch -> build -> check in sequence"
+            "  all        : Run gen-assets -> repair -> patch -> build -> check in sequence"
         ),
     )
     parser.add_argument(
@@ -3251,8 +3506,38 @@ Examples:
         "--normal-weight",
         type=int,
         choices=[100, 200, 300, 400, 450, 500, 600, 700],
-        default=400,
-        help="OpenType weight for 'normal' slot (default: 400 Regular)",
+        default=500,
+        help="OpenType weight for 'normal' slot (default: 500 Medium for >=2px EPD stem legibility)",
+    )
+    parser.add_argument(
+        "--min-stem",
+        type=int,
+        default=2,
+        help="Minimum stem thickness in pixels enforced by closed-loop auto-floor (default: 2)",
+    )
+    parser.add_argument(
+        "--auto-floor",
+        dest="auto_floor",
+        action="store_true",
+        default=True,
+        help="Enable closed-loop OpenCV >=2px stem auto-floor & counter protection (default: enabled)",
+    )
+    parser.add_argument(
+        "--no-auto-floor",
+        dest="auto_floor",
+        action="store_false",
+        help="Disable closed-loop morphological stem auto-floor",
+    )
+    parser.add_argument(
+        "--repair-engine",
+        choices=["hybrid", "autofloor", "downscale", "contour"],
+        default="hybrid",
+        help="Closed-loop glyph repair engine (default: hybrid)",
+    )
+    parser.add_argument(
+        "--save-repaired-patches",
+        action="store_true",
+        help="Save auto-repaired glyphs into --patches JSON during --workflow repair",
     )
     parser.add_argument(
         "--raster-mode",
@@ -3354,6 +3639,28 @@ def _execute_strike_worker_task(task: dict) -> dict:
     effective_raster_m = task["effective_raster_m"]
     strike_ascii_dir = Path(task["strike_ascii_dir"]) if task["strike_ascii_dir"] else None
 
+    # If inspect_repairs_root is active, first rasterize without auto_floor to capture before/after diff records
+    repair_sheet_written = 0
+    if task.get("inspect_repairs_root") and not family.startswith("icon_"):
+        raw_glyphs, _, _, _, _, _ = rasterize_font_strike(
+            ft=_WORKER_FT,
+            ft_lib=_WORKER_FT_LIB,
+            font_path=ttf_path,
+            size_px=sz,
+            codepoints=task["codepoints"],
+            raster_mode=effective_raster_m,
+            threshold=task["threshold"],
+            fa_path=None,
+            fa_codepoints=None,
+            patch_dict=task["strike_patches"],
+            ascii_override_dir=strike_ascii_dir,
+            enable_kerning=False,
+            prune_noop_kern=True,
+            auto_floor=False,
+        )
+    else:
+        raw_glyphs = []
+
     glyphs, line_h, base_l, upos, uthk, kern_pairs = rasterize_font_strike(
         ft=_WORKER_FT,
         ft_lib=_WORKER_FT_LIB,
@@ -3368,7 +3675,34 @@ def _execute_strike_worker_task(task: dict) -> dict:
         ascii_override_dir=strike_ascii_dir,
         enable_kerning=task["enable_kern"],
         prune_noop_kern=task["prune_noop_kern"],
+        auto_floor=task.get("auto_floor", True),
+        min_stem=task.get("min_stem", 2),
+        repair_engine=task.get("repair_engine", "hybrid"),
     )
+
+    if task.get("inspect_repairs_root") and raw_glyphs:
+        try:
+            import humid1_bilevel_tuner as _bt
+            recs = []
+            for g_bef in raw_glyphs:
+                if not g_bef.rows:
+                    continue
+                arr_bef = _bt.rows_to_binary_array(g_bef.rows)
+                is_m = family in ("mono", "terminus", "unifont")
+                max_w = (g_bef.adv_w_fp4 >> 4) if is_m else ((g_bef.adv_w_fp4 >> 4) + 1)
+                _, rec = _bt.inspect_and_repair_glyph_bitmap(
+                    arr_bef,
+                    codepoint=g_bef.codepoint,
+                    min_stem=task.get("min_stem", 2),
+                    max_width_ceiling=max_w,
+                    engine=task.get("repair_engine", "hybrid"),
+                )
+                recs.append(rec)
+            rep_png = Path(task["inspect_repairs_root"]) / f"{sym_name}_repair.png"
+            _bt.render_repair_comparison_sheet(rep_png, sym_name, sz, recs)
+            repair_sheet_written = 1
+        except Exception:
+            pass
 
     if task["do_build_c"] and task["c_out_dir"]:
         out_file = Path(task["c_out_dir"]) / f"{sym_name}.c"
@@ -3510,7 +3844,7 @@ def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.9)
+    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.10)
     raw_src_arg = args.src_dir or args.font_dir
     if raw_src_arg:
         cand_src = Path(raw_src_arg).resolve()
@@ -3635,7 +3969,7 @@ def main() -> None:
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
     kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
     vault_data: dict = {
-        "vault_version": "1.0.9",
+        "vault_version": "1.0.10",
         "raster_mode": raster_m,
         "normal_weight": normal_w,
         "strikes": {},
@@ -3649,6 +3983,49 @@ def main() -> None:
     t_start = time.perf_counter()
     max_workers = args.jobs if (args.jobs and args.jobs > 0) else (os.cpu_count() or 4)
     strike_tasks: List[dict] = []
+    do_repair_wf = args.workflow in ("repair", "all")
+    inspect_repairs_root = (root_out / "inspect_repairs") if do_repair_wf else None
+
+    # Pre-compute all planned strike symbols so `.fallback` pointers are guaranteed to resolve
+    planned_symbols_set = set()
+    for _fam, _role, _psizes, _, _, _, _ in raw_plan:
+        _r = Path(_role.split("custom:", 1)[1]).stem.lower().replace("-", "_") if _role.startswith("custom:") else _role
+        _szs = args.sizes if args.sizes is not None else _psizes
+        _fl = SUBFAMILY_FLOORS.get(_fam, 10)
+        for _s in _szs:
+            if _s >= _fl or scheme_cfg is not None:
+                planned_symbols_set.add(format_strike_symbol(_fam, _r, _s))
+
+    def _resolve_smart_fallback(fb_pat: Optional[str], cur_sz: int, cur_sym: str, all_syms: set) -> Optional[str]:
+        if not fb_pat:
+            return None
+        cand = fb_pat.format(size=cur_sz)
+        if not cand.startswith("humid1_"):
+            if cand.startswith(("plex_sans_", "plex_mono_", "plex_cond_", "plex_serif_", "plex_math_")):
+                cand = f"humid1_font_{cand}"
+            elif cand.startswith("plex_terminus_"):
+                cand = f"humid1_font_{cand[5:]}"
+        if cand == cur_sym:
+            return None
+        if cand in all_syms:
+            return cand
+        # Find nearest size in the same fallback family prefix
+        m = re.match(r"^(.+_)(\d+)$", cand)
+        if m:
+            prefix = m.group(1)
+            avail_sizes = []
+            for s_item in all_syms:
+                if s_item.startswith(prefix) and s_item != cur_sym:
+                    tail = s_item[len(prefix):]
+                    if tail.isdigit():
+                        avail_sizes.append((int(tail), s_item))
+            if avail_sizes:
+                # Prefer largest size <= cur_sz, else smallest size > cur_sz
+                le = [x for x in avail_sizes if x[0] <= cur_sz]
+                if le:
+                    return max(le, key=lambda x: x[0])[1]
+                return min(avail_sizes, key=lambda x: abs(x[0] - cur_sz))[1]
+        return None
 
     for family, role, prof_sizes, range_str, inc_fa5, fb_pattern, fa_range_str in raw_plan:
         if role.startswith("custom:"):
@@ -3687,14 +4064,7 @@ def main() -> None:
 
             sym_name = format_strike_symbol(family, role, sz)
             legacy_sym_name = f"plex_{family}_{role}_{sz}"
-            fb_sym = fb_pattern.format(size=sz) if fb_pattern else None
-            if fb_sym and not fb_sym.startswith("humid1_"):
-                if fb_sym.startswith("plex_sans_") or fb_sym.startswith("plex_mono_") or fb_sym.startswith("plex_cond_") or fb_sym.startswith("plex_serif_") or fb_sym.startswith("plex_math_"):
-                    fb_sym = f"humid1_font_{fb_sym}"
-                elif fb_sym.startswith("plex_terminus_"):
-                    fb_sym = f"humid1_font_{fb_sym[5:]}"
-            if fb_sym == sym_name:
-                fb_sym = None
+            fb_sym = _resolve_smart_fallback(fb_pattern, sz, sym_name, planned_symbols_set)
 
             strike_patches = (
                 patch_manifest.get("patches", {}).get(sym_name)
@@ -3730,6 +4100,10 @@ def main() -> None:
                 "inspect_chars_filter": args.inspect_chars_filter,
                 "bdf_out_dir": str(bdf_out_dir) if (bdf_out_dir and sz <= 32) else None,
                 "metrics_out_dir": str(metrics_out_dir) if metrics_out_dir else None,
+                "auto_floor": bool(scheme_cfg.get("raster_config", {}).get("auto_floor", args.auto_floor)) if scheme_cfg else args.auto_floor,
+                "min_stem": int(scheme_cfg.get("raster_config", {}).get("min_stem_px", args.min_stem)) if scheme_cfg else args.min_stem,
+                "repair_engine": str(scheme_cfg.get("raster_config", {}).get("repair_engine", args.repair_engine)) if scheme_cfg else args.repair_engine,
+                "inspect_repairs_root": str(inspect_repairs_root) if inspect_repairs_root else None,
             })
 
     print(f"[*] Processing {len(strike_tasks)} font/icon strikes in parallel across {max_workers} CPU worker processes...")
@@ -3775,7 +4149,7 @@ def main() -> None:
     print(f"[+] Completed {len(strike_tasks)} strikes in {elapsed_s:.2f}s using {max_workers} CPU cores.")
 
     if do_build_c:
-        generate_headers(c_out_dir, compiled_symbols)
+        generate_headers(c_out_dir, compiled_symbols, scheme_cfg=scheme_cfg)
         copy_licenses(None, font_dir, c_out_dir)
 
     if vault_out_path:

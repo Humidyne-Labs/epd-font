@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-string_info.py (v1.0.9) — Agent-First Deterministic String Layout & Screen Budget Calculator
+string_info.py (v1.0.10) — Agent-First Deterministic String Layout & Screen Budget Calculator
 ============================================================================================
 Computes exact LVGL v9 1-bpp pixel width, kerning adjustments, bounding height, line wrapping,
 and horizontal screen clearance (`usable_width = screen_width - 2 * safe_margin`) for any string

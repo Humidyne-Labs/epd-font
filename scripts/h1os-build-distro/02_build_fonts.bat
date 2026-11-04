@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [02] Humidyne Labs - Humiditron epd-font v1.0.9 - Build 1-BPP C/H, BDF and Vault
+echo [02] Humidyne Labs - Humiditron epd-font v1.0.10 - Build 1-BPP C/H, BDF and Vault
 echo      Workflow : H1OS and humid1-os Firmware Distribution Workflow
 echo      Scheme   : scripts\h1os-build-distro\h1os_full.scheme.json
 echo      Build    : build\h1os\

@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [03] Humidyne Labs - Humiditron epd-font v1.0.9 - Visual Inspection PNGs and Screen Audit
+echo [03] Humidyne Labs - Humiditron epd-font v1.0.10 - Visual Inspection PNGs and Screen Audit
 echo      Workflow : H1OS and humid1-os Firmware Distribution Workflow
 echo      Output   : build\h1os\inspect_pages\ and build\h1os\inspect_chars\
 echo ============================================================================

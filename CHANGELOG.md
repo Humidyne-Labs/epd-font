@@ -2,6 +2,27 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.10] — 2026-11-04
+### Added
+- **Closed-Loop Iterative Bi-Level Font & Icon Auto-Repair Engine (`tools/fonts/humid1_bilevel_tuner.py` & `--workflow repair`)**:
+  - Added 4 deterministic OpenCV/NumPy repair engines (`hybrid`, `autofloor`, `downscale`, `contour`) enforcing a `>= 2px` minimum stem floor (`--min-stem 2`) with collinear outward stem dilation, exterior flood-fill counter protection, hit-or-miss acute corner thinning, and a strict hole-count non-degradation guard.
+  - Added `08_iterative_auto_repair.bat` across `scripts/h1os-build-distro/`, `scripts/example-build-distro/`, and `scripts/full-audit-build-distro/`, generating visual Before/After repair sheets in `<out-dir>/inspect_repairs/*_repair.png`.
+- **Complete LVGL `LV_SYMBOL_*` & Font Awesome 7 Brands Merging (`0xF287` USB, `0xF293`/`0xF294` Bluetooth, `0xF8A2` New-Line)**:
+  - `rasterize_font_strike()` now automatically queries `FontAwesome7-Brands.ttf` and `FontAwesome7-Regular.ttf` when rasterizing `icon_fa7` (`solid`) and synthesizes a crisp 1-BPP return-arrow (`↵`) for `0xF8A2` (`LV_SYMBOL_NEW_LINE`), bringing every `humid1_icon_fa7_solid_*` strike (`12, 14, 16, 18, 20, 24, 32 px`) to **87 icons**.
+- **Complete Greek, Scientific, Arrow & Math Coverage Across `mono`, `cond`, `serif`, and `terminus`**:
+  - Added homoglyph equivalence mapping (`Δ <-> ∆`, `Ω <-> Ω`, `μ <-> µ`, `− <-> -`) and secondary-face fallback (`IBMPlexMath-Regular.ttf` / `IBMPlexSans-Medium.ttf`) centered on monospace cell width so all text strikes contain **131 glyphs** (`ascii_printable` + `latin1_units` + `greek_scientific` + `arrows_punctuation`).
+
+### Changed
+- **Upgraded Default `normal_weight` from `400` (`Regular`) to `500` (`Medium`)**:
+  - Resolves physical 188.3-DPI SSD1681 e-Paper hairline stem washout by expanding `14px+` vertical stems to solid `2px` (`0.27 mm`) strokes while preserving open counters and passing all 5 H1OS `188px` screen width budgets.
+
+### Fixed
+- **Drop-In Ready `H1OS` Header & Include Compatibility (`humid1_fonts.h`, `plex_fonts.h`, `epd_fonts.h`, `h1os_fonts.h`)**:
+  - Added `#if __has_include("lvgl.h")` auto-detection, `struct _lv_font_t` forward declaration, and `#ifndef LV_FONT_DECLARE` fallback macro at the top of all 4 headers so inclusion from inside `lv_conf.h` (`LV_FONT_CUSTOM_INCLUDE`) compiles with zero warnings or errors.
+  - Fixed duplicate file body concatenation in `humid1_fonts.h` and unified `HUMID1_FONT_*`, `PLEX_FONT_*`, `HUMID1_ICON_*`, and `H1OS_FONT_*` role macros across all headers.
+- **Full Multi-Hop LVGL `.fallback` Chaining**:
+  - Linked `sans_normal_* -> humid1_icon_fa7_solid_*` and `sans_bold_* -> sans_normal_* -> humid1_icon_fa7_solid_*` (plus `mono`, `cond`, `serif`, `math`, `terminus`) with smart fallback symbol resolution so compound strings (`LV_SYMBOL_TINT " %.1f%%"`) render icons and text from a single font pointer.
+
 ## [v1.0.9] — 2026-11-03
 ### Fixed
 - **Specimen Sheet (`humid1_epd_specimen_188dpi.png`) Full Symbol & Icon Resolution**:

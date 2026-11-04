@@ -36,17 +36,15 @@
 epd-font/
 ├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron code & tooling)
 ├── VERSION.json                             # Release & upstream asset version manifest (v1.0.9)
-├── font_icon_epd_patches.json                    # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
+├── font_icon_epd_patches.json               # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
 ├── README.md                                # Primary repository overview & quick-start
 ├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.9)
 ├── docs/
 │   ├── HOW_TO_GUIDE.md                      # Complete installation, CLI, scheme & CMake integration guide
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp typography & rasterization specification
-│   └── audits/
-│       ├── humiditron_audit_1.0.6-revved-to-1.0.7.txt
-│       └── HUMIDITRON_AUDIT_REPORT_v1.0.9.md # Formal v1.0.9 engineering & audit report
+│   └── audits/                              # Audit Reports
 ├── scripts/                                 # Self-contained Windows (.bat) workflow directories:
-│   │   ├── full-audit-build-distro/             #   2. All fonts & icons (12-40pt) master audit distribution bundle
+│   │   ├── full-audit-build-distro/         #   2. All fonts & icons (12-40pt) master audit distribution bundle
 │   ├── h1os-build-distro/                   #   3. H1OS & humid1-os schemes (h1os_full & h1os_lite) + distro builder
 │   └── example-build-distro/                #   4. General-purpose embedded project example workflow
 ├── assets/                                  # Immutable upstream raw font & icon source archives/trees
@@ -55,8 +53,8 @@ epd-font/
 ├── tools/
 │   ├── fonts/
 │   │   ├── build_static_ttf_assets.py       # Raw assets -> build/static_ttfs/*.ttf + build/metadata/*.json
-│   │   ├── humid1_generate_1bpp.py            # Master 4-workflow 1-bpp studio (gen-assets, patch, check, build)
-│   │   ├── humid1_fw_emit.py                  # Portable zero-dependency CMake firmware emitter (< 0.15s)
+│   │   ├── humid1_generate_1bpp.py          # Master 4-workflow 1-bpp studio (gen-assets, patch, check, build)
+│   │   ├── humid1_fw_emit.py                # Portable zero-dependency CMake firmware emitter (< 0.15s)
 │   │   └── schemes/                         # 16 curated general-purpose declarative JSON font schemes
 │   └── agent/                               # Agent-First deterministic inspection suite (zero guessing!)
 │       ├── tools/                           #   - char_info.py, string_info.py, icon_search.py, font_catalog_info.py

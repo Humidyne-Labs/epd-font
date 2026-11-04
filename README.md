@@ -44,7 +44,7 @@ epd-font/
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp typography & rasterization specification
 │   └── audits/                              # Audit Reports
 ├── scripts/                                 # Self-contained Windows (.bat) workflow directories:
-│   │   ├── full-audit-build-distro/         #   2. All fonts & icons (12-40pt) master audit distribution bundle
+│   ├── full-audit-build-distro/             #   2. All fonts & icons (12-40pt) master audit distribution bundle
 │   ├── h1os-build-distro/                   #   3. H1OS & humid1-os schemes (h1os_full & h1os_lite) + distro builder
 │   └── example-build-distro/                #   4. General-purpose embedded project example workflow
 ├── assets/                                  # Immutable upstream raw font & icon source archives/trees

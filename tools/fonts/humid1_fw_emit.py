@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_fw_emit.py (v1.0.8)
+humid1_fw_emit.py (v1.0.9)
 ========================
 Portable, Zero-Dependency Firmware Build-Time Font Emitter for H1OS & humid1-os.
 
@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
-TOOL_VERSION = "1.0.8"
+TOOL_VERSION = "1.0.9"
 
 
 @dataclass
@@ -861,6 +861,20 @@ def main() -> None:
                 )
 
     generate_scheme_headers(out_dir, emitted_symbols, scheme)
+
+    # Emit total_disk_size.txt in out_dir
+    total_c_disk = sum(f.stat().st_size for f in out_dir.glob("*.c")) + sum(f.stat().st_size for f in out_dir.glob("*.h"))
+    sz_lines = [
+        "=" * 96,
+        "HUMIDYNE LABS / HUMIDITRON `epd-font` v1.0.9 — FIRMWARE EMITTER FLASH & DISK SIZE REPORT",
+        "=" * 96,
+        f"  Scheme ID                    : {scheme.get('scheme_id', 'custom')}",
+        f"  Total Emitted Strikes        : {len(emitted_symbols)}",
+        f"  Expected MCU Flash (.rodata) : {total_rom:12,d} bytes  ({total_rom / 1024.0:8.2f} KB)",
+        f"  Host .c + .h Source Disk Size: {total_c_disk:12,d} bytes  ({total_c_disk / 1024.0:8.2f} KB)",
+        "=" * 96,
+    ]
+    (out_dir / "total_disk_size.txt").write_text("\n".join(sz_lines) + "\n", encoding="utf-8")
 
     lic_dir = out_dir / "licenses"
     lic_dir.mkdir(parents=True, exist_ok=True)

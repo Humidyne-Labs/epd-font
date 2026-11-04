@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-char_info.py (v1.0.8) — Agent-First Deterministic Character & Icon Metric Inspector
+char_info.py (v1.0.9) — Agent-First Deterministic Character & Icon Metric Inspector
 ===================================================================================
 Queries exact 1-bpp glyph metrics (advance width, bounding box, bearing offsets,
 UTF-8 C literal, and 1:1 ASCII bitmap) from a compiled Strike Vault (`dist/*/*.json.gz`),

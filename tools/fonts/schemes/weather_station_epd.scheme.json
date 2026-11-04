@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.8",
+  "schema_version": "1.0.9",
   "scheme_id": "weather_station_epd",
   "project_brand": "Humiditron Barometric & Environmental Weather Station Scheme",
   "description": "Jumbo hero readouts (24-40px) + Phosphor Regular & Fill weather iconography.",

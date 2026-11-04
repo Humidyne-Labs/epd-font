@@ -1,6 +1,6 @@
-# `epd-font` (v1.0.8) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
+# `epd-font` (v1.0.9) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
 
-[![Version](https://img.shields.io/badge/version-v1.0.8-blue.svg)](VERSION.json)
+[![Version](https://img.shields.io/badge/version-v1.0.9-blue.svg)](VERSION.json)
 [![Repository](https://img.shields.io/badge/github-Humidyne--Labs%2Fepd--font-181717.svg)](https://github.com/Humidyne-Labs/epd-font)
 [![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL--1.1%20%2F%20ISC-green.svg)](LICENSE)
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 1. Key Capabilities in v1.0.8
+## 1. Key Capabilities in v1.0.9
 
 1. **80 Standardized Static TrueType (`.ttf`) Binaries (`build/static_ttfs/`)**:
    - **IBM Plex Suite (41 cuts)**: `Sans` (`Thin 100`..`Bold 700` + Italics), `Sans Condensed` (`wdth=85`), `Mono`, `Serif`, and `Math`.
@@ -30,21 +30,21 @@
 
 ---
 
-## 2. Repository Directory Structure (`v1.0.8`)
+## 2. Repository Directory Structure (`v1.0.9`)
 
 ```text
 epd-font/
 ├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron code & tooling)
-├── VERSION.json                             # Release & upstream asset version manifest (v1.0.8)
+├── VERSION.json                             # Release & upstream asset version manifest (v1.0.9)
 ├── font_icon_epd_patches.json                    # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
 ├── README.md                                # Primary repository overview & quick-start
-├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.8)
+├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.9)
 ├── docs/
 │   ├── HOW_TO_GUIDE.md                      # Complete installation, CLI, scheme & CMake integration guide
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp typography & rasterization specification
 │   └── audits/
 │       ├── humiditron_audit_1.0.6-revved-to-1.0.7.txt
-│       └── HUMIDITRON_AUDIT_REPORT_v1.0.8.md # Formal v1.0.8 engineering & audit report
+│       └── HUMIDITRON_AUDIT_REPORT_v1.0.9.md # Formal v1.0.9 engineering & audit report
 ├── scripts/                                 # Self-contained Windows (.bat) workflow directories:
 │   │   ├── full-audit-build-distro/             #   2. All fonts & icons (12-40pt) master audit distribution bundle
 │   ├── h1os-build-distro/                   #   3. H1OS & humid1-os schemes (h1os_full & h1os_lite) + distro builder
@@ -102,5 +102,5 @@ python tools/agent/tools/icon_search.py --query thermometer
 
 - **[Complete How-To Guide (`docs/HOW_TO_GUIDE.md`)](docs/HOW_TO_GUIDE.md)** — Step-by-step installation, CLI reference, 16 schemes guide, custom ASCII patching, and CMake integration.
 - **[Maintainer & Architecture Specification (`docs/MAINTAINER_SPEC.md`)](docs/MAINTAINER_SPEC.md)** — Formal 1-bpp rasterization math, Terminus BDF-to-TTF synthesis, and PUA icon catalog architecture.
-- **[Formal v1.0.8 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.8.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.8.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
-- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.8`.
+- **[Formal v1.0.9 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.9.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.9.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
+- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.9`.

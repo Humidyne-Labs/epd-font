@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.8",
+  "schema_version": "1.0.9",
   "scheme_id": "telemetry_tabular_mono",
   "project_brand": "Humiditron High-Frequency Tabular Telemetry Scheme",
   "description": "Zero-jitter tabular monospace scheme (IBM Plex Mono Regular & Bold 12-36px + Tabler icons).",

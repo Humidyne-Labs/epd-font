@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.8)
+humid1_generate_1bpp.py (v1.0.9)
 ==============================
 Humidyne Labs / Humiditron `epd-font` General-Purpose 1-BPP Bilevel Font & Modular Icon Studio
 (IBM Plex + Terminus + Font Awesome 7, Lucide, Phosphor, Tabler + Custom TrueType Fonts).
@@ -47,7 +47,7 @@ FT_LOAD_NO_HINTING = 1 << 1
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.8 `humid1_` symbol naming convention:
+    Canonical v1.0.9 `humid1_` symbol naming convention:
       - IBM Plex families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Terminus family (terminus)                        -> humid1_font_terminus_<role>_<size>
       - Modular Icon families (icon_fa7, icon_lucide...)  -> humid1_<family>_<role>_<size>
@@ -226,6 +226,7 @@ SUBFAMILY_FLOORS = {
     "serif": 16,
     "math": 14,
     "terminus": 10,
+    "unifont": 16,
     "custom": 10,
     "icon_fa7": 12,
     "icon_lucide": 12,
@@ -358,6 +359,10 @@ def get_family_roles(normal_weight: int = 400) -> Dict[str, Dict[str, str]]:
             "regular": "Terminus-Regular.ttf",
             "normal": "Terminus-Regular.ttf",
             "bold": "Terminus-Bold.ttf",
+        },
+        "unifont": {
+            "regular": "Unifont-Regular.ttf",
+            "normal": "Unifont-Regular.ttf",
         },
         "icon_phosphor": {
             "thin": "Phosphor-Thin.ttf",
@@ -1302,8 +1307,13 @@ def build_patches_json_from_ascii_root(
 # 8. WORKFLOW 3: CHECK (AUTO-WRAPPED PAGE CHECK PNGS & CHAR-BY-CHAR BLUEPRINTS)
 # =============================================================================
 
+_UI_FONTS_CACHE: Dict[str, dict] = {}
+
 def _load_ui_fonts(static_dir: Optional[Path] = None):
-    """Load crisp TrueType UI fonts from static_assets/ so PNG labels are never blurry."""
+    """Load crisp TrueType UI fonts from static_ttfs/ (cached in memory per worker process)."""
+    cache_key = str(static_dir) if static_dir else "default"
+    if cache_key in _UI_FONTS_CACHE:
+        return _UI_FONTS_CACHE[cache_key]
     from PIL import ImageFont
     candidates = []
     if static_dir:
@@ -1322,7 +1332,7 @@ def _load_ui_fonts(static_dir: Optional[Path] = None):
 
     try:
         if sans_bold and mono_reg:
-            return {
+            res = {
                 "title": ImageFont.truetype(sans_bold, 18),
                 "subtitle": ImageFont.truetype(sans_reg, 13),
                 "section": ImageFont.truetype(sans_bold, 14),
@@ -1331,6 +1341,8 @@ def _load_ui_fonts(static_dir: Optional[Path] = None):
                 "mono_sm": ImageFont.truetype(mono_reg, 11),
                 "mono_lg": ImageFont.truetype(mono_reg, 14),
             }
+            _UI_FONTS_CACHE[cache_key] = res
+            return res
     except Exception:
         pass
     default_f = ImageFont.load_default()
@@ -1529,9 +1541,11 @@ def _render_single_page_inspection_png(
         font=ui_fonts["title"],
     )
     patched_cnt = sum(1 for g in valid_glyphs if g.patched)
+    pt_96 = size_px * 72.0 / 96.0
+    pt_188 = size_px * 72.0 / 188.3
     draw.text(
         (24, 34),
-        f"Mode: {raster_mode}   |   Glyphs: {n_glyphs} ({patched_cnt} patched)   |   LineHeight: {line_height}px (Asc: +{asc_y}px, Base: -{base_line}px, Cap: +{cap_y}px, XH: +{xh_y}px)   |   ROM: {rom_bytes:,} B ({rom_bytes/1024:.2f} KB)   |   Cell Zoom: {zoom}x",
+        f"Em: {size_px}px ({pt_96:.1f}pt@96dpi / {pt_188:.1f}pt@188dpi)  |  LineHt: {line_height}px (Asc:+{asc_y} Base:-{base_line})  |  Glyphs: {n_glyphs} ({patched_cnt} patched)  |  Mode: {raster_mode}  |  ROM: {rom_bytes:,} B ({rom_bytes/1024:.2f} KB)",
         fill=(176, 196, 218),
         font=ui_fonts["subtitle"],
     )
@@ -1929,18 +1943,18 @@ def render_char_by_char_folder(
     }
     count = 0
     is_icon_fam = family.startswith("icon_")
-    icon_sample_cps = {g.codepoint for g in glyphs[1:13]} if is_icon_fam else set()
-    for g in glyphs:
-        if g.codepoint == 0:
-            continue
+    valid_list = [g for g in glyphs if g.codepoint > 0]
+    # For full-catalog icon strikes (> 300 glyphs), select up to 150 representative icons unless 'full' is requested
+    icon_cap_cps = {g.codepoint for g in valid_list[:150]} if (is_icon_fam and len(valid_list) > 300) else {g.codepoint for g in valid_list}
+    for g in valid_list:
         if char_filter == "patched" and not g.patched:
             continue
-        elif char_filter == "trouble":
-            if is_icon_fam:
-                if g.codepoint not in icon_sample_cps and not g.patched:
-                    continue
-            elif g.codepoint not in diagnostic_set and not g.patched:
+        elif char_filter in ("all", "trouble"):
+            if is_icon_fam and len(valid_list) > 300 and g.codepoint not in icon_cap_cps and not g.patched:
                 continue
+            elif char_filter == "trouble" and not is_icon_fam and family != "terminus":
+                if g.codepoint not in diagnostic_set and not g.patched:
+                    continue
         elif char_filter == "ascii" and not (0x20 <= g.codepoint <= 0x7E):
             continue
 
@@ -2380,7 +2394,7 @@ def generate_headers(
         " * @file plex_fonts.h",
         " * @brief Humidyne Labs / Humiditron 1-BPP Bilevel EPD Typography & Iconography Suite",
         " *",
-        " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v1.0.8)",
+        " * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v1.0.9)",
         " * SPDX-License-Identifier: MIT AND OFL-1.1",
         " */",
         "",
@@ -2617,6 +2631,130 @@ def run_screen_width_audit(
     return results
 
 
+def write_total_disk_size_report(
+    c_out_dir: Path,
+    root_out: Path,
+    dist_root: Optional[Path],
+    compiled_details: Sequence[dict],
+    vault_path: Optional[Path],
+    scheme_id: str,
+    dpi: float = 188.3,
+) -> Path:
+    """
+    Generate `total_disk_size.txt` alongside the generated `.c`/`.h` font assets so firmware
+    engineers can immediately see:
+      1. Expected MCU Flash (`.rodata` ROM) footprint per strike, per family, and grand total.
+      2. Host `.c` + `.h` source file disk size on the filesystem.
+      3. Em-square pixel size (`px` / `ppem`) vs Desktop 96-DPI Point Size (`pt@96dpi`) vs
+         Physical Target-DPI Point Size (`pt@target_dpi`) and actual Line Height (`lh px`).
+      4. MCU Flash partition budget utilization across 64KB, 128KB, 256KB, 512KB, 1MB, 4MB, and 8MB.
+    """
+    total_rom_b = sum(int(d["rom_b"]) for d in compiled_details)
+    total_c_disk_b = 0
+    if c_out_dir.is_dir():
+        for f in c_out_dir.glob("*.c"):
+            total_c_disk_b += f.stat().st_size
+        for f in c_out_dir.glob("*.h"):
+            total_c_disk_b += f.stat().st_size
+    vault_b = vault_path.stat().st_size if (vault_path and vault_path.is_file()) else 0
+
+    lines = [
+        "=" * 116,
+        f"HUMIDYNE LABS / HUMIDITRON `epd-font` v1.0.9 — FLASH ROM & DISK SIZE REPORT (total_disk_size.txt)",
+        "=" * 116,
+        f"  Scheme ID                    : {scheme_id}",
+        f"  Target Display DPI           : {dpi:.1f} DPI (1 typographic pt = 1/72 inch = {dpi/72.0:.3f} px @ {dpi:.1f} DPI)",
+        f"  Total Compiled Strikes       : {len(compiled_details)} strikes",
+        f"  Expected MCU Flash (.rodata) : {total_rom_b:12,d} bytes  ({total_rom_b / 1024.0:8.2f} KB  /  {total_rom_b / (1024.0 * 1024.0):6.3f} MB)",
+        f"  Host .c + .h Source Disk Size: {total_c_disk_b:12,d} bytes  ({total_c_disk_b / 1024.0:8.2f} KB  /  {total_c_disk_b / (1024.0 * 1024.0):6.3f} MB)",
+        f"  Compressed Strike Vault Size : {vault_b:12,d} bytes  ({vault_b / 1024.0:8.2f} KB)",
+        "-" * 116,
+        "  NOTE ON SIZE UNITS (PIXELS vs TYPOGRAPHIC POINTS):",
+        "    - Strike suffix numbers (e.g. `_14`, `_20`, `_32`) denote the Em-Square Height in PIXELS (`ppem`),",
+        "      matching LVGL (`lv_font_montserrat_14`) and X11 BDF (`ter-u16n.bdf` = 16px) conventions.",
+        f"    - Points conversion:  pt = px * 72 / DPI   (At 96 DPI: 12pt=16px, 18pt=24px, 24pt=32px; at {dpi:.1f} DPI: 16px={16*72.0/dpi:.1f}pt).",
+        "    - Line Height (`lh`) = ceil(ascent * size_px / UPEM) - floor(descent * size_px / UPEM).",
+        "      * Lucide Icons (`UPEM=1000, asc=+1000, desc=0`) -> lh = 1.00 * size_px (32px -> lh=32px).",
+        "      * IBM Plex (`UPEM=1000, asc=+1025, desc=-275`)  -> lh = 1.30 * size_px (32px -> lh=42px).",
+        "=" * 116,
+        "",
+        "1. MCU FLASH PARTITION BUDGET UTILIZATION (.rodata ROM)",
+        "-" * 116,
+        f"  {'Target Flash Budget':<30} | {'Budget Bytes':>14} | {'Used (.rodata)':>14} | {'Remaining Free':>16} | {'Utilization':>11} | {'Status'}",
+        "-" * 116,
+    ]
+
+    budgets = [
+        ("64 KB (Ultra-Compact MCU)", 64 * 1024),
+        ("128 KB (Small Cortex-M0+/M3)", 128 * 1024),
+        ("256 KB (Standard Cortex-M4)", 256 * 1024),
+        ("512 KB (ESP32 UI Partition)", 512 * 1024),
+        ("1 MB (1,024 KB App Flash)", 1024 * 1024),
+        ("4 MB (ESP32-S3 Standard)", 4 * 1024 * 1024),
+        ("8 MB (ESP32-S3-PICO-1-N8R8)", 8 * 1024 * 1024),
+    ]
+    for b_label, b_bytes in budgets:
+        rem = b_bytes - total_rom_b
+        pct = (total_rom_b * 100.0) / b_bytes
+        status = "FITS" if rem >= 0 else "EXCEEDS BUDGET!"
+        rem_str = f"{rem / 1024.0:+,.1f} KB"
+        lines.append(
+            f"  {b_label:<30} | {b_bytes:>12,d} B | {total_rom_b:>12,d} B | {rem_str:>16} | {pct:>10.2f}% | {status}"
+        )
+
+    lines.extend([
+        "",
+        "2. SUBTOTALS BY FONT / ICON FAMILY",
+        "-" * 116,
+        f"  {'Family':<18} | {'Strikes':>7} | {'Total Glyphs':>12} | {'MCU Flash (.rodata)':>22} | {'Host .c Disk Size':>22} | {'% of Flash'}",
+        "-" * 116,
+    ])
+    fam_groups: Dict[str, List[dict]] = {}
+    for d in compiled_details:
+        fam_groups.setdefault(d["family"], []).append(d)
+    for fam, items in fam_groups.items():
+        f_rom = sum(int(x["rom_b"]) for x in items)
+        f_disk = sum(int(x["c_disk_b"]) for x in items)
+        f_glyphs = sum(int(x["glyph_count"]) for x in items)
+        f_pct = (f_rom * 100.0 / total_rom_b) if total_rom_b > 0 else 0.0
+        lines.append(
+            f"  {fam:<18} | {len(items):>7d} | {f_glyphs:>12,d} | {f_rom:>10,d} B ({f_rom/1024.0:6.1f} KB) | "
+            f"{f_disk:>10,d} B ({f_disk/1024.0:6.1f} KB) | {f_pct:>9.2f}%"
+        )
+
+    lines.extend([
+        "",
+        "3. PER-STRIKE DETAILED FLASH & DISK FOOTPRINT TABLE",
+        "-" * 116,
+        f"  {'Strike Symbol Name':<36} | {'Em(px)':>6} | {'pt@96':>6} | {'pt@DPI':>6} | {'LineHt':>6} | {'Glyphs':>6} | {'Kern':>5} | {'MCU Flash (.rodata)':>20} | {'Host .c Disk Size':>18}",
+        "-" * 116,
+    ])
+    for d in compiled_details:
+        sz = int(d["sz"])
+        pt96 = sz * 72.0 / 96.0
+        pt_dpi = sz * 72.0 / dpi
+        rom_b = int(d["rom_b"])
+        c_b = int(d["c_disk_b"])
+        lines.append(
+            f"  {d['sym_name']:<36} | {sz:>4d}px | {pt96:>4.1f}pt | {pt_dpi:>4.1f}pt | {int(d['line_h']):>4d}px | "
+            f"{int(d['glyph_count']):>6,d} | {int(d['kern_count']):>5,d} | {rom_b:>9,d} B ({rom_b/1024.0:6.2f} KB) | {c_b:>8,d} B ({c_b/1024.0:5.1f} KB)"
+        )
+    lines.append("=" * 116)
+    report_text = "\n".join(lines) + "\n"
+
+    out_paths = [c_out_dir / "total_disk_size.txt", root_out / "total_disk_size.txt"]
+    if dist_root:
+        out_paths.append(dist_root / "total_disk_size.txt")
+        if (dist_root / "fonts").is_dir():
+            out_paths.append(dist_root / "fonts" / "total_disk_size.txt")
+
+    for p in out_paths:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(report_text, encoding="utf-8")
+
+    return out_paths[0]
+
+
 def render_specimen_sheet(
     preview_path: Path,
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]],
@@ -2631,6 +2769,42 @@ def render_specimen_sheet(
     img = Image.new("RGB", (W, H), (246, 247, 249))
     draw = ImageDraw.Draw(img)
 
+    def _resolve_sym(s: str) -> Optional[str]:
+        if not s:
+            return next(iter(strike_cache.keys()), None)
+        cands = [
+            s,
+            f"humid1_font_{s}",
+            f"humid1_{s}",
+            f"humid1_font_plex_{s}",
+            s.replace("_bold_", "_normal_"),
+            f"humid1_font_{s.replace('_bold_', '_normal_')}",
+            "humid1_font_plex_sans_normal_14",
+            "humid1_font_plex_sans_normal_12",
+            "humid1_font_terminus_normal_16",
+            "humid1_font_terminus_normal_12",
+            "plex_sans_normal_14",
+        ]
+        for c in cands:
+            if c in strike_cache:
+                return c
+        return next(iter(strike_cache.keys()), None)
+
+    icon_fb_14: Dict[int, GlyphStrike] = {}
+    icon_fb_20: Dict[int, GlyphStrike] = {}
+    for k_sym, (k_gmap, _, _) in sorted(strike_cache.items()):
+        if "icon_" in k_sym:
+            if any(sz_tag in k_sym for sz_tag in ("_12", "_14", "_16")):
+                for cp_i, g_i in k_gmap.items():
+                    icon_fb_14.setdefault(cp_i, g_i)
+            if any(sz_tag in k_sym for sz_tag in ("_18", "_20", "_24")):
+                for cp_i, g_i in k_gmap.items():
+                    icon_fb_20.setdefault(cp_i, g_i)
+    if not icon_fb_14 and icon_fb_20:
+        icon_fb_14 = icon_fb_20
+    if not icon_fb_20 and icon_fb_14:
+        icon_fb_20 = icon_fb_14
+
     def draw_strike_text(
         x0: int,
         y0: int,
@@ -2638,24 +2812,20 @@ def render_specimen_sheet(
         sym: str,
         fg: Tuple[int, int, int] = (15, 20, 25),
         scale: int = 1,
-        fallback_sym: str = "plex_sans_normal_14",
+        fallback_sym: str = "humid1_font_plex_sans_normal_14",
     ) -> int:
-        if sym not in strike_cache:
-            if f"humid1_font_{sym}" in strike_cache:
-                sym = f"humid1_font_{sym}"
-            elif f"humid1_{sym}" in strike_cache:
-                sym = f"humid1_{sym}"
-            else:
-                return x0
-        gmap, line_h, base_l = strike_cache[sym]
-        fb_gmap = (
-            strike_cache.get(fallback_sym, strike_cache.get(f"humid1_font_{fallback_sym}", ({}, 0, 0)))[0]
-        )
+        r_sym = _resolve_sym(sym)
+        if not r_sym or r_sym not in strike_cache:
+            return x0
+        gmap, line_h, base_l = strike_cache[r_sym]
+        r_fb = _resolve_sym(fallback_sym)
+        fb_gmap = strike_cache.get(r_fb, ({}, 0, 0))[0] if r_fb else {}
+        icon_map = icon_fb_20 if "20" in r_sym or "24" in r_sym else icon_fb_14
         cx = x0
         baseline_y = y0 + (line_h - base_l) * scale
         for ch in text:
             code = ord(ch)
-            g = gmap.get(code) or fb_gmap.get(code)
+            g = gmap.get(code) or fb_gmap.get(code) or icon_map.get(code)
             if not g:
                 continue
             if g.box_w > 0 and g.box_h > 0:
@@ -2680,27 +2850,13 @@ def render_specimen_sheet(
         return cx
 
     draw.rectangle([0, 0, W, 68], fill=(18, 22, 28))
-    draw_strike_text(28, 16, "HUMIDYNE LABS  |  IBM PLEX 1-BPP BILEVEL EPD TYPOGRAPHY SUITE v2.0 (188 DPI)", "plex_sans_bold_20", fg=(255, 255, 255))
-    draw_strike_text(28, 44, "Engine: FreeType FT_LOAD_TARGET_MONO + Symmetric Autohint + ASCII Patch Pipeline  •  SSD1681 200x200 Panel", "plex_mono_normal_14", fg=(180, 195, 210))
+    draw_strike_text(28, 16, "HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v1.0.9 (188 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
+    draw_strike_text(28, 44, "Engine: FreeType 1-BPP + Terminus Exact-Mono + Full-Canvas ASCII Patch Pipeline  •  200x200 Reference Panel", "humid1_font_plex_mono_normal_14", fg=(180, 195, 210))
 
     panel_x, panel_y = 28, 90
     draw.rectangle([panel_x - 4, panel_y - 4, panel_x + 404, panel_y + 404], fill=(40, 45, 52), outline=(18, 22, 28), width=2)
     epd = Image.new("RGB", (200, 200), (255, 255, 255))
     epd_draw = ImageDraw.Draw(epd)
-
-    def _resolve_sym(s: str) -> Optional[str]:
-        for c in (
-            s,
-            f"humid1_font_{s}",
-            f"humid1_{s}",
-            s.replace("_bold_", "_normal_"),
-            f"humid1_font_{s.replace('_bold_', '_normal_')}",
-            "humid1_font_plex_sans_normal_14",
-            "plex_sans_normal_14",
-        ):
-            if c in strike_cache:
-                return c
-        return next(iter(strike_cache.keys()), None)
 
     def draw_epd_text(x0: int, y0: int, text: str, sym: str, fg=(0, 0, 0), align_right_x: Optional[int] = None):
         r_sym = _resolve_sym(sym)
@@ -2709,17 +2865,19 @@ def render_specimen_sheet(
         gmap, line_h, base_l = strike_cache[r_sym]
         fb_sym_r = _resolve_sym("humid1_font_plex_sans_normal_14")
         fb_gmap = strike_cache.get(fb_sym_r, ({}, 0, 0))[0] if fb_sym_r else {}
+        icon_map = icon_fb_20 if "20" in r_sym else icon_fb_14
         if align_right_x is not None:
             w = sum(
-                (((gmap.get(ord(c)) or fb_gmap.get(ord(c))).adv_w_fp4 + 8) >> 4)
+                (((gmap.get(ord(c)) or fb_gmap.get(ord(c)) or icon_map.get(ord(c))).adv_w_fp4 + 8) >> 4)
                 for c in text
-                if (gmap.get(ord(c)) or fb_gmap.get(ord(c)))
+                if (gmap.get(ord(c)) or fb_gmap.get(ord(c)) or icon_map.get(ord(c)))
             )
             x0 = align_right_x - w
         cx = x0
         baseline_y = y0 + (line_h - base_l)
         for ch in text:
-            g = gmap.get(ord(ch)) or fb_gmap.get(ord(ch))
+            code = ord(ch)
+            g = gmap.get(code) or fb_gmap.get(code) or icon_map.get(code)
             if not g:
                 continue
             if g.box_w > 0 and g.box_h > 0:
@@ -2732,53 +2890,54 @@ def render_specimen_sheet(
             cx += (g.adv_w_fp4 + 8) >> 4
 
     # Simulated 200x200 SSD1681 Panel: Crisp 1px Normal stems + 2px Bold stems!
-    draw_epd_text(6, 4, "HUMIDYNE LABS", "plex_sans_bold_14")
+    draw_epd_text(6, 4, "HUMIDYNE LABS", "humid1_font_plex_sans_bold_14")
     epd_draw.rectangle([200 - 4 - 36, 2, 200 - 4, 2 + 17], fill=(0, 0, 0))
-    draw_epd_text(200 - 4 - 28, 3, "1/5", "plex_mono_bold_14", fg=(255, 255, 255))
+    draw_epd_text(200 - 4 - 28, 3, "1/5", "humid1_font_plex_mono_bold_14", fg=(255, 255, 255))
     epd_draw.line([(4, 22), (196, 22)], fill=(0, 0, 0), width=1)
 
-    draw_epd_text(6, 30, "72.4°F", "plex_sans_bold_20")
-    draw_epd_text(0, 30, "\uf043 46.8%", "plex_sans_bold_20", align_right_x=194)
-    draw_epd_text(6, 58, "(22.4°C ambient • Td 10.4°C)", "plex_sans_normal_14")
+    draw_epd_text(6, 30, "72.4°F", "humid1_font_plex_sans_bold_20")
+    draw_epd_text(0, 30, " 46.8%", "humid1_font_plex_sans_bold_20", align_right_x=194)
+    draw_epd_text(6, 58, "(22.4°C ambient • Td 10.4°C)", "humid1_font_plex_sans_normal_14")
     epd_draw.line([(4, 84), (196, 84)], fill=(0, 0, 0), width=1)
 
-    draw_epd_text(6, 94, "TriNode ΔT", "plex_sans_normal_14")
-    draw_epd_text(0, 94, "+0.1°C (99%)", "plex_sans_bold_14", align_right_x=194)
-    draw_epd_text(6, 116, "Abs Humidity", "plex_sans_normal_14")
-    draw_epd_text(0, 116, "9.3 g/m³", "plex_sans_bold_14", align_right_x=194)
-    draw_epd_text(6, 138, "Vapor Pressure", "plex_sans_normal_14")
-    draw_epd_text(0, 138, "12.6 hPa", "plex_sans_bold_14", align_right_x=194)
+    draw_epd_text(6, 94, "TriNode ΔT", "humid1_font_plex_sans_normal_14")
+    draw_epd_text(0, 94, "+0.1°C (99%)", "humid1_font_plex_sans_bold_14", align_right_x=194)
+    draw_epd_text(6, 116, "Abs Humidity", "humid1_font_plex_sans_normal_14")
+    draw_epd_text(0, 116, "9.3 g/m³", "humid1_font_plex_sans_bold_14", align_right_x=194)
+    draw_epd_text(6, 138, "Vapor Pressure", "humid1_font_plex_sans_normal_14")
+    draw_epd_text(0, 138, "12.6 hPa", "humid1_font_plex_sans_bold_14", align_right_x=194)
 
     epd_draw.line([(4, 166), (196, 166)], fill=(0, 0, 0), width=1)
-    draw_epd_text(6, 174, "Cycle #142", "plex_sans_normal_14")
-    draw_epd_text(0, 174, "\uf240 4.12V • 18:52", "plex_sans_normal_14", align_right_x=194)
+    draw_epd_text(6, 174, "Cycle #142", "humid1_font_plex_sans_normal_14")
+    draw_epd_text(0, 174, " 4.12V • 18:52", "humid1_font_plex_sans_normal_14", align_right_x=194)
 
     epd_zoomed = epd.resize((400, 400), resample=Image.NEAREST)
     img.paste(epd_zoomed, (panel_x, panel_y))
-    draw_strike_text(panel_x, panel_y + 412, "Simulated 200x200 SSD1681 Panel (2x Nearest-Neighbor Zoom)", "plex_sans_bold_14")
-    draw_strike_text(panel_x, panel_y + 432, "Keys: Sans Normal 14 (1px stems)  |  Values: Sans Bold 14 (2px stems)  |  Hero: Bold 20", "plex_sans_normal_12", fg=(70, 80, 95))
+    draw_strike_text(panel_x, panel_y + 412, "Simulated 200x200 SSD1681 Panel (2x Nearest-Neighbor Zoom)", "humid1_font_plex_sans_bold_14")
+    draw_strike_text(panel_x, panel_y + 432, "Keys: Sans Normal 14 (1px stems)  |  Values: Sans Bold 14 (2px stems)  |  Hero: Bold 20", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
 
     # Bottom Left: 6x Zoomed Micro-Glyph Grid Verification
     box_y = 552
     draw.rectangle([28, box_y, 642, 992], fill=(255, 255, 255), outline=(200, 208, 218), width=1)
-    draw_strike_text(44, box_y + 14, "1-BIT MONOCHROME ENGINE + ASCII PATCH VERIFICATION (6x Pixel Grid)", "plex_sans_bold_14")
-    draw_strike_text(44, box_y + 36, "FT_LOAD_TARGET_MONO + ascii_patches/ resolve counter-fill and preserve 1px/2px hierarchy:", "plex_sans_normal_12", fg=(70, 80, 95))
+    draw_strike_text(44, box_y + 14, "1-BIT MONOCHROME ENGINE + ASCII PATCH VERIFICATION (6x Pixel Grid)", "humid1_font_plex_sans_bold_14")
+    draw_strike_text(44, box_y + 36, "FT_LOAD_TARGET_MONO + font_icon_epd_patches.json resolve counter-fill and preserve 1px/2px hierarchy:", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
 
     showcase_glyphs = [
-        ("plex_sans_normal_14", 0x0040, "Sans 14 '@'"),
-        ("plex_sans_normal_14", 0x0025, "Sans 14 '%'"),
-        ("plex_sans_normal_14", 0x0065, "Sans 14 'e'"),
-        ("plex_sans_normal_14", 0x0061, "Sans 14 'a'"),
-        ("plex_mono_normal_14", 0x0030, "Mono 14 '0'"),
-        ("plex_mono_normal_14", 0x0025, "Mono 14 '%'"),
-        ("plex_mono_normal_14", 0x0023, "Mono 14 '#'"),
+        ("humid1_font_plex_sans_normal_14", 0x0040, "Sans 14 '@'"),
+        ("humid1_font_plex_sans_normal_14", 0x0025, "Sans 14 '%'"),
+        ("humid1_font_plex_sans_normal_14", 0x0065, "Sans 14 'e'"),
+        ("humid1_font_plex_sans_normal_14", 0x0061, "Sans 14 'a'"),
+        ("humid1_font_plex_mono_normal_14", 0x0030, "Mono 14 '0'"),
+        ("humid1_font_plex_mono_normal_14", 0x0025, "Mono 14 '%'"),
+        ("humid1_font_terminus_normal_16", 0x0041, "Term 16 'A'"),
     ]
     px_x = 44
     for sym_key, code_c, label in showcase_glyphs:
-        g_obj = strike_cache.get(sym_key, ({}, 0, 0))[0].get(code_c)
+        r_sk = _resolve_sym(sym_key)
+        g_obj = strike_cache.get(r_sk, ({}, 0, 0))[0].get(code_c) if r_sk else None
         if not g_obj:
             continue
-        draw_strike_text(px_x, box_y + 64, label, "plex_sans_bold_12")
+        draw_strike_text(px_x, box_y + 64, label, "humid1_font_plex_sans_bold_12")
         cell = 7
         gy0 = box_y + 86
         for r_i, r_s in enumerate(g_obj.rows):
@@ -2789,48 +2948,62 @@ def render_specimen_sheet(
                 draw.rectangle([rx, ry, rx + cell - 2, ry + cell - 2], fill=fill_c)
         px_x += 83
 
-    draw_strike_text(44, box_y + 196, "1:1 Native 188 DPI Readout (1px Normal Stems vs 2px Bold Stems):", "plex_sans_bold_14")
-    draw_strike_text(44, box_y + 222, "Sans 12px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y ± µ °", "plex_sans_normal_12")
-    draw_strike_text(44, box_y + 246, "Sans 14px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y", "plex_sans_normal_14")
-    draw_strike_text(44, box_y + 272, "Mono 12px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s g y", "plex_mono_normal_12")
-    draw_strike_text(44, box_y + 296, "Mono 14px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", "plex_mono_normal_14")
-    draw_strike_text(44, box_y + 324, "Math 16px:  ΔT = +0.15°C  •  ∀x ∈ ℝ : ∑ f(x) ≈ √π ± ∞  •  α β γ δ ε θ λ μ π σ ω Ω", "plex_math_regular_16")
-    draw_strike_text(44, box_y + 354, "FA5 Icons:  \uf043 \uf021 \uf240 \uf241 \uf242 \uf243 \uf244 \uf287 \uf0e7 \uf013 \uf071 \uf058 \uf00c \uf00d \uf1eb \uf2db \uf7c2", "plex_sans_normal_16")
+    draw_strike_text(44, box_y + 196, "1:1 Native 188 DPI Readout (1px Normal Stems vs 2px Bold Stems):", "humid1_font_plex_sans_bold_14")
+    draw_strike_text(44, box_y + 222, "Sans 12px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y ± µ °", "humid1_font_plex_sans_normal_12")
+    draw_strike_text(44, box_y + 246, "Sans 14px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y", "humid1_font_plex_sans_normal_14")
+    draw_strike_text(44, box_y + 272, "Term 12px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s g y", "humid1_font_terminus_normal_12")
+    draw_strike_text(44, box_y + 296, "Mono 14px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", "humid1_font_plex_mono_normal_14")
+    draw_strike_text(44, box_y + 324, "Math 16px:  ΔT = +0.15°C  •  ∀x ∈ ℝ : ∑ f(x) ≈ √π ± ∞  •  α β γ δ ε θ λ μ π σ ω Ω", "humid1_font_plex_math_regular_16")
+
+    icon_strip_str = "               "
+    icon_strip_sym = "humid1_icon_fa7_solid_16"
+    if icon_strip_sym not in strike_cache:
+        for cand_ic in ("humid1_icon_phosphor_regular_16", "humid1_icon_lucide_regular_16", "humid1_icon_tabler_regular_16"):
+            if cand_ic in strike_cache:
+                icon_strip_sym = cand_ic
+                sample_cps = sorted(c for c in strike_cache[cand_ic][0].keys() if c >= 0xE000)[:16]
+                icon_strip_str = " ".join(chr(c) for c in sample_cps)
+                break
+    draw_strike_text(44, box_y + 354, "Icons 16px:", "humid1_font_plex_sans_bold_14")
+    draw_strike_text(132, box_y + 354, icon_strip_str, icon_strip_sym)
 
     # Right Column: Complete Sub-Family & Size Ladder Showcase
     rx0 = 664
     draw.rectangle([rx0, 90, 1392, 992], fill=(255, 255, 255), outline=(200, 208, 218), width=1)
-    draw_strike_text(rx0 + 20, 106, "IBM PLEX EPD 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS)", "plex_sans_bold_16")
+    draw_strike_text(rx0 + 20, 106, "HUMID1 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS @ 188 DPI)", "humid1_font_plex_sans_bold_16")
 
     ladder_rows = [
-        ("Sans Normal 12px (1px stems)", "plex_sans_normal_12", "Humidyne H1OS  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
-        ("Sans Normal 14px (Default UI, 1px stems)", "plex_sans_normal_14", "Humidyne H1OS  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
-        ("Sans Bold 14px (Headers, 2px stems)", "plex_sans_bold_14", "PSYCHROMETRICS  •  SYSTEM HEALTH  •  SETTLED (99%)"),
-        ("Sans Italic 14px (Metadata)", "plex_sans_italic_14", "(22.4°C ambient  •  TriNode thermal equilibrium active)"),
-        ("Sans Normal 16px (Body MD, 1px stems)", "plex_sans_normal_16", "TriNode ΔT: +0.1°C  |  Vapor Pressure: 12.6 hPa"),
-        ("Sans Bold 16px (Modal Title, 2px stems)", "plex_sans_bold_16", "ENVIRONMENTAL TELEMETRY & DEW POINT"),
-        ("Sans Bold 20px (Section Hero)", "plex_sans_bold_20", "72.4°F   \uf043 46.8% RH   \uf240 4.12V"),
-        ("Sans Bold 24px (Primary Readout)", "plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
-        ("Sans Bold 32px (Jumbo Metric)", "plex_sans_bold_32", "72.4°F   46.8%"),
-        ("Mono Normal 14px (Telemetry Log)", "plex_mono_normal_14", "2026-11-02 21:43:55  |  328K Free  |  @%#08"),
-        ("Mono Bold 20px (Tabular Readout)", "plex_mono_bold_20", "72.4°F   46.8% RH   12.6 hPa"),
-        ("Mono Bold 24px (Tabular Hero)", "plex_mono_bold_24", "72.4°F  |  46.8% RH"),
-        ("Condensed Normal 16px (Floor 16px)", "plex_cond_normal_16", "NARROW DOCK:  SHTC3 22.4°C  |  SSD1681 22.5°C  |  MCU 22.6°C"),
-        ("Condensed Bold 18px (Tight Banner)", "plex_cond_bold_18", "WARNING: HIGH RELATIVE HUMIDITY ALERT (>75.0%)"),
-        ("Serif Normal 18px (Floor 18px)", "plex_serif_normal_18", "Thermodynamic water vapor pressure & dew point invariants."),
-        ("Serif Bold 24px (Editorial Title)", "plex_serif_bold_24", "Humidyne Labs Field Manual"),
-        ("Math Regular 16px (Floor 16px)", "plex_math_regular_16", "e_s(T) = 6.1094 · exp(17.625·T / (T + 243.04))   [ΔT ≤ 0.15°C]"),
+        ("Sans Normal 12px (4.6pt@188dpi, 1px stems)", "humid1_font_plex_sans_normal_12", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
+        ("Sans Normal 14px (5.4pt@188dpi, Default UI)", "humid1_font_plex_sans_normal_14", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
+        ("Sans Bold 14px (5.4pt@188dpi, 2px stems)", "humid1_font_plex_sans_bold_14", "PSYCHROMETRICS  •  SYSTEM HEALTH  •  SETTLED (99%)"),
+        ("Sans Italic 14px (Metadata)", "humid1_font_plex_sans_italic_14", "(22.4°C ambient  •  TriNode thermal equilibrium active)"),
+        ("Sans Normal 16px (6.1pt@188dpi, Body MD)", "humid1_font_plex_sans_normal_16", "TriNode ΔT: +0.1°C  |  Vapor Pressure: 12.6 hPa"),
+        ("Sans Bold 16px (6.1pt@188dpi, Modal Title)", "humid1_font_plex_sans_bold_16", "ENVIRONMENTAL TELEMETRY & DEW POINT"),
+        ("Sans Bold 20px (7.6pt@188dpi, Section Hero)", "humid1_font_plex_sans_bold_20", "72.4°F    46.8% RH    4.12V"),
+        ("Sans Bold 24px (9.2pt@188dpi, Primary Readout)", "humid1_font_plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
+        ("Sans Bold 32px (12.2pt@188dpi, Jumbo Metric)", "humid1_font_plex_sans_bold_32", "72.4°F   46.8%"),
+        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", "boot: humid1-os v1.0.9  |  SPI0 40MHz  |  0x0040 @%#08"),
+        ("Terminus Normal 16px (8x16 Native Console)", "humid1_font_terminus_normal_16", "root@humid1:~# dmesg | grep epd -> 200x200 OK"),
+        ("Mono Normal 14px (Telemetry Log)", "humid1_font_plex_mono_normal_14", "2026-11-03 20:24:55  |  328K Free  |  @%#08"),
+        ("Mono Bold 20px (Tabular Readout)", "humid1_font_plex_mono_bold_20", "72.4°F   46.8% RH   12.6 hPa"),
+        ("Mono Bold 24px (Tabular Hero)", "humid1_font_plex_mono_bold_24", "72.4°F  |  46.8% RH"),
+        ("Condensed Normal 16px (Narrow Dock)", "humid1_font_plex_cond_normal_16", "NARROW DOCK:  SHTC3 22.4°C  |  SSD1681 22.5°C  |  MCU 22.6°C"),
+        ("Serif Normal 18px (Editorial Body)", "humid1_font_plex_serif_normal_18", "Thermodynamic water vapor pressure & dew point invariants."),
+        ("Math Regular 16px (Scientific Formula)", "humid1_font_plex_math_regular_16", "e_s(T) = 6.1094 · exp(17.625·T / (T + 243.04))   [ΔT ≤ 0.15°C]"),
     ]
 
+    label_font_sym = _resolve_sym("humid1_font_plex_mono_normal_12") or _resolve_sym("humid1_font_terminus_normal_12") or _resolve_sym("humid1_font_plex_sans_normal_12")
     cy = 136
     for label, sym, sample in ladder_rows:
         if sym not in strike_cache:
             continue
-        draw_strike_text(rx0 + 20, cy, label, "plex_mono_normal_12", fg=(100, 112, 128))
+        if cy > 945:
+            break
+        draw_strike_text(rx0 + 20, cy, label, label_font_sym, fg=(100, 112, 128))
         cy += 15
         _, lh, _ = strike_cache[sym]
         draw_strike_text(rx0 + 20, cy, sample, sym, fg=(10, 14, 18))
-        cy += lh + 8
+        cy += lh + 7
         draw.line([(rx0 + 20, cy - 3), (1372, cy - 3)], fill=(232, 236, 242), width=1)
 
     preview_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2985,7 +3158,7 @@ Examples:
     parser = argparse.ArgumentParser(
         prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.8 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
+            "Humidyne Labs / Humiditron `epd-font` v1.0.9 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
             "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
         ),
         epilog=epilog_text,
@@ -3056,9 +3229,9 @@ Examples:
     )
     parser.add_argument(
         "--inspect-chars-filter",
-        choices=["trouble", "patched", "ascii", "all", "none"],
-        default="trouble",
-        help="Which characters to render in <out-dir>/inspect_chars/ (default: trouble)",
+        choices=["all", "trouble", "patched", "ascii", "none"],
+        default="all",
+        help="Which characters to render in <out-dir>/inspect_chars/ (default: all)",
     )
     parser.add_argument(
         "--sizes",
@@ -3299,14 +3472,22 @@ def _execute_strike_worker_task(task: dict) -> dict:
         "kern_pairs": [[l_gid, r_gid, kv] for (l_gid, r_gid, _, _, kv) in kern_pairs],
     }
 
+    c_disk_b = 0
+    if task["do_build_c"] and task["c_out_dir"]:
+        cf = Path(task["c_out_dir"]) / f"{sym_name}.c"
+        if cf.is_file():
+            c_disk_b = cf.stat().st_size
+
+    pt96 = sz * 72.0 / 96.0
     patched_cnt = sum(1 for g in glyphs if g.patched)
     patch_tag = f" [+{patched_cnt} patches]" if patched_cnt else ""
     log_line = (
         f"    [+] {sym_name:<36} | {len(glyphs):>4} glyphs | {len(kern_pairs):>4} kern | "
-        f"lh={line_h:>2}px | {effective_raster_m:<13} | ~{rom_b:>7,} B ({rom_b/1024:.2f} KB){patch_tag}"
+        f"em={sz:>2}px ({pt96:>4.1f}pt) lh={line_h:>2}px | {effective_raster_m:<13} | ~{rom_b:>7,} B ({rom_b/1024:.2f} KB){patch_tag}"
     )
     return {
         "sym_name": sym_name,
+        "c_disk_b": c_disk_b,
         "family": family,
         "role": role,
         "sz": sz,
@@ -3329,7 +3510,7 @@ def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.8)
+    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.9)
     raw_src_arg = args.src_dir or args.font_dir
     if raw_src_arg:
         cand_src = Path(raw_src_arg).resolve()
@@ -3450,10 +3631,11 @@ def main() -> None:
         c_out_dir.mkdir(parents=True, exist_ok=True)
 
     compiled_symbols: List[Tuple[str, str, str, int, int]] = []
+    compiled_details: List[dict] = []
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
     kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
     vault_data: dict = {
-        "vault_version": "1.0.8",
+        "vault_version": "1.0.9",
         "raster_mode": raster_m,
         "normal_weight": normal_w,
         "strikes": {},
@@ -3520,7 +3702,7 @@ def main() -> None:
                 or {}
             )
             strike_ascii_dir = (ascii_ingest_root / sym_name) if ascii_ingest_root else None
-            effective_raster_m = "exact-mono" if family == "terminus" else raster_m
+            effective_raster_m = "exact-mono" if family in ("terminus", "unifont") else raster_m
 
             strike_tasks.append({
                 "sym_name": sym_name,
@@ -3568,6 +3750,17 @@ def main() -> None:
             total_png_inspected += res["png_pages"]
             total_char_pngs += res["char_pngs"]
             compiled_symbols.append((sym_name, family, role, sz, rom_b))
+            compiled_details.append({
+                "sym_name": sym_name,
+                "family": family,
+                "role": role,
+                "sz": sz,
+                "line_h": line_h,
+                "glyph_count": len(glyphs),
+                "kern_count": len(kern_pairs),
+                "rom_b": rom_b,
+                "c_disk_b": res.get("c_disk_b", 0),
+            })
 
             gmap = {g.codepoint: g for g in glyphs}
             strike_cache[sym_name] = (gmap, line_h, base_l)
@@ -3588,6 +3781,21 @@ def main() -> None:
     if vault_out_path:
         v_bytes = export_strike_vault(vault_out_path, vault_data)
         print(f"[+] Exported pre-rasterized Strike Vault ({len(vault_data['strikes'])} strikes) -> {vault_out_path} ({v_bytes:,} B)")
+
+    if do_build_c and compiled_details:
+        tdisp_d = (scheme_cfg or {}).get("target_display", {})
+        rep_dpi = args.dpi if args.dpi is not None else float(tdisp_d.get("dpi", 188.3))
+        rep_scheme = scheme_cfg.get("scheme_id", args.profile) if scheme_cfg else args.profile
+        sz_rep_path = write_total_disk_size_report(
+            c_out_dir=c_out_dir,
+            root_out=root_out,
+            dist_root=dist_root,
+            compiled_details=compiled_details,
+            vault_path=vault_out_path,
+            scheme_id=rep_scheme,
+            dpi=rep_dpi,
+        )
+        print(f"[+] Generated Flash ROM & Disk Size Report -> {sz_rep_path}")
 
     if dump_ascii_root:
         print(f"[+] Dumped {total_ascii_dumped:,} Full-Canvas 1:1 Spaced ASCII .txt files across {len(compiled_symbols)} folders in {dump_ascii_root}")

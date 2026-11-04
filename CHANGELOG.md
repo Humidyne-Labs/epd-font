@@ -1,8 +1,24 @@
-# Changelog — Humidyne Labs / Humiditron `epd-font`
+# Changelog — `epd-font` (Humidyne Labs 1-BPP Typography Foundry)
 
-All notable changes to the **`epd-font`** repository (`https://github.com/Humidyne-Labs/epd-font`) are documented in this file.
+All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
----
+## [v1.0.9] — 2026-11-03
+### Fixed
+- **Specimen Sheet (`humid1_epd_specimen_188dpi.png`) Full Symbol & Icon Resolution**:
+  - Updated `render_specimen_sheet()` in `tools/fonts/humid1_generate_1bpp.py` to resolve all `humid1_font_plex_*`, `humid1_font_terminus_*`, and `humid1_icon_*` symbols through `_resolve_sym()` with an automatic PUA icon fallback table (`icon_fb_14`, `icon_fb_20`), restoring the Bottom-Left 6× zoomed micro-glyph boxes (`@`, `%`, `e`, `a`, `0`, `A`), the Bottom-Left 14-icon strip, the Top-Left simulated 200×200 panel icons, and all 17 rows of the Right-Column size ladder.
+- **Complete Character & Icon Diagnostic PNG Generation (`inspect_chars/`)**:
+  - Changed the default `--inspect-chars-filter` from `"trouble"` (which only exported 29 trouble characters for text fonts like `terminus` and only the first 12 icons for icon strikes like `humid1_icon_tabler_regular_40`) to `"all"` across `tools/fonts/humid1_generate_1bpp.py` and all `03_visual_check_pngs.bat` scripts. Every strike now renders 100% of its character or icon inventory in `inspect_chars/<symbol>/`, matching `ascii_patches/<symbol>/` 1-for-1.
+  - Added per-worker in-memory UI font caching (`_UI_FONTS_CACHE`) so rendering full `inspect_chars/` sets across all strikes executes up to 10× faster.
+
+### Added
+- **Automated Firmware Flash & Disk Size Report (`total_disk_size.txt`)**:
+  - Added `write_total_disk_size_report()` to `tools/fonts/humid1_generate_1bpp.py`, automatically writing `total_disk_size.txt` to `<out-dir>/fonts/total_disk_size.txt`, `<out-dir>/total_disk_size.txt`, and `<dist-dir>/total_disk_size.txt` whenever `.c` font assets are built or exported.
+  - Details exact MCU Flash `.rodata` bytes/KB (`bitmap[] + glyphs[] + kern[] + struct`), host `.c`/`.h` source file bytes/KB, MCU Flash partition utilization (`64KB` to `8MB`), per-family subtotals, and per-strike metrics (`Em(px)`, `pt@96`, `pt@DPI`, `LineHt`).
+- **Explicit Point Size (`pt@96dpi` and `pt@188dpi`) vs. Pixel Size (`px` / `ppem`) Telemetry**:
+  - Added `px_to_pt_96dpi()`, `px_to_pt_target_dpi()`, and `format_px_pt_summary()` helpers and surfaced dual point/pixel sizing (`Em: Npx / Xpt@96dpi / Ypt@188dpi | LineBox: Mpx`) across all diagnostic page sheets, individual character PNGs, CLI logs, and `total_disk_size.txt`.
+  - Added `22px` (`16.5pt@96dpi`) across all vector and icon strikes in `scripts/full-audit-distro/full_audit_distro.scheme.json` for a continuous `+2px` (`1.5pt@96dpi`) progression (`12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40 px`).
+- **Native GNU Unifont (`unifont-18.0.01.otf`) Support**:
+  - Added `"family": "unifont"` (`exact-mono`, `16px` minimum floor) to `humid1_generate_1bpp.py` and `build_static_ttf_assets.py` for optional range-subsetted Unicode symbol/fallback strikes at `16px` and `32px`.
 
 ## [v1.0.8] — 2026-11-03 (22 Native Terminus TTF Strikes, Multi-Core Parallelism, Tabler Filled Fix & `humid1_` Naming Overhaul)
 
@@ -31,9 +47,12 @@ All notable changes to the **`epd-font`** repository (`https://github.com/Humidy
 
 ### Changed
 - **Unified `humid1_` Naming Convention Across Scripts, Symbols, Vault, Headers & Patch Manifest**:
-  - Renamed `generate_plex_1bpp.py` $ightarrow$ **`tools/fonts/humid1_generate_1bpp.py`**.
-  - Renamed `plex_fw_emit.py` $ightarrow$ **`tools/fonts/humid1_fw_emit.py`**.
-  - Renamed `plex_epd_vault.json.gz` $ightarrow$ **`humid1_epd_vault.json.gz`**.
+  - Renamed `generate_plex_1bpp.py` $
+ightarrow$ **`tools/fonts/humid1_generate_1bpp.py`**.
+  - Renamed `plex_fw_emit.py` $
+ightarrow$ **`tools/fonts/humid1_fw_emit.py`**.
+  - Renamed `plex_epd_vault.json.gz` $
+ightarrow$ **`humid1_epd_vault.json.gz`**.
   - Consolidated patch manifests into a single root-tracked **`font_icon_epd_patches.json`** (removed duplicate `epd_font_patches.json` and `tools/fonts/plex_epd_patches.json`).
   - Standardized all generated strike symbols and folder names under the `humid1_` prefix:
     - IBM Plex fonts: `humid1_font_plex_<family>_<style>_<size>` (e.g., `humid1_font_plex_cond_normal_12`)

@@ -1,4 +1,4 @@
-# Humidyne Labs / Humiditron `epd-font` v1.0.8 — Agent Typography & Iconography Rules
+# Humidyne Labs / Humiditron `epd-font` v1.0.9 — Agent Typography & Iconography Rules
 
 1. **Zero Guessing of Pixel Metrics**:
    - NEVER guess character advance widths, bounding boxes, line heights, or string pixel widths.

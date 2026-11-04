@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.8",
+  "schema_version": "1.0.9",
   "scheme_id": "condensed_narrow_hmi",
   "project_brand": "Humiditron Narrow-Column Condensed HMI Scheme",
   "description": "IBM Plex Sans Condensed (wdth=85) for multi-column status docks and narrow labels.",

@@ -2,6 +2,22 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.13] — 2026-11-04
+
+### Fixed
+- **External Font Directory Discovery in `humid1_font_eval.py` & `02_run_font_eval.bat`**:
+  - Fixed `discover_candidate_fonts()` in `tools/fonts/humid1_font_eval.py` so pointing `--src-dir` at an external font directory (such as the 700MB+ `eval_fonts` collection with 400+ `.ttf`, `.otf`, and `.ttc` TrueType Collection files) recursively discovers and evaluates all Latin fonts in parallel across all CPU cores (`ProcessPoolExecutor`), instead of checking only for hardcoded `IBMPlex*` filenames.
+- **Eliminated Valley Clogging on `'W'`, `'w'`, `'M'`, `'m'`, `'N'`, `'X'`, `'s'` (`humid1_bilevel_tuner.py`)**:
+  - Enforced the **Multi-Stroke Pigeonhole Law** (`k_runs * min_stem + (k_runs - 1) <= box_w`), **Open-Valley Scanline Run-Count Invariance (`compute_open_valley_stats`)**, and the **Render -> 8x Upscale -> HQ Master Confidence & Valley-Occlusion Sanity Gate (`compute_upscaled_hq_metrics`)**, mathematically preventing open V-valleys in `'W'`/`'w'`/`'M'` from ever being bridged into a solid black mass.
+- **Eliminated Stale Legacy Patch Accumulation & Over-Correction on `'A'`, `'B'`, `'f'`, `'g'`, `'s'`, `')'`**:
+  - Fixed `build_patches_json_from_ascii_root()` in `tools/fonts/humid1_ascii_patches.py` so each strike dictionary in `font_icon_epd_patches.json` is replaced cleanly rather than merged via `.update()` onto stale `v1.0.9–v1.0.11` overrides.
+  - Added the **"Do No Harm" Conservative Surgical Trigger Gate**, leaving already-thick `Bold` / `ExtraBold (800)` glyphs and high-confidence `Medium (500)` glyphs (`HQConf >= 72%`) 100% untouched (`M0_verified`), reducing total compiled patches across all 63 H1OS strikes from `1,816` down to **`651` surgical overrides**.
+
+### Added
+- **Pre-Tune (`RAW`) vs. Post-Tune (`TUNED`) Traceability & Per-Font PNG Evaluation Sheets (`build/font_eval/sheets/*_eval.png`)**:
+  - `humid1_font_eval.py` now records and renders both untouched FreeType (`PRE-TUNE / RAW`) and tournament-repaired (`POST-TUNE / TUNED`) metrics (`HQ Confidence %`, `HQ Diff %`, `>=2px Stem %`, `Counter %`, and `Tuning Burden %`) across all sizes.
+  - Emits a dedicated visual inspection PNG sheet per font (`build/font_eval/sheets/<font_stem>_eval.png`) with 1:1 specimen strings and 2x-zoomed critical glyph strips (`W w M m A B C f g r s $ ( ) [ ] 0 8`), plus `build/font_eval/font_eval_report.csv`, `.md`, `.json`, and `font_eval_comparison_sheet.png`.
+
 ## [v1.0.12] — 2026-11-04
 
 ### Fixed

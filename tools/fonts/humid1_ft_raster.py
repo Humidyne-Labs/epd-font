@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ft_raster.py (v1.0.12)
+humid1_ft_raster.py (v1.0.13)
 =============================
 Humidyne Labs / Humiditron `epd-font` FreeType 2 Ctypes Binding, Semantic Glyph Registry,
 Kerning Extractor & 1-BPP Scanline Rasterizer Module.
@@ -19,14 +19,14 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.ttLib import TTFont
 
-TOOL_VERSION = "1.0.12"
+TOOL_VERSION = "1.0.13"
 
 FT_LOAD_NO_HINTING = 1 << 1
 
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.12 `humid1_` symbol naming convention:
+    Canonical v1.0.13 `humid1_` symbol naming convention:
       - IBM Plex families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Terminus family (terminus)                        -> humid1_font_terminus_<role>_<size>
       - Modular Icon families (icon_fa7, icon_lucide...)  -> humid1_<family>_<role>_<size>

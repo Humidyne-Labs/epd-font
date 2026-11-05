@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ascii_patches.py (v1.0.12)
+humid1_ascii_patches.py (v1.0.13)
 =================================
 Humidyne Labs / Humiditron `epd-font` Full-Canvas 1:1 Spaced Editable ASCII Patch
 Dumper, Parser & JSON Patch Compiler Module.
@@ -20,7 +20,7 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.12"
+TOOL_VERSION = "1.0.13"
 
 # =============================================================================
 # 7. WORKFLOW 2: PATCH (FULL-CANVAS 1:1 SPACED ASCII + UNICODE PREVIEW <-> JSON)
@@ -356,8 +356,10 @@ def build_patches_json_from_ascii_root(
         sym_name = sdir.name
         parsed = parse_ascii_glyph_folder(sdir, only_modified=only_modified)
         if parsed:
-            manifest["patches"].setdefault(sym_name, {}).update(parsed)
+            manifest["patches"][sym_name] = parsed
             total_compiled += len(parsed)
+        else:
+            manifest["patches"].pop(sym_name, None)
 
     out_json_path.parent.mkdir(parents=True, exist_ok=True)
     out_json_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

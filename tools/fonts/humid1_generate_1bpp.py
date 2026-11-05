@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.13)
+humid1_generate_1bpp.py (v1.0.14)
 =================================
 Humidyne Labs / Humiditron `epd-font` Modular 1-BPP Font Foundry Orchestrator.
 
@@ -8,7 +8,7 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-Modular Architecture (v1.0.13):
+Modular Architecture (v1.0.14):
 -------------------------------
 - `humid1_ft_raster.py`     : FreeType 2 ctypes bindings, glyph strike model, kerning & 1-BPP rasterizer.
 - `humid1_bilevel_tuner.py` : Iterative Multi-Method Typographic Tournament (`M0..M8`) + Bilateral Mirror Sync.
@@ -42,6 +42,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from humid1_ft_raster import (
+    open_ttfont_safe,
     FT_Bitmap,
     FT_BBox,
     FT_FaceRec,
@@ -96,7 +97,7 @@ from humid1_lvgl_bdf_export import (
     write_total_disk_size_report,
 )
 
-TOOL_VERSION = "1.0.13"
+TOOL_VERSION = "1.0.14"
 
 # =============================================================================
 # 2. SUB-FAMILY REGISTRY, SIZE FLOORS & BUILD PROFILES
@@ -170,7 +171,7 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800) -> Dict[s
     """
     Map semantic roles (thin, extralight, light, normal, text, medium, semibold, bold, extrabold, italic, bold_italic)
     to instantiated static TTF filenames.
-    In v1.0.13, when `normal_weight >= 500` (`Medium`), `bold` defaults to `ExtraBold` (`bold_weight=800`)
+    In v1.0.14, when `normal_weight >= 500` (`Medium`), `bold` defaults to `ExtraBold` (`bold_weight=800`)
     so `normal` (`Medium 500`), `bold` (`ExtraBold 800`), and `italic` (`MediumItalic 500`) maintain
     unmistakable stroke-weight hierarchy across all sizes (`10px–24px`).
     """
@@ -344,7 +345,7 @@ def ensure_static_plex_assets(
             fa_woff_dst if fa_woff_dst.is_file() else None
         )
         if woff_cand:
-            fa_tt = TTFont(str(woff_cand))
+            fa_tt = open_ttfont_safe(woff_cand)
             fa_tt.flavor = None  # Strip WOFF wrapper -> pure uncompressed TrueType (.ttf)
             fa_tt.save(str(fa_ttf_dst))
             print(f"    [+] Converted {woff_cand.name} -> {fa_ttf_dst.name} ({fa_ttf_dst.stat().st_size:,} B, pure TTF)")
@@ -364,7 +365,7 @@ def ensure_static_plex_assets(
                 src_path = plex_dir / rel_src
                 if not src_path.is_file():
                     continue
-                tt = TTFont(str(src_path))
+                tt = open_ttfont_safe(src_path)
                 inst = instancer.instantiateVariableFont(tt, coords)
                 if cmap_aliases and "cmap" in inst:
                     for table in inst["cmap"].tables:
@@ -532,7 +533,7 @@ Examples:
     parser = argparse.ArgumentParser(
         prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.13 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
+            "Humidyne Labs / Humiditron `epd-font` v1.0.14 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
             "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
         ),
         epilog=epilog_text,
@@ -653,6 +654,12 @@ Examples:
         choices=["hybrid", "autofloor", "downscale", "contour"],
         default="hybrid",
         help="Closed-loop glyph repair engine (default: hybrid)",
+    )
+    parser.add_argument(
+        "--tune-mode",
+        choices=["off", "wart-only", "surgical", "full"],
+        default="surgical",
+        help="Auto-tune intervention level: off (native weights only), wart-only (4-dir wart shaving + mirror sync), surgical (default), or full",
     )
     parser.add_argument(
         "--save-repaired-patches",
@@ -878,6 +885,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
                     engine=task.get("repair_engine", "hybrid"),
                     is_italic_or_serif=is_ital_or_ser,
                     is_bold_role=("bold" in role.lower()),
+                    tune_mode=task.get("tune_mode", "surgical"),
                 )
                 recs.append(rec)
                 if rec.repaired:
@@ -1055,7 +1063,7 @@ def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.13)
+    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.14)
     raw_src_arg = args.src_dir or args.font_dir
     if raw_src_arg:
         cand_src = Path(raw_src_arg).resolve()
@@ -1180,7 +1188,7 @@ def main() -> None:
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
     kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
     vault_data: dict = {
-        "vault_version": "1.0.13",
+        "vault_version": "1.0.14",
         "raster_mode": raster_m,
         "normal_weight": normal_w,
         "strikes": {},
@@ -1314,6 +1322,7 @@ def main() -> None:
                 "auto_floor": bool(scheme_cfg.get("raster_config", {}).get("auto_floor", args.auto_floor)) if scheme_cfg else args.auto_floor,
                 "min_stem": int(scheme_cfg.get("raster_config", {}).get("min_stem_px", args.min_stem)) if scheme_cfg else args.min_stem,
                 "repair_engine": str(scheme_cfg.get("raster_config", {}).get("repair_engine", args.repair_engine)) if scheme_cfg else args.repair_engine,
+                "tune_mode": str(scheme_cfg.get("raster_config", {}).get("tune_mode", args.tune_mode)) if scheme_cfg else args.tune_mode,
                 "inspect_repairs_root": str(inspect_repairs_root) if inspect_repairs_root else None,
             })
 

@@ -2,6 +2,27 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.14] — 2026-11-04
+
+### Fixed
+- **`.ttc` TrueType Collection Crash in `humid1_ft_raster.py` & `humid1_font_eval.py` (`crash-log.txt` Font `[61/408]`)**:
+  - Fixed `rasterize_font_strike()` in `tools/fonts/humid1_ft_raster.py` (line 566) throwing `fontTools.ttLib.TTLibFileIsCollectionError: specify a font number between 0 and 2 (inclusive)` when evaluating `.ttc` TrueType Collection files (such as `IosevkaAile-Bold.ttc`).
+  - Added `open_ttfont_safe(font_path, font_number=0, lazy=False)` across `humid1_ft_raster.py`, `humid1_font_eval.py`, and `humid1_generate_1bpp.py`, plus `try...except Exception` worker fault isolation in `_worker_evaluate_font()` so a single corrupted or unreadable font in a 400+ font directory never aborts the multi-core evaluation pool.
+- **"Ghost Font" `>=2px: 100.0%` Paradox on Ultra-Thin Weights (`Inter-Thin w100` / `InterDisplay-ThinItalic w100`)**:
+  - Fixed `measure_stem_deficits()` in `humid1_bilevel_tuner.py` returning `h_ratio = 1.0, needs_h = False` when `nz == 0` or `total_stem_runs == 0`, and updated `_worker_evaluate_font()` in `humid1_font_eval.py` to evaluate all `len(EVAL_BENCHMARK_CHARS)` characters without skipping vanished glyphs (`box_w == 0`). Ultra-thin `w100–w200` cuts that suffer sub-pixel hairline dropout under 1-BPP rasterization now properly report `>=2px: 0.0%`, `Size Floor: >24px`, and `TIER 4: DO NOT USE ON 1-BPP EPD`.
+- **Recalibrated Realistic Pixel Size Floor Estimator (`size_floor_raw_px` & `size_floor_tuned_px`)**:
+  - Removed the `if w0 >= 5 and h0 >= 7:` gate on `expected_b1` in `humid1_bilevel_tuner.py` that caused collapsed counters on lowercase `a` and `e` at `10px–12px` (`h0 = 6`) to be ignored (`expected_b1 = 0`).
+  - Added `CANONICAL_MIN_HOLES`, `PINCH_FORBIDDEN_CHARS`, and `_check_counter_cavity_viable()` (`hole_px >= 2` on core single-loop counters in heavy weights `wght >= 650`, `b1 == 0` on open curves `s`, `c`, `w`, `M`, `HQConf >= 72.0%`, and `mean_stem_width >= 1.62px`). Heavy cuts (`Inter-ExtraBold w800`, `IBMPlexSans-ExtraBold w800`) now report a realistic **`16px` (`12.0pt`)** floor instead of `10px–12px`.
+- **Eliminated Residual 4-Directional "Outline-Warts" (`M0_wart_shaved`)**:
+  - Upgraded `detect_skin_tags_and_notches()` in `humid1_bilevel_tuner.py` to scan all 4 cardinal directions (horizontal left/right lateral spurs on `fg[r]` + vertical top/bottom pimples on `fg[:, c]` verified against the 8x continuous HQ Master coverage map).
+  - Added a **Universal Pre-Exit Wart-Shaving Pass (`M0_wart_shaved`)** inside `inspect_and_repair_glyph_bitmap()` so that even glyphs that skip stem thickening (`Bold`/`ExtraBold` and `>=14px` `Medium`/`SemiBold`) have their 1px autohint outline-warts cleanly shaved off.
+- **Synchronized `.bat` Script Banners to `v1.0.14`**:
+  - Updated all batch script `echo` headers across `scripts/h1os-build-distro/`, `scripts/example-build-distro/`, and `scripts/full-audit-build-distro/` from `v1.0.11` to `v1.0.14`.
+
+### Added
+- **Selectable `--tune-mode {off,wart-only,surgical,full}` Across Build & Evaluation Pipeline**:
+  - Added `--tune-mode` to `humid1_bilevel_tuner.py`, `humid1_generate_1bpp.py`, and `humid1_font_eval.py` (plus `"tune_mode"` in `*.scheme.json`) to support native font/weight division-of-labor (`off` = 100% pure FreeType, `wart-only` = zero stem thickening with 4-directional wart shaving + mirror bracket sync, `surgical` = default, `full` = full tournament).
+
 ## [v1.0.13] — 2026-11-04
 
 ### Fixed

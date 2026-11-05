@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.13)
+build_static_ttf_assets.py (v1.0.14)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -8,11 +8,11 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Author     : Humidyne Labs / Humiditron
 License    : MIT License (Upstream fonts retain SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT)
 
-What's New in v1.0.13:
+What's New in v1.0.14:
 ---------------------
 1. Anisotropic `ExtraBold` (`wght=800`) Synthesis from IBM Plex Variable Masters:
    Upstream IBM Plex Variable TTFs cap `fvar.wght` at `700.0`, which quantizes to the same `2px`
-   stem thickness as `Medium` (`wght=500.0`) at `12px–16px`. In v1.0.13, `instantiate_plex_variable_cut()`
+   stem thickness as `Medium` (`wght=500.0`) at `12px–16px`. In v1.0.14, `instantiate_plex_variable_cut()`
    synthesizes true `ExtraBold` (`wght=800.0`, `IBMPlex*-ExtraBold.ttf` & `IBMPlex*-ExtraBoldItalic.ttf`)
    via anisotropic `gvar` positive-weight delta extrapolation (`1.45x` horizontal stem weight,
    `1.18x` vertical bar weight to keep internal counters open), restoring a distinct 3-tier hierarchy:
@@ -54,7 +54,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.13"
+TOOL_VERSION = "1.0.14"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES

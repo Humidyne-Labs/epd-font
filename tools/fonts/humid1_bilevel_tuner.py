@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_tuner.py (v1.0.13)
+humid1_bilevel_tuner.py (v1.0.14)
 =================================
 Humidyne Labs / Humiditron `epd-font` Surgical Multi-Method Typographic Tuner,
 Render -> Upscale (8x) -> HQ Master Confidence Sanity Gate & Open-Valley Preserver.
 
 Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
-Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/humid1-audit-v1.0.13.txt`)
+Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/humid1-audit-v1.0.14.txt`)
 License    : MIT License
 
 What's New in v1.0.13:
@@ -58,7 +58,7 @@ except ImportError:
 
 from PIL import Image, ImageDraw
 
-TOOL_VERSION = "1.0.13"
+TOOL_VERSION = "1.0.14"
 
 # Characters whose horizontal crossbars are structural and should be protected from vanishing
 HORIZONTAL_BAR_CHARS = set("eftEFHTzZ=-+~÷±≤≥≠≈#[")
@@ -81,6 +81,19 @@ CENTRAL_SPINE_CODEPOINTS = {
 
 # Multi-valley / multi-diagonal characters whose open V-valleys / S-curves must NEVER be occluded
 MULTI_VALLEY_CHARS = set("WwMmNVvXYKZzSs#%&@")
+
+# Canonical minimum enclosed internal counters (holes) for standard ASCII characters.
+# Ensures lowercase/digit counters (a, e, o, b, d, p, q, g, 0, 4, 6, 8, 9, A, B, D, O, P, Q, R)
+# are NEVER ignored at small pixel sizes (10..12px) when glyph box_h < 7!
+CANONICAL_MIN_HOLES: Dict[str, int] = {
+    "0": 1, "4": 1, "6": 1, "8": 2, "9": 1,
+    "A": 1, "B": 2, "D": 1, "O": 1, "P": 1, "Q": 1, "R": 1,
+    "a": 1, "b": 1, "d": 1, "e": 1, "g": 1, "o": 1, "p": 1, "q": 1,
+    "%": 2, "@": 1,
+}
+
+# Open-curve / multi-valley characters that must NEVER pinch shut into false enclosed loops (expected_b1 == 0)
+PINCH_FORBIDDEN_CHARS = set("CEFGHIJKLMNSTUVWXYZcfhijlmnrstuvwxyz!()[]{}/\\|<>+-=~")
 
 # Bilateral mirror-symmetric glyph pairs: (left_cp, right_cp, flip_mode)
 MIRROR_GLYPH_PAIRS: List[Tuple[int, int, str]] = [
@@ -321,16 +334,19 @@ def compute_betti_numbers(binary_img: np.ndarray) -> Tuple[int, int, np.ndarray]
 def detect_skin_tags_and_notches(
     binary_img: np.ndarray,
     hq_coverage: Optional[np.ndarray] = None,
+    codepoint: int = 0,
 ) -> Tuple[int, int, List[Tuple[int, int]], List[Tuple[int, int]]]:
     """
-    Method 7 & Method 18 (Discrete Total Variation / Mumford-Shah Boundary Regularization):
-    Detects non-topological 1-pixel "skin tags" (spurs / warts) and 1-pixel exterior stem notches.
+    Method 7 & Method 18 (v1.0.14 4-Directional Outline-Wart & Notch Regularizer):
+    Detects non-topological 1-pixel horizontal AND vertical "outline-warts" (spurs / pimples)
+    and 1-pixel exterior stem notches.
     """
     h, w = binary_img.shape
     fg = (binary_img > 0).astype(np.uint8)
     skin_tags: List[Tuple[int, int]] = []
     notches: List[Tuple[int, int]] = []
 
+    # 1. Horizontal left/right lateral 1px outline-warts
     for r in range(h):
         runs = _get_row_runs(fg[r])
         for s, e in runs:
@@ -342,7 +358,8 @@ def detect_skin_tags_and_notches(
                 dn_in = fg[r + 1, s + 1] if r + 1 < h else 0
                 if up_s == 0 and dn_s == 0 and (up_in > 0 and dn_in > 0):
                     cov = float(hq_coverage[r, s]) if (hq_coverage is not None and hq_coverage.shape == (h, w)) else 0.0
-                    if cov < 0.52:
+                    cov_lim = 0.64 if (s == 0 and 0 < r < h - 1) else 0.55
+                    if cov < cov_lim:
                         skin_tags.append((r, s))
 
                 up_e = fg[r - 1, e] if r > 0 else 0
@@ -351,10 +368,36 @@ def detect_skin_tags_and_notches(
                 dn_ein = fg[r + 1, e - 1] if r + 1 < h else 0
                 if up_e == 0 and dn_e == 0 and (up_ein > 0 and dn_ein > 0):
                     cov = float(hq_coverage[r, e]) if (hq_coverage is not None and hq_coverage.shape == (h, w)) else 0.0
-                    if cov < 0.52:
+                    cov_lim = 0.64 if (e == w - 1 and 0 < r < h - 1) else 0.55
+                    if cov < cov_lim:
                         skin_tags.append((r, e))
 
-    # Only detect notches on OUTERMOST left (c == 0) or right (c == w - 1) stem walls, NEVER inside interior V-valleys!
+    # 2. Vertical top/bottom 1px pimples/warts on arches, bowls, and terminals (skip central-spine chars like )
+    if codepoint not in CENTRAL_SPINE_CODEPOINTS and w >= 5 and h >= 7:
+        for c in range(w):
+            c_runs = _get_row_runs(fg[:, c])
+            for s, e in c_runs:
+                clen = e - s + 1
+                if clen >= 3:
+                    lf_s = fg[s, c - 1] if c > 0 else 0
+                    rt_s = fg[s, c + 1] if c + 1 < w else 0
+                    lf_in = fg[s + 1, c - 1] if c > 0 else 0
+                    rt_in = fg[s + 1, c + 1] if c + 1 < w else 0
+                    if lf_s == 0 and rt_s == 0 and (lf_in > 0 or rt_in > 0) and ((lf_in > 0 and rt_in > 0) or (0 < s < h - 1)):
+                        cov = float(hq_coverage[s, c]) if (hq_coverage is not None and hq_coverage.shape == (h, w)) else 0.0
+                        if cov < 0.48:
+                            skin_tags.append((s, c))
+
+                    lf_e = fg[e, c - 1] if c > 0 else 0
+                    rt_e = fg[e, c + 1] if c + 1 < w else 0
+                    lf_ein = fg[e - 1, c - 1] if c > 0 else 0
+                    rt_ein = fg[e - 1, c + 1] if c + 1 < w else 0
+                    if lf_e == 0 and rt_e == 0 and (lf_ein > 0 or rt_ein > 0) and ((lf_ein > 0 and rt_ein > 0) or (0 < e < h - 1)):
+                        cov = float(hq_coverage[e, c]) if (hq_coverage is not None and hq_coverage.shape == (h, w)) else 0.0
+                        if cov < 0.48:
+                            skin_tags.append((e, c))
+
+    # 3. Only detect notches on OUTERMOST left (c == 0) or right (c == w - 1) stem walls, NEVER inside interior V-valleys!
     for r in range(1, h - 1):
         for c in (0, w - 1):
             if c < 0 or c >= w:
@@ -366,13 +409,19 @@ def detect_skin_tags_and_notches(
                     notches.append((r, c))
 
     if skin_tags:
+        skin_tags = list(dict.fromkeys(skin_tags))
         b0_orig, b1_orig, _ = compute_betti_numbers(binary_img)
         true_tags: List[Tuple[int, int]] = []
         for tr, tc in skin_tags:
             probe = binary_img.copy()
             probe[tr, tc] = 0
             b0_p, b1_p, _ = compute_betti_numbers(probe)
-            if b0_p == b0_orig and b1_p == b1_orig and len(_get_row_runs(probe[tr])) == len(_get_row_runs(binary_img[tr])):
+            if (
+                b0_p == b0_orig
+                and b1_p == b1_orig
+                and len(_get_row_runs(probe[tr])) == len(_get_row_runs(binary_img[tr]))
+                and len(_get_row_runs(probe[:, tc])) == len(_get_row_runs(binary_img[:, tc]))
+            ):
                 true_tags.append((tr, tc))
         skin_tags = true_tags
 
@@ -386,6 +435,7 @@ def clean_skin_tags_and_notches(
     hq_coverage: Optional[np.ndarray] = None,
     max_iters: int = 2,
     allow_corner_bevel: bool = False,
+    codepoint: int = 0,
 ) -> np.ndarray:
     """
     Method 8 + Method 18 (v1.0.13 Valley-Safe Boundary Regularizer):
@@ -395,7 +445,7 @@ def clean_skin_tags_and_notches(
     """
     work = binary_img.copy()
     for _ in range(max_iters):
-        _, _, tag_coords, notch_coords = detect_skin_tags_and_notches(work, hq_coverage)
+        _, _, tag_coords, notch_coords = detect_skin_tags_and_notches(work, hq_coverage, codepoint=codepoint)
         if not tag_coords and not notch_coords:
             break
         changed = False
@@ -470,7 +520,7 @@ def measure_stem_deficits(
     """
     nz = int(np.count_nonzero(binary_img))
     if nz == 0:
-        return False, False, 1.0, 1.0
+        return True, True, 0.0, 0.0
     h, w = binary_img.shape
     if w < min_stem:
         return True, False, 0.0, 1.0
@@ -493,7 +543,7 @@ def measure_stem_deficits(
                     if rlen >= min_stem or pigeonhole_constrained:
                         ge_min_runs += 1
 
-    h_ratio = (float(ge_min_runs) / float(total_stem_runs)) if total_stem_runs > 0 else 1.0
+    h_ratio = (float(ge_min_runs) / float(total_stem_runs)) if total_stem_runs > 0 else 0.0
 
     spine_deficit = False
     if codepoint in CENTRAL_SPINE_CODEPOINTS and w >= 5:
@@ -518,7 +568,7 @@ def measure_stem_deficits(
     else:
         v_ratio = 0.5
 
-    needs_h = spine_deficit or ((total_stem_runs >= 2) and (h_ratio < 0.72))
+    needs_h = spine_deficit or (total_stem_runs == 0) or ((total_stem_runs == 1) and (h >= 4) and (h_ratio < 1.0)) or ((total_stem_runs >= 2) and (h_ratio < 0.72))
     needs_v = v_ratio < 0.16
     return needs_h, needs_v, h_ratio, v_ratio
 
@@ -612,7 +662,7 @@ def evaluate_glyph_candidate(
     if hq_master is not None and hq_master.size > 0 and HAS_CV2:
         hq_resized = cv2.resize(hq_master, (w, h), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
 
-    num_tags, num_notches, _, _ = detect_skin_tags_and_notches(candidate_1bit, hq_resized)
+    num_tags, num_notches, _, _ = detect_skin_tags_and_notches(candidate_1bit, hq_resized, codepoint=codepoint)
     num_checkers = count_2x2_checkerboards(candidate_1bit)
     needs_h, _, h_2px_ratio, _ = measure_stem_deficits(candidate_1bit, min_stem=min_stem, codepoint=codepoint)
 
@@ -1194,19 +1244,25 @@ def inspect_and_repair_glyph_bitmap(
     engine: str = "hybrid",
     is_italic_or_serif: bool = False,
     is_bold_role: bool = False,
+    tune_mode: str = "surgical",
 ) -> Tuple[np.ndarray, RepairAuditRecord]:
     """
-    Run the Surgical Multi-Method Typographic Tournament (`M0..M8`) on a single glyph,
-    guarded by the v1.0.13 Render -> Upscale (8x) -> HQ Master Confidence Sanity Gate
-    and the "Do No Harm" Conservative Trigger Gate.
+    Run the Surgical Multi-Method Typographic Tournament (`M0..M8`) on a single glyph (v1.0.14):
+      - `tune_mode == "off"`       : 100% Untouched Native FreeType (metrics & audit only).
+      - `tune_mode == "wart-only"` : Zero stem thickening; only 4-directional 1px outline-wart shaving (`M0_wart_shaved`).
+      - `tune_mode == "surgical"`  : Universal 4-directional outline-wart shaving (`M0_wart_shaved`) on all glyphs +
+                                     conservative stem/counter tournament where needed.
+      - `tune_mode == "full"`      : Full M0..M8 tournament on any glyph with stem or counter deficits.
     """
     ch_str = chr(codepoint) if 0x20 <= codepoint <= 0xFFFF else ""
     rows_before = binary_array_to_rows(base_1bit)
     h0, w0 = base_1bit.shape if base_1bit.size > 0 else (0, 0)
 
     raw_hq_metrics = compute_upscaled_hq_metrics(base_1bit, master_hi)
+    canon_holes = CANONICAL_MIN_HOLES.get(ch_str, 0)
 
     if base_1bit.size == 0 or h0 <= 2 or w0 == 0 or codepoint in SKIP_TUNING_CODEPOINTS:
+        is_blank_err = (codepoint not in SKIP_TUNING_CODEPOINTS) and (w0 == 0 or h0 == 0)
         rec = RepairAuditRecord(
             codepoint=codepoint,
             char_label=ch_str,
@@ -1214,36 +1270,38 @@ def inspect_and_repair_glyph_bitmap(
             box_h_before=h0,
             box_w_after=w0,
             box_h_after=h0,
-            holes_expected=0,
+            holes_expected=canon_holes,
             holes_before=0,
             holes_after=0,
-            thin_v_before=False,
-            thin_h_before=False,
-            thin_v_after=False,
-            thin_h_after=False,
+            thin_v_before=is_blank_err,
+            thin_h_before=is_blank_err,
+            thin_v_after=is_blank_err,
+            thin_h_after=is_blank_err,
             repaired=False,
-            size_floor_warning=False,
+            size_floor_warning=(canon_holes > 0 or is_blank_err),
             engine_used="untouched",
             rows_before=rows_before,
             rows_after=rows_before,
-            hq_conf_before=raw_hq_metrics.hq_conf_iou,
-            hq_conf_after=raw_hq_metrics.hq_conf_iou,
-            hq_diff_before=raw_hq_metrics.hq_diff_pct,
-            hq_diff_after=raw_hq_metrics.hq_diff_pct,
+            hq_conf_before=0.0 if is_blank_err else raw_hq_metrics.hq_conf_iou,
+            hq_conf_after=0.0 if is_blank_err else raw_hq_metrics.hq_conf_iou,
+            hq_diff_before=100.0 if is_blank_err else raw_hq_metrics.hq_diff_pct,
+            hq_diff_after=100.0 if is_blank_err else raw_hq_metrics.hq_diff_pct,
         )
         return base_1bit, rec
 
     b0_base, b1_base, orig_counters = compute_betti_numbers(base_1bit)
     expected_b0 = b0_base
-    expected_b1 = b1_base
+    expected_b1 = canon_holes if ch_str in CANONICAL_MIN_HOLES else (0 if ch_str in PINCH_FORBIDDEN_CHARS else b1_base)
     if expected_holes_override is not None:
         expected_b1 = expected_holes_override
     elif master_hi is not None and master_hi.size > 0:
         b0_hi, b1_hi, hi_counters = compute_betti_numbers((master_hi >= 120).astype(np.uint8) * 255)
         expected_b0 = b0_hi if b0_hi > 0 else b0_base
-        if w0 >= 5 and h0 >= 7:
-            expected_b1 = max(b1_base, b1_hi)
-            if b1_hi > b1_base and HAS_CV2:
+        if ch_str in PINCH_FORBIDDEN_CHARS:
+            expected_b1 = 0
+        else:
+            expected_b1 = max(expected_b1, b1_hi)
+            if b1_hi > b1_base and HAS_CV2 and w0 >= 4 and h0 >= 5:
                 orig_counters = cv2.bitwise_or(orig_counters, cv2.resize(hi_counters, (w0, h0), interpolation=cv2.INTER_NEAREST))
 
     upscaled_small_counters = None
@@ -1252,6 +1310,10 @@ def inspect_and_repair_glyph_bitmap(
 
     base_valley_stats = compute_open_valley_stats(base_1bit)
     needs_h0, needs_v0, h_ratio0, _ = measure_stem_deficits(base_1bit, min_stem=min_stem, codepoint=codepoint)
+    # If the glyph severely dropped out against its 8x HQ master (<42% IoU confidence or shattered into extra fragments), mark stem deficit
+    if raw_hq_metrics.hq_conf_iou < 42.0 or (expected_b0 > 0 and b0_base > expected_b0 + 1):
+        needs_h0 = True
+        h_ratio0 = min(h_ratio0, 0.25)
 
     eval_m0 = evaluate_glyph_candidate(
         "M0_untouched",
@@ -1269,23 +1331,7 @@ def inspect_and_repair_glyph_bitmap(
         base_valley_stats=base_valley_stats,
     )
 
-    # "Do No Harm" Conservative Trigger Gate (v1.0.13):
-    # 1. In Bold/ExtraBold strikes, raw FreeType stems are already >=2px–3px! Only repair if a counter
-    #    collapsed (`b1_base < expected_b1`) or if the glyph is a 1px narrow bar (`w0 <= 2`).
-    # 2. In Normal/Regular strikes, if all expected holes are open (`b1_base >= expected_b1`) AND
-    #    either `not needs_h0` OR (`ch_str in MULTI_VALLEY_CHARS` and `w0 < 12`) OR (`raw_hq_metrics.hq_conf_iou >= 75.0` and `w0 >= 6`),
-    #    keep the raw FreeType glyph 100% untouched!
-    skip_for_bold = is_bold_role and (b1_base >= expected_b1) and (w0 > 2)
-    skip_for_multi_valley = (ch_str in MULTI_VALLEY_CHARS) and (b1_base >= expected_b1) and (w0 < 12 or raw_hq_metrics.hq_conf_iou >= 50.0)
-    skip_for_high_conf = (
-        (b1_base >= expected_b1)
-        and (codepoint not in CENTRAL_SPINE_CODEPOINTS)
-        and (w0 >= 5)
-        and (raw_hq_metrics.hq_conf_iou >= 72.0)
-        and (h_ratio0 >= 0.65)
-    )
-
-    if skip_for_bold or skip_for_multi_valley or skip_for_high_conf or (not needs_h0 and b1_base >= expected_b1):
+    if tune_mode == "off":
         rec = RepairAuditRecord(
             codepoint=codepoint,
             char_label=ch_str,
@@ -1296,25 +1342,120 @@ def inspect_and_repair_glyph_bitmap(
             holes_expected=expected_b1,
             holes_before=b1_base,
             holes_after=b1_base,
-            thin_v_before=False,
-            thin_h_before=False,
-            thin_v_after=False,
-            thin_h_after=False,
+            thin_v_before=needs_h0,
+            thin_h_before=needs_v0,
+            thin_v_after=needs_h0,
+            thin_h_after=needs_v0,
             repaired=False,
-            size_floor_warning=False,
-            engine_used="M0_verified",
+            size_floor_warning=(b1_base < expected_b1) or (ch_str in PINCH_FORBIDDEN_CHARS and b1_base > 0),
+            engine_used="M0_untouched",
             rows_before=rows_before,
             rows_after=rows_before,
             score_before=eval_m0.total_score,
             score_after=eval_m0.total_score,
-            skin_tags_before=0,
-            skin_tags_after=0,
+            skin_tags_before=eval_m0.skin_tags,
+            skin_tags_after=eval_m0.skin_tags,
             hq_conf_before=raw_hq_metrics.hq_conf_iou,
             hq_conf_after=raw_hq_metrics.hq_conf_iou,
             hq_diff_before=raw_hq_metrics.hq_diff_pct,
             hq_diff_after=raw_hq_metrics.hq_diff_pct,
         )
         return base_1bit, rec
+
+    # Universal 4-Directional Outline-Wart Shaving Pass (`M0_wart_shaved`) on raw glyph:
+    # Even when a glyph skips stem thickening (e.g., Bold/ExtraBold or >=14px Medium/SemiBold),
+    # shave any HQ-verified 1px horizontal/vertical outline-warts or outer-wall notches!
+    m0_work = base_1bit
+    m0_eval_work = eval_m0
+    m0_hq_work = raw_hq_metrics
+    m0_engine = "M0_verified"
+    if eval_m0.skin_tags > 0 or eval_m0.notches > 0:
+        hq_base_cov = None
+        if master_hi is not None and master_hi.size > 0 and HAS_CV2:
+            hq_base_cov = cv2.resize(master_hi, (w0, h0), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+        shaved = clean_skin_tags_and_notches(
+            base_1bit,
+            expected_b0=b0_base,
+            expected_b1=b1_base,
+            hq_coverage=hq_base_cov,
+            allow_corner_bevel=False,
+            codepoint=codepoint,
+        )
+        shaved, sbw, sbh, _, _ = trim_binary_array(shaved)
+        if sbw > 0 and sbh > 0 and binary_array_to_rows(shaved) != rows_before:
+            up_shaved = compute_upscaled_hq_metrics(shaved, master_hi)
+            if up_shaved.hq_conf_iou >= raw_hq_metrics.hq_conf_iou - 0.25:
+                m0_work = shaved
+                m0_hq_work = up_shaved
+                m0_engine = "M0_wart_shaved"
+                m0_eval_work = evaluate_glyph_candidate(
+                    "M0_wart_shaved",
+                    shaved,
+                    master_hi,
+                    upscaled_small_ref,
+                    expected_b0=b0_base,
+                    expected_b1=b1_base,
+                    min_stem=min_stem,
+                    orig_w=w0,
+                    is_italic_or_serif=is_italic_or_serif,
+                    base_1bit=base_1bit,
+                    codepoint=codepoint,
+                    raw_hq_metrics=raw_hq_metrics,
+                    base_valley_stats=base_valley_stats,
+                )
+
+    skip_for_bold = (tune_mode != "full") and is_bold_role and (b1_base >= expected_b1) and (w0 > 2)
+    skip_for_multi_valley = (tune_mode != "full") and (ch_str in MULTI_VALLEY_CHARS) and (b1_base >= expected_b1) and (w0 < 12 or raw_hq_metrics.hq_conf_iou >= 50.0)
+    skip_for_high_conf = (
+        (tune_mode != "full")
+        and (b1_base >= expected_b1)
+        and (codepoint not in CENTRAL_SPINE_CODEPOINTS)
+        and (w0 >= 5)
+        and (raw_hq_metrics.hq_conf_iou >= 72.0)
+        and (h_ratio0 >= 0.65)
+    )
+
+    if (
+        tune_mode == "wart-only"
+        or skip_for_bold
+        or skip_for_multi_valley
+        or skip_for_high_conf
+        or (not needs_h0 and b1_base >= expected_b1)
+    ):
+        rows_m0_after = binary_array_to_rows(m0_work)
+        m0_changed = rows_m0_after != rows_before
+        needs_h_m0_after, needs_v_m0_after, _, _ = measure_stem_deficits(m0_work, min_stem=min_stem, codepoint=codepoint)
+        if m0_hq_work.hq_conf_iou < 42.0 or (expected_b0 > 0 and b0_base > expected_b0 + 1):
+            needs_h_m0_after = True
+        rec = RepairAuditRecord(
+            codepoint=codepoint,
+            char_label=ch_str,
+            box_w_before=w0,
+            box_h_before=h0,
+            box_w_after=m0_work.shape[1],
+            box_h_after=m0_work.shape[0],
+            holes_expected=expected_b1,
+            holes_before=b1_base,
+            holes_after=b1_base,
+            thin_v_before=needs_h0,
+            thin_h_before=needs_v0,
+            thin_v_after=needs_h_m0_after,
+            thin_h_after=needs_v_m0_after,
+            repaired=m0_changed,
+            size_floor_warning=(b1_base < expected_b1) or (ch_str in PINCH_FORBIDDEN_CHARS and b1_base > 0),
+            engine_used=m0_engine,
+            rows_before=rows_before,
+            rows_after=rows_m0_after,
+            score_before=eval_m0.total_score,
+            score_after=m0_eval_work.total_score,
+            skin_tags_before=eval_m0.skin_tags,
+            skin_tags_after=m0_eval_work.skin_tags,
+            hq_conf_before=raw_hq_metrics.hq_conf_iou,
+            hq_conf_after=m0_hq_work.hq_conf_iou,
+            hq_diff_before=raw_hq_metrics.hq_diff_pct,
+            hq_diff_after=m0_hq_work.hq_diff_pct,
+        )
+        return m0_work, rec
 
     effective_max_w = max_width_ceiling
     if effective_max_w is not None and codepoint in CENTRAL_SPINE_CODEPOINTS:
@@ -1358,6 +1499,7 @@ def inspect_and_repair_glyph_bitmap(
             expected_b1=expected_b1,
             hq_coverage=hq_cand_cov,
             allow_corner_bevel=allow_bevel,
+            codepoint=codepoint,
         )
         cleaned, cbw, cbh, _, _ = trim_binary_array(cleaned)
         if cbw == 0 or cbh == 0:
@@ -1383,13 +1525,13 @@ def inspect_and_repair_glyph_bitmap(
                 best_eval = ev
 
     # Require a decisive score improvement (>= +3.5 pts) over M0_untouched before modifying a glyph
-    if best_eval.method_id != "M0_untouched" and (best_eval.total_score >= eval_m0.total_score + 2.2):
+    if best_eval.method_id not in ("M0_untouched", "M0_wart_shaved") and (best_eval.total_score >= m0_eval_work.total_score + 2.2):
         winner = best_eval.binary
         used_method = best_eval.method_id
     else:
-        winner = base_1bit.copy()
-        best_eval = eval_m0
-        used_method = "M0_untouched"
+        winner = m0_work.copy()
+        best_eval = m0_eval_work
+        used_method = m0_engine
 
     rows_after = binary_array_to_rows(winner)
     changed = rows_after != rows_before
@@ -1599,6 +1741,13 @@ def main() -> None:
         help="Closed-loop tournament mode (default: hybrid)",
     )
     parser.add_argument(
+        "--tune-mode",
+        type=str,
+        choices=["off", "wart-only", "surgical", "full"],
+        default="surgical",
+        help="Tuning intervention level: off (native weight only), wart-only (4-dir wart shaving + mirror sync), surgical (default), or full",
+    )
+    parser.add_argument(
         "--save-patches",
         action="store_true",
         default=True,
@@ -1619,6 +1768,7 @@ def main() -> None:
         "--patches", args.patches,
         "--min-stem", str(args.min_stem),
         "--repair-engine", args.engine,
+        "--tune-mode", args.tune_mode,
         "--save-repaired-patches",
     ]
     if args.ascii_dir:

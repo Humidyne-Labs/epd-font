@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_font_eval.py (v1.0.13)
+humid1_font_eval.py (v1.0.14)
 =============================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Font & Weight Evaluation Suite,
 Pre-Tune vs. Post-Tune Traceability Engine, Upscaled-to-HQ Confidence Scorer &
@@ -10,7 +10,7 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-What's New in v1.0.13:
+What's New in v1.0.14:
 ----------------------
 1. Dynamic Recursive Directory Scanner (`--src-dir` / `--fonts`):
    Automatically discovers all `.ttf`, `.otf`, `.ttc` (TrueType Collection), and `.bdf`
@@ -64,15 +64,16 @@ from humid1_ft_raster import (
     FT_LOAD_TARGET_NORMAL,
     GlyphStrike,
     load_freetype,
+    open_ttfont_safe,
     rasterize_font_strike,
 )
 
-TOOL_VERSION = "1.0.13"
+TOOL_VERSION = "1.0.14"
 
 # Diagnostic benchmark character set (57 critical glyphs: counters, multi-valley diagonals, paired brackets, symbols)
 EVAL_BENCHMARK_CHARS = "0124689ABCDHIJMNOPQRWabcefghijlmnoqrstvwxyz$%&()[]{}/\\|!<>+="
 EVAL_COUNTER_CHARS = set("04689ABDOPQRabdegopq$%&")
-EVAL_SPECIMEN_STRING = "H1OS v1.0.13 (08B$) [aeg] {WwMm} <=>"
+EVAL_SPECIMEN_STRING = "H1OS v1.0.14 (08B$) [aeg] {WwMm} <=>"
 EVAL_ZOOM_STRIP_CHARS = "WwMmABCfgrs$()[]08"
 
 
@@ -187,7 +188,7 @@ def inspect_font_metadata(font_path: Path) -> Optional[Tuple[str, str, int, bool
     family_name = font_path.stem
 
     try:
-        tt = TTFont(str(font_path), fontNumber=0 if fname_low.endswith(".ttc") else None, lazy=True)
+        tt = open_ttfont_safe(font_path, font_number=0, lazy=True)
         cmap = tt.getBestCmap() or {}
         # Must support basic Latin uppercase/lowercase ('A', 'B', 'W', 'a', 'g', 'w')
         if not (0x0041 in cmap and 0x0057 in cmap and 0x0061 in cmap):
@@ -297,6 +298,12 @@ def discover_candidate_fonts(
                 ("Inter Bold (w700) [External]", inter_dir / "Inter-Bold.otf", "sans", 700, False),
                 ("Inter ExtraBold (w800) [External]", inter_dir / "Inter-ExtraBold.otf", "sans", 800, False),
             ])
+        ex_v114 = src_dir.parent.parent / "docs" / "audits" / "exhibits" / "v1.0.14" / "approx-fonts-ttf"
+        if ex_v114.is_dir():
+            if (ex_v114 / "Inter-ExtraBold.ttf").is_file():
+                default_specs.append(("Inter ExtraBold (w800) [v1.0.14 Exhibit]", ex_v114 / "Inter-ExtraBold.ttf", "sans", 800, False))
+            if (ex_v114 / "InterDisplay-ThinItalic.ttf").is_file():
+                default_specs.append(("InterDisplay ThinItalic (w100) [v1.0.14 Exhibit]", ex_v114 / "InterDisplay-ThinItalic.ttf", "sans", 100, True))
         for lbl, p, fg, wght, is_it in default_specs:
             if p.is_file():
                 candidates.append((lbl, p, fg, wght, is_it))
@@ -476,6 +483,31 @@ def render_single_font_eval_sheet(
     img.save(out_png, optimize=True)
 
 
+CORE_SINGLE_LOOP_CHARS = set("069ADOPQRabdeopq")
+
+
+def _check_counter_cavity_viable(rows: Sequence[str], ch: str, sz: int, weight_class: int, is_terminus: bool) -> bool:
+    """
+    Verify that enclosed counters are not pinched into 1px pinholes on Bold/ExtraBold strikes,
+    open-tail characters ('6', '9', 'e') did not pinch into 2-hole figure-8s,
+    and open-curve characters ('s', 'c', 'w', 'M') did not pinch shut into false loops.
+    """
+    if not rows:
+        return False
+    arr = bt.rows_to_binary_array(rows)
+    _, b1, holes_mask = bt.compute_betti_numbers(arr)
+    if ch in bt.PINCH_FORBIDDEN_CHARS:
+        return b1 == 0
+    exp_b1 = bt.CANONICAL_MIN_HOLES.get(ch, 1 if ch in EVAL_COUNTER_CHARS else 0)
+    if b1 < exp_b1:
+        return False
+    if not is_terminus and sz >= 10 and ch in CORE_SINGLE_LOOP_CHARS and weight_class >= 650:
+        hole_px = int(np.count_nonzero(holes_mask))
+        if hole_px < 2:
+            return False
+    return True
+
+
 def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[GlyphStrike]], Dict[int, List[GlyphStrike]]]:
     """ProcessPoolExecutor worker that evaluates a single font (both Raw and Tuned) and renders its PNG sheet."""
     label = task["label"]
@@ -484,10 +516,8 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
     weight_class = task["weight_class"]
     is_italic = task["is_italic"]
     sizes = task["sizes"]
+    tune_mode = task.get("tune_mode", "surgical")
     sheets_dir = Path(task["sheets_dir"]) if task.get("sheets_dir") else None
-
-    ft, ft_lib = load_freetype()
-    codepoints = sorted({ord(c) for c in (EVAL_BENCHMARK_CHARS + EVAL_SPECIMEN_STRING + EVAL_ZOOM_STRIP_CHARS)})
 
     summary = FontEvalSummary(
         label=label,
@@ -500,202 +530,262 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
         mean_16px_tuning_burden_pct=0.0,
         mean_16px_raw_hq_conf_pct=0.0,
         mean_16px_tuned_hq_conf_pct=0.0,
-        recommendation_tier="TIER 2: VIABLE WITH LIGHT TUNE",
+        recommendation_tier="TIER 2: VIABLE WITH SURGICAL TUNE",
     )
 
     raw_strikes_by_size: Dict[int, List[GlyphStrike]] = {}
     tuned_strikes_by_size: Dict[int, List[GlyphStrike]] = {}
 
-    is_terminus = "terminus" in font_path.name.lower()
-    is_mono = (family_group == "mono") or is_terminus
-    is_bold_role = weight_class >= 650
+    try:
+        ft, ft_lib = load_freetype()
+        codepoints = sorted({ord(c) for c in (EVAL_BENCHMARK_CHARS + EVAL_SPECIMEN_STRING + EVAL_ZOOM_STRIP_CHARS)})
 
-    for sz in sizes:
-        active_path = font_path
-        if is_terminus:
-            role_tag = "Bold" if weight_class >= 700 else "Normal"
-            cand_term = font_path.parent / f"Terminus-{role_tag}-{sz}.ttf"
-            if cand_term.is_file():
-                active_path = cand_term
+        is_terminus = "terminus" in font_path.name.lower()
+        is_mono = (family_group == "mono") or is_terminus
+        is_bold_role = weight_class >= 650
 
-        glyphs, *_ = rasterize_font_strike(
-            ft=ft,
-            ft_lib=ft_lib,
-            font_path=active_path,
-            size_px=sz,
-            codepoints=codepoints,
-            raster_mode="autohint_mono",
-            threshold=128,
-        )
-        raw_glyphs = [_clone_glyph(g) for g in glyphs]
-        raw_strikes_by_size[sz] = raw_glyphs
+        for sz in sizes:
+            active_path = font_path
+            if is_terminus:
+                role_tag = "Bold" if weight_class >= 700 else "Normal"
+                cand_term = font_path.parent / f"Terminus-{role_tag}-{sz}.ttf"
+                if cand_term.is_file():
+                    active_path = cand_term
 
-        hq_face = ctypes.POINTER(FT_FaceRec)()
-        has_hq = (ft.FT_New_Face(ft_lib, str(active_path).encode("utf-8"), 0, ctypes.byref(hq_face)) == 0)
-        if has_hq:
-            ft.FT_Set_Pixel_Sizes(hq_face, 0, sz * 8)
+            glyphs, *_ = rasterize_font_strike(
+                ft=ft,
+                ft_lib=ft_lib,
+                font_path=active_path,
+                size_px=sz,
+                codepoints=codepoints,
+                raster_mode="autohint_mono",
+                threshold=128,
+                font_number=0,
+            )
+            raw_glyphs = [_clone_glyph(g) for g in glyphs]
+            raw_strikes_by_size[sz] = raw_glyphs
 
-        recs: List[bt.RepairAuditRecord] = []
-        raw_confs: List[float] = []
-        tun_confs: List[float] = []
-        raw_diffs: List[float] = []
-        tun_diffs: List[float] = []
-        stem_ok_raw = 0
-        stem_ok_tun = 0
-        stem_total = 0
-        cnt_ok_raw = 0
-        cnt_ok_tun = 0
-        cnt_total = 0
+            hq_face = ctypes.POINTER(FT_FaceRec)()
+            has_hq = (ft.FT_New_Face(ft_lib, str(active_path).encode("utf-8"), 0, ctypes.byref(hq_face)) == 0)
+            if has_hq:
+                ft.FT_Set_Pixel_Sizes(hq_face, 0, sz * 8)
 
-        for g in glyphs:
-            if not g.rows or g.codepoint <= 0x0020:
-                continue
-            ch = chr(g.codepoint)
-            arr_bef = bt.rows_to_binary_array(g.rows)
-            hq_img = _render_hq_gray_for_face(ft, hq_face, g.codepoint) if has_hq else None
+            recs: List[bt.RepairAuditRecord] = []
+            raw_confs: List[float] = []
+            tun_confs: List[float] = []
+            raw_diffs: List[float] = []
+            tun_diffs: List[float] = []
+
+            for g in glyphs:
+                if not g.rows or g.codepoint <= 0x0020:
+                    continue
+                ch = chr(g.codepoint)
+                arr_bef = bt.rows_to_binary_array(g.rows)
+                hq_img = _render_hq_gray_for_face(ft, hq_face, g.codepoint) if has_hq else None
+
+                if is_terminus:
+                    up_m = bt.compute_upscaled_hq_metrics(arr_bef, hq_img)
+                    b0, b1, _ = bt.compute_betti_numbers(arr_bef)
+                    exp_b1 = 2 if ch in "8B%" else (1 if ch in EVAL_COUNTER_CHARS else 0)
+                    rec = bt.RepairAuditRecord(
+                        codepoint=g.codepoint,
+                        char_label=ch,
+                        box_w_before=g.box_w,
+                        box_h_before=g.box_h,
+                        box_w_after=g.box_w,
+                        box_h_after=g.box_h,
+                        holes_expected=exp_b1,
+                        holes_before=b1,
+                        holes_after=b1,
+                        thin_v_before=False,
+                        thin_h_before=False,
+                        thin_v_after=False,
+                        thin_h_after=False,
+                        repaired=False,
+                        size_floor_warning=(b1 < exp_b1),
+                        engine_used="NativeBDF",
+                        rows_before=g.rows,
+                        rows_after=g.rows,
+                        score_before=88.0,
+                        score_after=88.0,
+                        hq_conf_before=up_m.hq_conf_iou,
+                        hq_conf_after=up_m.hq_conf_iou,
+                        hq_diff_before=up_m.hq_diff_pct,
+                        hq_diff_after=up_m.hq_diff_pct,
+                    )
+                    recs.append(rec)
+                else:
+                    max_w = (g.adv_w_fp4 >> 4) if is_mono else ((g.adv_w_fp4 >> 4) + 1)
+                    w_orig = g.box_w
+                    rep_arr, rec = bt.inspect_and_repair_glyph_bitmap(
+                        arr_bef,
+                        codepoint=g.codepoint,
+                        min_stem=2,
+                        master_hi=hq_img,
+                        max_width_ceiling=max_w,
+                        is_italic_or_serif=is_italic or (family_group == "serif"),
+                        is_bold_role=is_bold_role,
+                        tune_mode=tune_mode,
+                    )
+                    recs.append(rec)
+                    if rec.repaired:
+                        trimmed, bw, bh, nox, noy = bt.trim_binary_array(rep_arr, g.ofs_x, g.ofs_y)
+                        if bw > 0 and bh > 0:
+                            g.rows = bt.binary_array_to_rows(trimmed)
+                            g.box_w, g.box_h, g.ofs_x, g.ofs_y = bw, bh, nox, noy
+                            g.patched = True
+                            if not is_mono and bw > w_orig:
+                                g.adv_w_fp4 += (bw - w_orig) * 16
+
+            if not is_terminus and tune_mode != "off":
+                bt.synchronize_mirror_glyph_pairs(glyphs, recs, is_italic=is_italic, is_monospace=is_mono)
+
+            if has_hq:
+                ft.FT_Done_Face(hq_face)
+
+            rec_by_ch = {r.char_label: r for r in recs if r.char_label in EVAL_BENCHMARK_CHARS}
+            stem_total = len(EVAL_BENCHMARK_CHARS)
+            stem_ok_raw = 0
+            stem_ok_tun = 0
+            cnt_total = 0
+            cnt_ok_raw = 0
+            cnt_ok_tun = 0
+            missing_bench = 0
+            pinched_or_pinhole_raw = 0
+            pinched_or_pinhole_tun = 0
+
+            for ch in EVAL_BENCHMARK_CHARS:
+                r = rec_by_ch.get(ch)
+                if r is None:
+                    # Glyph vanished completely (0 ink pixels in FreeType mono, e.g., Thin w100 / ExtraLight w200)
+                    missing_bench += 1
+                    raw_confs.append(0.0)
+                    tun_confs.append(0.0)
+                    raw_diffs.append(100.0)
+                    tun_diffs.append(100.0)
+                    if ch in EVAL_COUNTER_CHARS:
+                        cnt_total += 1
+                    continue
+
+                raw_confs.append(r.hq_conf_before)
+                tun_confs.append(r.hq_conf_after)
+                raw_diffs.append(r.hq_diff_before)
+                tun_diffs.append(r.hq_diff_after)
+
+                if not r.thin_v_before and r.hq_conf_before >= 42.0:
+                    stem_ok_raw += 1
+                if not r.thin_v_after and r.hq_conf_after >= 42.0:
+                    stem_ok_tun += 1
+
+                if ch in EVAL_COUNTER_CHARS and r.holes_expected > 0:
+                    cnt_total += 1
+                    raw_cav_ok = _check_counter_cavity_viable(r.rows_before, ch, sz, weight_class, is_terminus)
+                    tun_cav_ok = _check_counter_cavity_viable(r.rows_after, ch, sz, weight_class, is_terminus)
+                    if r.holes_before >= r.holes_expected and raw_cav_ok:
+                        cnt_ok_raw += 1
+                    elif ch in CORE_SINGLE_LOOP_CHARS or ch in "8B":
+                        pinched_or_pinhole_raw += 1
+                    if r.holes_after >= r.holes_expected and tun_cav_ok:
+                        cnt_ok_tun += 1
+                    elif ch in CORE_SINGLE_LOOP_CHARS or ch in "8B":
+                        pinched_or_pinhole_tun += 1
+                elif ch in "scwM":
+                    if not _check_counter_cavity_viable(r.rows_before, ch, sz, weight_class, is_terminus):
+                        pinched_or_pinhole_raw += 1
+                    if not _check_counter_cavity_viable(r.rows_after, ch, sz, weight_class, is_terminus):
+                        pinched_or_pinhole_tun += 1
+
+            s_raw = (float(stem_ok_raw) / float(max(1, stem_total))) * 100.0
+            s_tun = (float(stem_ok_tun) / float(max(1, stem_total))) * 100.0
+            c_raw = (float(cnt_ok_raw) / float(max(1, cnt_total))) * 100.0
+            c_tun = (float(cnt_ok_tun) / float(max(1, cnt_total))) * 100.0
+
+            raw_bench = [g for g in raw_glyphs if g.codepoint > 0x20 and chr(g.codepoint) in EVAL_BENCHMARK_CHARS]
+            tun_bench = [g for g in glyphs if g.codepoint > 0x20 and chr(g.codepoint) in EVAL_BENCHMARK_CHARS]
+            raw_ink = sum(sum(row.count("#") for row in g.rows) for g in raw_bench if g.rows)
+            tun_ink = sum(sum(row.count("#") for row in g.rows) for g in tun_bench if g.rows)
+            w_raw = _measure_mean_stem_width(raw_bench) if missing_bench < (stem_total // 2) else 0.0
+            w_tun = _measure_mean_stem_width(tun_bench) if missing_bench < (stem_total // 2) else 0.0
+
+            rep_cnt = sum(1 for r in recs if r.repaired and r.char_label in EVAL_BENCHMARK_CHARS)
+            tot_cnt = max(1, stem_total)
+            burden_pct = (float(rep_cnt) / float(tot_cnt)) * 100.0
+
+            mean_raw_conf = float(np.mean(raw_confs)) if raw_confs else 0.0
+            mean_tun_conf = float(np.mean(tun_confs)) if tun_confs else 0.0
 
             if is_terminus:
-                up_m = bt.compute_upscaled_hq_metrics(arr_bef, hq_img)
-                b0, b1, _ = bt.compute_betti_numbers(arr_bef)
-                exp_b1 = 2 if ch in "8B$" else (1 if ch in EVAL_COUNTER_CHARS else 0)
-                rec = bt.RepairAuditRecord(
-                    codepoint=g.codepoint,
-                    char_label=ch,
-                    box_w_before=g.box_w,
-                    box_h_before=g.box_h,
-                    box_w_after=g.box_w,
-                    box_h_after=g.box_h,
-                    holes_expected=exp_b1,
-                    holes_before=b1,
-                    holes_after=b1,
-                    thin_v_before=False,
-                    thin_h_before=False,
-                    thin_v_after=False,
-                    thin_h_after=False,
-                    repaired=False,
-                    size_floor_warning=(b1 < exp_b1),
-                    engine_used="NativeBDF",
-                    rows_before=g.rows,
-                    rows_after=g.rows,
-                    score_before=88.0,
-                    score_after=88.0,
-                    hq_conf_before=up_m.hq_conf_iou,
-                    hq_conf_after=up_m.hq_conf_iou,
-                    hq_diff_before=up_m.hq_diff_pct,
-                    hq_diff_after=up_m.hq_diff_pct,
-                )
-                recs.append(rec)
+                pass_raw = (missing_bench == 0) and (c_raw >= 88.0)
+                pass_tun = (missing_bench == 0) and (c_tun >= 88.0)
             else:
-                max_w = (g.adv_w_fp4 >> 4) if is_mono else ((g.adv_w_fp4 >> 4) + 1)
-                w_orig = g.box_w
-                rep_arr, rec = bt.inspect_and_repair_glyph_bitmap(
-                    arr_bef,
-                    codepoint=g.codepoint,
-                    min_stem=2,
-                    master_hi=hq_img,
-                    max_width_ceiling=max_w,
-                    is_italic_or_serif=is_italic or (family_group == "serif"),
-                    is_bold_role=is_bold_role,
+                pass_raw = (
+                    (missing_bench == 0)
+                    and (pinched_or_pinhole_raw == 0)
+                    and (mean_raw_conf >= 72.0)
+                    and (c_raw >= 94.0)
+                    and (s_raw >= 82.0)
+                    and (w_raw >= 1.62)
                 )
-                recs.append(rec)
-                if rec.repaired:
-                    trimmed, bw, bh, nox, noy = bt.trim_binary_array(rep_arr, g.ofs_x, g.ofs_y)
-                    if bw > 0 and bh > 0:
-                        g.rows = bt.binary_array_to_rows(trimmed)
-                        g.box_w, g.box_h, g.ofs_x, g.ofs_y = bw, bh, nox, noy
-                        g.patched = True
-                        if not is_mono and bw > w_orig:
-                            g.adv_w_fp4 += (bw - w_orig) * 16
+                pass_tun = (
+                    (missing_bench == 0)
+                    and (pinched_or_pinhole_tun == 0)
+                    and (mean_tun_conf >= 73.0)
+                    and (c_tun >= 94.0)
+                    and (s_tun >= 85.0)
+                    and (w_tun >= 1.68)
+                    and (burden_pct <= 48.0)
+                )
 
-        if not is_terminus:
-            bt.synchronize_mirror_glyph_pairs(glyphs, recs, is_italic=is_italic, is_monospace=is_mono)
+            if pass_raw and summary.size_floor_raw_px == 99:
+                summary.size_floor_raw_px = sz
+            if pass_tun and summary.size_floor_tuned_px == 99:
+                summary.size_floor_tuned_px = sz
 
-        if has_hq:
-            ft.FT_Done_Face(hq_face)
+            summary.by_size[sz] = SizeMetrics(
+                size_px=sz,
+                raw_hq_conf_pct=round(mean_raw_conf, 1),
+                tuned_hq_conf_pct=round(mean_tun_conf, 1),
+                raw_hq_diff_pct=round(float(np.mean(raw_diffs)) if raw_diffs else 100.0, 1),
+                tuned_hq_diff_pct=round(float(np.mean(tun_diffs)) if tun_diffs else 100.0, 1),
+                raw_stem_2px_pct=round(s_raw, 1),
+                tuned_stem_2px_pct=round(s_tun, 1),
+                raw_counter_pct=round(c_raw, 1),
+                tuned_counter_pct=round(c_tun, 1),
+                mean_stem_width_raw_px=round(w_raw, 2),
+                mean_stem_width_tuned_px=round(w_tun, 2),
+                raw_ink_pixels=int(raw_ink),
+                tuned_ink_pixels=int(tun_ink),
+                repaired_glyphs=rep_cnt,
+                total_glyphs=tot_cnt,
+                tuning_burden_pct=round(burden_pct, 1),
+                passes_floor_raw=pass_raw,
+                passes_floor_tuned=pass_tun,
+            )
+            tuned_strikes_by_size[sz] = glyphs
 
-        for r in recs:
-            if r.char_label not in EVAL_BENCHMARK_CHARS:
-                continue
-            raw_confs.append(r.hq_conf_before)
-            tun_confs.append(r.hq_conf_after)
-            raw_diffs.append(r.hq_diff_before)
-            tun_diffs.append(r.hq_diff_after)
-            stem_total += 1
-            if not r.thin_v_before:
-                stem_ok_raw += 1
-            if not r.thin_v_after:
-                stem_ok_tun += 1
-            if r.char_label in EVAL_COUNTER_CHARS and r.holes_expected > 0:
-                cnt_total += 1
-                if r.holes_before >= r.holes_expected:
-                    cnt_ok_raw += 1
-                if r.holes_after >= r.holes_expected:
-                    cnt_ok_tun += 1
+        ref_sz = 16 if 16 in summary.by_size else (sizes[len(sizes) // 2] if sizes else 16)
+        m_ref = summary.by_size.get(ref_sz)
+        if m_ref:
+            summary.mean_16px_tuning_burden_pct = m_ref.tuning_burden_pct
+            summary.mean_16px_raw_hq_conf_pct = m_ref.raw_hq_conf_pct
+            summary.mean_16px_tuned_hq_conf_pct = m_ref.tuned_hq_conf_pct
+            if summary.size_floor_raw_px <= 16 and m_ref.tuning_burden_pct <= 22.0 and m_ref.raw_hq_conf_pct >= 72.0:
+                summary.recommendation_tier = "TIER 1: NATIVE READY (Minimal/Zero Tune Needed)"
+            elif summary.size_floor_tuned_px <= 16 and m_ref.tuning_burden_pct <= 48.0 and m_ref.tuned_hq_conf_pct >= 72.0:
+                summary.recommendation_tier = "TIER 2: VIABLE WITH SURGICAL TUNE"
+            elif m_ref.raw_hq_conf_pct < 45.0 or weight_class <= 250:
+                summary.recommendation_tier = "TIER 4: DO NOT USE ON 1-BPP EPD (Sub-Pixel Hairline Dropout)"
+            else:
+                summary.recommendation_tier = "TIER 3: HIGH TUNE BURDEN / LARGE SIZES (>=20px) ONLY"
 
-        s_raw = (float(stem_ok_raw) / float(max(1, stem_total))) * 100.0
-        s_tun = (float(stem_ok_tun) / float(max(1, stem_total))) * 100.0
-        c_raw = (float(cnt_ok_raw) / float(max(1, cnt_total))) * 100.0
-        c_tun = (float(cnt_ok_tun) / float(max(1, cnt_total))) * 100.0
-
-        raw_bench = [g for g in raw_glyphs if g.codepoint > 0x20 and chr(g.codepoint) in EVAL_BENCHMARK_CHARS]
-        tun_bench = [g for g in glyphs if g.codepoint > 0x20 and chr(g.codepoint) in EVAL_BENCHMARK_CHARS]
-        raw_ink = sum(sum(row.count("#") for row in g.rows) for g in raw_bench if g.rows)
-        tun_ink = sum(sum(row.count("#") for row in g.rows) for g in tun_bench if g.rows)
-        w_raw = _measure_mean_stem_width(raw_bench)
-        w_tun = _measure_mean_stem_width(tun_bench)
-
-        rep_cnt = sum(1 for r in recs if r.repaired and r.char_label in EVAL_BENCHMARK_CHARS)
-        tot_cnt = max(1, stem_total)
-        burden_pct = (float(rep_cnt) / float(tot_cnt)) * 100.0
-
-        pass_raw = (c_raw >= 88.0) and (s_raw >= 78.0 if not is_terminus else True)
-        pass_tun = (c_tun >= 90.0) and (s_tun >= 85.0 if not is_terminus else True)
-
-        if pass_raw and summary.size_floor_raw_px == 99:
-            summary.size_floor_raw_px = sz
-        if pass_tun and summary.size_floor_tuned_px == 99:
-            summary.size_floor_tuned_px = sz
-
-        summary.by_size[sz] = SizeMetrics(
-            size_px=sz,
-            raw_hq_conf_pct=round(float(np.mean(raw_confs)) if raw_confs else 0.0, 1),
-            tuned_hq_conf_pct=round(float(np.mean(tun_confs)) if tun_confs else 0.0, 1),
-            raw_hq_diff_pct=round(float(np.mean(raw_diffs)) if raw_diffs else 0.0, 1),
-            tuned_hq_diff_pct=round(float(np.mean(tun_diffs)) if tun_diffs else 0.0, 1),
-            raw_stem_2px_pct=round(s_raw, 1),
-            tuned_stem_2px_pct=round(s_tun, 1),
-            raw_counter_pct=round(c_raw, 1),
-            tuned_counter_pct=round(c_tun, 1),
-            mean_stem_width_raw_px=round(w_raw, 2),
-            mean_stem_width_tuned_px=round(w_tun, 2),
-            raw_ink_pixels=int(raw_ink),
-            tuned_ink_pixels=int(tun_ink),
-            repaired_glyphs=rep_cnt,
-            total_glyphs=tot_cnt,
-            tuning_burden_pct=round(burden_pct, 1),
-            passes_floor_raw=pass_raw,
-            passes_floor_tuned=pass_tun,
-        )
-        tuned_strikes_by_size[sz] = glyphs
-
-    ref_sz = 16 if 16 in summary.by_size else (sizes[len(sizes) // 2] if sizes else 16)
-    m_ref = summary.by_size.get(ref_sz)
-    if m_ref:
-        summary.mean_16px_tuning_burden_pct = m_ref.tuning_burden_pct
-        summary.mean_16px_raw_hq_conf_pct = m_ref.raw_hq_conf_pct
-        summary.mean_16px_tuned_hq_conf_pct = m_ref.tuned_hq_conf_pct
-        if summary.size_floor_raw_px <= 16 and m_ref.tuning_burden_pct <= 22.0 and m_ref.raw_hq_conf_pct >= 68.0:
-            summary.recommendation_tier = "TIER 1: NATIVE READY (Minimal/Zero Tune Needed)"
-        elif summary.size_floor_tuned_px <= 16 and m_ref.tuning_burden_pct <= 45.0:
-            summary.recommendation_tier = "TIER 2: VIABLE WITH SURGICAL TUNE"
-        else:
-            summary.recommendation_tier = "TIER 3: HIGH TUNE BURDEN / LARGE SIZES ONLY"
-
-    if sheets_dir is not None:
-        safe_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", font_path.stem)
-        sheet_path = sheets_dir / f"{safe_slug}_eval.png"
-        render_single_font_eval_sheet(sheet_path, summary, raw_strikes_by_size, tuned_strikes_by_size, sizes)
-        summary.sheet_png = f"sheets/{sheet_path.name}"
+        if sheets_dir is not None and raw_strikes_by_size:
+            safe_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", font_path.stem)
+            sheet_path = sheets_dir / f"{safe_slug}_eval.png"
+            render_single_font_eval_sheet(sheet_path, summary, raw_strikes_by_size, tuned_strikes_by_size, sizes)
+            summary.sheet_png = f"sheets/{sheet_path.name}"
+    except Exception as exc:
+        print(f"[!] Warning: Worker skipped malformed/unreadable font {font_path.name}: {exc}", file=sys.stderr)
+        summary.recommendation_tier = f"SKIPPED / ERROR ({type(exc).__name__})"
 
     return summary, raw_strikes_by_size, tuned_strikes_by_size
 
@@ -881,6 +971,13 @@ def main() -> None:
     parser.add_argument("--out-dir", type=str, default=str(repo_root / "build" / "font_eval"), help="Output directory for reports & per-font PNG sheets")
     parser.add_argument("--fonts", type=str, nargs="*", default=None, help="Optional explicit list of .ttf/.otf/.ttc font paths to evaluate")
     parser.add_argument("--sizes", type=int, nargs="+", default=[12, 14, 16, 20, 24], help="Pixel sizes to benchmark (default: 12 14 16 20 24)")
+    parser.add_argument(
+        "--tune-mode",
+        type=str,
+        choices=["off", "wart-only", "surgical", "full"],
+        default="surgical",
+        help="Auto-tune intervention level: off (native weights only), wart-only (4-dir wart shaving + mirror sync), surgical (default), or full",
+    )
     parser.add_argument("-j", "--jobs", type=int, default=None, help="Number of parallel CPU worker processes (default: all CPU cores)")
     args = parser.parse_args()
 
@@ -906,6 +1003,7 @@ def main() -> None:
             "weight_class": wght,
             "is_italic": is_it,
             "sizes": list(args.sizes),
+            "tune_mode": args.tune_mode,
             "sheets_dir": str(sheets_dir),
         }
         for (lbl, fpath, fg, wght, is_it) in candidates

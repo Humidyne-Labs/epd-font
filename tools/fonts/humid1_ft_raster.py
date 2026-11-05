@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ft_raster.py (v1.0.13)
+humid1_ft_raster.py (v1.0.14)
 =============================
 Humidyne Labs / Humiditron `epd-font` FreeType 2 Ctypes Binding, Semantic Glyph Registry,
 Kerning Extractor & 1-BPP Scanline Rasterizer Module.
@@ -17,16 +17,30 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from fontTools.ttLib import TTFont
+from fontTools.ttLib import TTFont, TTLibFileIsCollectionError
 
-TOOL_VERSION = "1.0.13"
+
+def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = False) -> TTFont:
+    """
+    Safely open a `.ttf`, `.otf`, or `.ttc`/`.otc` TrueType Collection file via fontTools.
+    Fixes the v1.0.13 crash (`TTLibFileIsCollectionError: specify a font number between 0 and N`)
+    when scanning or rasterizing `.ttc` font collections (such as `IosevkaAile-Bold.ttc`).
+    """
+    fp_str = str(font_path)
+    is_ttc = fp_str.lower().endswith((".ttc", ".otc"))
+    try:
+        return TTFont(fp_str, fontNumber=font_number if is_ttc else None, lazy=lazy)
+    except TTLibFileIsCollectionError:
+        return TTFont(fp_str, fontNumber=font_number, lazy=lazy)
+
+TOOL_VERSION = "1.0.14"
 
 FT_LOAD_NO_HINTING = 1 << 1
 
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.13 `humid1_` symbol naming convention:
+    Canonical v1.0.14 `humid1_` symbol naming convention:
       - IBM Plex families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Terminus family (terminus)                        -> humid1_font_terminus_<role>_<size>
       - Modular Icon families (icon_fa7, icon_lucide...)  -> humid1_<family>_<role>_<size>
@@ -553,17 +567,18 @@ def rasterize_font_strike(
     auto_floor: bool = False,
     min_stem: int = 2,
     repair_engine: str = "hybrid",
+    font_number: int = 0,
 ) -> Tuple[List[GlyphStrike], int, int, int, int, List[Tuple[int, int, int, int, int]]]:
     """
     Rasterize a 1-bpp font strike using FreeType2 + fontTools with optional FontAwesome 5 merge,
     JSON patch manifest overrides, and direct ASCII .txt folder overrides.
     """
     face_ptr = ctypes.POINTER(FT_FaceRec)()
-    if ft.FT_New_Face(ft_lib, str(font_path).encode("utf-8"), 0, ctypes.byref(face_ptr)) != 0:
+    if ft.FT_New_Face(ft_lib, str(font_path).encode("utf-8"), int(font_number), ctypes.byref(face_ptr)) != 0:
         raise RuntimeError(f"FT_New_Face failed for {font_path}")
     ft.FT_Set_Pixel_Sizes(face_ptr, 0, size_px)
 
-    tt = TTFont(str(font_path))
+    tt = open_ttfont_safe(font_path, font_number=font_number)
     cmap = tt.getBestCmap() or {}
     hmtx = tt["hmtx"].metrics
     upem = tt["head"].unitsPerEm
@@ -709,7 +724,7 @@ def rasterize_font_strike(
         s_ptr = ctypes.POINTER(FT_FaceRec)()
         if ft.FT_New_Face(ft_lib, str(sp).encode("utf-8"), 0, ctypes.byref(s_ptr)) == 0:
             ft.FT_Set_Pixel_Sizes(s_ptr, 0, size_px)
-            s_tt = TTFont(str(sp))
+            s_tt = open_ttfont_safe(sp, font_number=0)
             secondary_faces.append((s_ptr, s_tt.getBestCmap() or {}, s_tt["hmtx"].metrics, s_tt["head"].unitsPerEm))
 
     # Optional closed-loop auto-floor tuner import
@@ -797,7 +812,7 @@ def rasterize_font_strike(
         fa_face_ptr = ctypes.POINTER(FT_FaceRec)()
         if ft.FT_New_Face(ft_lib, str(fa_path).encode("utf-8"), 0, ctypes.byref(fa_face_ptr)) == 0:
             ft.FT_Set_Pixel_Sizes(fa_face_ptr, 0, size_px)
-            fa_tt = TTFont(str(fa_path))
+            fa_tt = open_ttfont_safe(fa_path, font_number=0)
             fa_cmap = fa_tt.getBestCmap() or {}
             fa_hmtx = fa_tt["hmtx"].metrics
             fa_upem = fa_tt["head"].unitsPerEm

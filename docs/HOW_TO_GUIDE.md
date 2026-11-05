@@ -1,4 +1,4 @@
-# Complete How-To Guide — `epd-font` (v1.0.13)
+# Complete How-To Guide — `epd-font` (v1.0.14)
 
 **Repository**: `https://github.com/Humidyne-Labs/epd-font`  
 **Organization**: Humidyne Labs / Humiditron  
@@ -121,3 +121,8 @@ Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distr
    - *(Optional)* Open any `build\<target>\ascii_patches\<symbol>\U+XXXX_<name>.txt` in a text editor, tweak `#` / `.` pixels on the 1:1 spaced canvas, and run `05_apply_ascii_patches.bat` to compile your manual edits into `font_icon_epd_patches.json`.
    - Run `02_build_fonts.bat` followed by `03_visual_check_pngs.bat` to rebuild the `.c`/`.h` font modules and inspect the updated PNG sheets (which display `PATCHED OVERRIDES ACTIVE: N / Total GLYPHS` in the top banner and highlight every patched glyph cell in emerald green).
 
+
+
+### v1.0.14 `--tune-mode {off,wart-only,surgical,full}` & Realistic Size Floor Calibration
+- Use `--tune-mode off` for 100% untouched native FreeType weights, `--tune-mode wart-only` for 4-directional 1px outline-wart shaving (`M0_wart_shaved`) + mirror-pair bracket sync with zero stem thickening, or `--tune-mode surgical` (default).
+- `humid1_font_eval.py` (`02_run_font_eval.bat`) now supports multi-face `.ttc` TrueType Collections via `open_ttfont_safe()`, isolates worker exceptions, and enforces `hole_px >= 2` counter cavity checks for realistic pixel size floor estimates.

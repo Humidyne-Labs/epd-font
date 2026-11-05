@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ft_raster.py (v1.0.14)
+humid1_ft_raster.py (v1.0.15)
 =============================
 Humidyne Labs / Humiditron `epd-font` FreeType 2 Ctypes Binding, Semantic Glyph Registry,
 Kerning Extractor & 1-BPP Scanline Rasterizer Module.
@@ -17,13 +17,21 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import logging
+import os
+import shutil
+from dataclasses import dataclass, field
+import numpy as np
 from fontTools.ttLib import TTFont, TTLibFileIsCollectionError
+from fontTools.varLib import instancer
+
+logging.getLogger("fontTools").setLevel(logging.ERROR)
 
 
 def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = False) -> TTFont:
     """
     Safely open a `.ttf`, `.otf`, or `.ttc`/`.otc` TrueType Collection file via fontTools.
-    Fixes the v1.0.13 crash (`TTLibFileIsCollectionError: specify a font number between 0 and N`)
+    Fixes the v1.0.15 crash (`TTLibFileIsCollectionError: specify a font number between 0 and N`)
     when scanning or rasterizing `.ttc` font collections (such as `IosevkaAile-Bold.ttc`).
     """
     fp_str = str(font_path)
@@ -33,14 +41,14 @@ def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = F
     except TTLibFileIsCollectionError:
         return TTFont(fp_str, fontNumber=font_number, lazy=lazy)
 
-TOOL_VERSION = "1.0.14"
+TOOL_VERSION = "1.0.15"
 
 FT_LOAD_NO_HINTING = 1 << 1
 
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.14 `humid1_` symbol naming convention:
+    Canonical v1.0.15 `humid1_` symbol naming convention:
       - IBM Plex families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Terminus family (terminus)                        -> humid1_font_terminus_<role>_<size>
       - Modular Icon families (icon_fa7, icon_lucide...)  -> humid1_<family>_<role>_<size>
@@ -53,19 +61,7 @@ def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     elif family.startswith("icon_"):
         return f"humid1_{family}_{role}_{size_px}"
     return f"humid1_font_{family}_{role}_{size_px}"
-import ctypes.util
-import json
-import math
-import os
-import re
-import shutil
-import sys
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
 
-from fontTools.ttLib import TTFont
-from fontTools.varLib import instancer
 
 # =============================================================================
 # 1. UNICODE RANGE PROFILES, TROUBLE-15 SET & FONTAWESOME 5 ICON DEFINITIONS
@@ -472,6 +468,101 @@ def extract_kerning_pairs_fp4(
 # 6. NATIVE 1-BPP RASTERIZER (AUTOHINT-MONO / BYTECODE-MONO / GRAY-THRESHOLD)
 # =============================================================================
 
+
+def compute_dynamic_threshold(
+    gray_arr: np.ndarray,
+    weight_class: int = 500,
+    size_px: int = 16,
+    codepoint: int = 0,
+) -> int:
+    """
+    Compute a Weight-, Size-, and Histogram/Topology-Adaptive Binarization Threshold T* in [88..164] (v1.0.15):
+      - Why fixed 128 is suboptimal:
+        * On light/medium weights (w300..w500) or small sizes (10..14px), 1.5px stems split across adjacent
+          columns at ~42%..48% coverage (val 107..122) and drop to 1px under a fixed 128 threshold.
+        * On heavy weights (w700..w900) at 12..16px, interior counter walls bleed gray anti-aliased fringe
+          pixels (val 128..145) into enclosed counters ('a', 'e', '8', 'B'), pinching them shut at 128.
+      - Combines a weight/size prior T_base with Otsu bimodal variance on active pixels (>16) and selects
+        the candidate threshold in {T0-12, T0-6, T0, T0+6, T0+12} that preserves enclosed counters and >=2px stems.
+    """
+    if gray_arr is None or gray_arr.size == 0:
+        return 128
+    t_prior = int(np.clip(128 + round(0.065 * (weight_class - 550)) - max(0, 16 - size_px) * 2, 92, 160))
+    active = gray_arr[gray_arr > 16]
+    if active.size < 6:
+        return t_prior
+
+    # Compute fast 1D Otsu threshold on active ink/edge pixels
+    hist, _ = np.histogram(active, bins=32, range=(16, 256))
+    hist = hist.astype(np.float64)
+    total = float(active.size)
+    bin_centers = np.linspace(20.0, 252.0, 32)
+    sum_all = float(np.sum(hist * bin_centers))
+    w_bg = 0.0
+    sum_bg = 0.0
+    best_var = -1.0
+    t_otsu = float(t_prior)
+    for i in range(32):
+        w_bg += hist[i]
+        if w_bg <= 0.0 or w_bg >= total:
+            continue
+        w_fg = total - w_bg
+        sum_bg += hist[i] * bin_centers[i]
+        m_bg = sum_bg / w_bg
+        m_fg = (sum_all - sum_bg) / w_fg
+        var_between = w_bg * w_fg * ((m_bg - m_fg) ** 2)
+        if var_between > best_var:
+            best_var = var_between
+            t_otsu = float(bin_centers[i])
+
+    t0 = int(np.clip(round(0.65 * t_prior + 0.35 * t_otsu), 90, 162))
+    ch = chr(codepoint) if 0x20 <= codepoint <= 0xFFFF else ""
+    canon_holes = {"0": 1, "4": 1, "6": 1, "8": 2, "9": 1, "A": 1, "B": 2, "D": 1, "O": 1, "P": 1, "Q": 1, "R": 1, "a": 1, "b": 1, "d": 1, "e": 1, "g": 1, "o": 1, "p": 1, "q": 1, "%": 2}.get(ch, 0)
+    pinch_forbid = ch in set("CEFGHIJKLMNSTUVWXYZcfhijlmnrstuvwxyz!()[]{}/\|<>+-=~")
+
+    best_t = t0
+    best_sc = -1e9
+    for dt in (-12, -6, 0, 6, 12):
+        tc = int(np.clip(t0 + dt, 88, 164))
+        bw = (gray_arr >= tc).astype(np.uint8)
+        if np.count_nonzero(bw) == 0:
+            continue
+        # Measure >=2px horizontal run survival
+        h, w = bw.shape
+        ge2 = 0
+        tot_r = 0
+        for r in range(h):
+            in_r = False
+            s = 0
+            for c in range(w):
+                if bw[r, c] and not in_r:
+                    s = c
+                    in_r = True
+                elif not bw[r, c] and in_r:
+                    tot_r += 1
+                    if (c - s) >= 2:
+                        ge2 += 1
+                    in_r = False
+            if in_r:
+                tot_r += 1
+                if (w - s) >= 2:
+                    ge2 += 1
+        stem_ratio = (float(ge2) / float(tot_r)) if tot_r > 0 else 0.0
+        sc = 25.0 * stem_ratio - 0.15 * abs(dt)
+        # Quick interior zero-pocket check for counter characters
+        if canon_holes > 0 and h >= 5 and w >= 4:
+            interior = bw[1:-1, 1:-1]
+            zero_px = int(np.sum(interior == 0))
+            if zero_px < canon_holes * 2:
+                sc -= 40.0
+        elif pinch_forbid and weight_class >= 650 and tc < t_prior:
+            sc -= 5.0
+        if sc > best_sc:
+            best_sc = sc
+            best_t = tc
+    return best_t
+
+
 def resolve_freetype_flags(raster_mode: str, size_px: int) -> int:
     """
     Resolve FreeType load flags for the selected rasterization engine:
@@ -582,6 +673,7 @@ def rasterize_font_strike(
     cmap = tt.getBestCmap() or {}
     hmtx = tt["hmtx"].metrics
     upem = tt["head"].unitsPerEm
+    os2_weight_class = int(getattr(tt["OS/2"], "usWeightClass", 500) or 500) if "OS/2" in tt else 500
     os2_asc = tt["hhea"].ascent
     os2_desc = tt["hhea"].descent
 
@@ -643,12 +735,17 @@ def rasterize_font_strike(
                     row_chars.append("#" if bit else ".")
                 raw_rows.append("".join(row_chars))
         else:
+            gray_np = np.zeros((bmp.rows, bmp.width), dtype=np.uint8)
             for r in range(bmp.rows):
-                row_chars = []
                 for c in range(bmp.width):
-                    val = bmp.buffer[r * bmp.pitch + c]
-                    row_chars.append("#" if val >= threshold else ".")
-                raw_rows.append("".join(row_chars))
+                    gray_np[r, c] = bmp.buffer[r * bmp.pitch + c]
+            eff_thresh = (
+                compute_dynamic_threshold(gray_np, weight_class=os2_weight_class, size_px=size_px, codepoint=code)
+                if (threshold <= 0 or "dynamic" in raster_mode.lower())
+                else threshold
+            )
+            for r in range(bmp.rows):
+                raw_rows.append("".join("#" if gray_np[r, c] >= eff_thresh else "." for c in range(bmp.width)))
 
         non_empty_r = [i for i, r in enumerate(raw_rows) if "#" in r]
         if not non_empty_r:

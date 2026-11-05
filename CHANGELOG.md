@@ -2,6 +2,28 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.15] — 2026-11-05
+
+### Fixed
+- **Master Multi-Font Evaluation Sheet Truncation Bug (`humid1_font_eval.py`)**:
+  - Removed the hardcoded `shown = list(summaries[:60])` slice in `render_font_eval_comparison_sheet()` that silently dropped fonts `61..408` during large external evaluations (`batch_02`).
+  - When `len(summaries) > 75`, `render_font_eval_comparison_sheet()` now emits **paginated full-corpus sheets (`font_eval_comparison_sheet_p01_of_XX.png` .. `pXX_of_XX.png`)** plotting **100% of evaluated samples** without hitting vertical texture limits, while writing `font_eval_comparison_sheet.png` as the **Top 75 Ranked Contenders Overview** sorted by `compute_composite_epd_score()`.
+- **Replaced Rigid `128` Threshold with Weight-, Size-, and Otsu-Adaptive Dynamic Thresholding (`humid1_ft_raster.py` & `humid1_bilevel_tuner.py`)**:
+  - Added `compute_dynamic_threshold()` (`humid1_ft_raster.py`) and `compute_dynamic_hq_threshold()` (`humid1_bilevel_tuner.py`), plus `--raster-mode dynamic-threshold` and `--threshold 0` (auto).
+  - Dynamically lowers the binarization threshold (`104..118`) on `w400–w500` cuts to preserve split `1.5px` stems as `2px`, and raises it (`136..152`) on `w700–w900` heavy cuts to prevent gray fringe bleed from pinching enclosed counters (`'a'`, `'e'`, `'8'`, `'B'`).
+- **Upgraded Default `italic` Role from `MediumItalic (w500)` to `BoldItalic (w700)` (`humid1_generate_1bpp.py`)**:
+  - Replaced `IBMPlexSans-MediumItalic.ttf` (`24px` floor, `15.0%` `>=2px` stems at `14px`, `66.7%` tuning burden) with `IBMPlexSans-BoldItalic.ttf` (and `IBMPlexMono-BoldItalic.ttf`, `IBMPlexSerif-BoldItalic.ttf`) when `normal_weight >= 500`, improving the Italic viable size floor from `24px` to **`16px`** (`96.7%` `>=2px` stems, `100.0%` open counters, `3.3%` tuning burden).
+- **General Code Audit Cleanups (`humid1_ft_raster.py`, `tools/agent/`, `schemes/`)**:
+  - Removed duplicate mid-file import block in `humid1_ft_raster.py`, suppressed `fontTools` `2 extra bytes in post.stringData array` console warnings, and synchronized all version strings across `tools/agent/`, `tools/fonts/`, `scripts/`, `schemes/`, and `VERSION.json` to `v1.0.15`.
+
+### Changed
+- **Simplified `humid1_bilevel_tuner.py` into a Clean 3-Stage Architecture (~2.5x Faster)**:
+  - Pruned redundant/low-yield synthesis passes (`M1`'s 18 `warpAffine` shifts, `M2`'s `0.4%`-win-rate 4x Python medial-axis loop, `M3`'s duplicate 4x SDF, and `M6`'s 1-way shift) into 3 orthogonal stages: **Stage 0 (`M0_wart_shaved`)** 4-Directional Outline-Wart Shaver, **Stage 1 (`M1_dyn_thresh` / `M1_hysteresis`)** Dynamic Threshold + Dual-Hysteresis 8x HQ Area-Downscale, **Stage 2 (`M2_collinear`)** Outward/In-Place Collinear Stem Floor, and **Stage 3 (`M3_central_spine` + `MirrorSync`)**.
+
+### Added
+- **408-Font Contender Analysis & Head-to-Head Comparison vs. IBM Plex (`docs/audits/FONT_CONTENDERS_ANALYSIS_v1.0.15.md`)**:
+  - Documented the Top 3 Contenders for Regular/Normal (`Inter-SemiBold w600`, `InstrumentSans-SemiBold w600`, `RecursiveSansLnrSt-SemiBold w600`), Bold (`Inter-Bold w700`, `RecMonoDuotone-Bold w750`, `NotoSans-Bold w700`), and Italic (`Inter-ExtraBoldItalic w800`, `RecursiveSansLnrSt-ExBdItalic w800` / `SmBdItalic w600`, `Roboto-BoldItalic w700`) compared head-to-head against IBM Plex and Terminus.
+
 ## [v1.0.14] — 2026-11-04
 
 ### Fixed

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.11",
+  "schema_version": "1.0.15",
   "scheme_id": "ereader_editorial_serif",
   "project_brand": "Humiditron E-Paper Long-Form Editorial & Field Manual Scheme",
   "description": "High-legibility IBM Plex Serif (Regular, Italic, Bold 16-32px) paired with Sans UI headers.",

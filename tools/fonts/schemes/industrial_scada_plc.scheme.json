@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.11",
+  "schema_version": "1.0.15",
   "scheme_id": "industrial_scada_plc",
   "project_brand": "Humiditron Industrial PLC / SCADA Diagnostics & Alarm Panel Scheme",
   "description": "High-density Condensed alarm banners + Tabular Mono register dumps + FA7 Solid safety icons.",

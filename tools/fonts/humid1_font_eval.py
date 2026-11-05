@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_font_eval.py (v1.0.14)
+humid1_font_eval.py (v1.0.15)
 =============================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Font & Weight Evaluation Suite,
 Pre-Tune vs. Post-Tune Traceability Engine, Upscaled-to-HQ Confidence Scorer &
@@ -10,7 +10,7 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-What's New in v1.0.14:
+What's New in v1.0.15:
 ----------------------
 1. Dynamic Recursive Directory Scanner (`--src-dir` / `--fonts`):
    Automatically discovers all `.ttf`, `.otf`, `.ttc` (TrueType Collection), and `.bdf`
@@ -68,12 +68,12 @@ from humid1_ft_raster import (
     rasterize_font_strike,
 )
 
-TOOL_VERSION = "1.0.14"
+TOOL_VERSION = "1.0.15"
 
 # Diagnostic benchmark character set (57 critical glyphs: counters, multi-valley diagonals, paired brackets, symbols)
 EVAL_BENCHMARK_CHARS = "0124689ABCDHIJMNOPQRWabcefghijlmnoqrstvwxyz$%&()[]{}/\\|!<>+="
 EVAL_COUNTER_CHARS = set("04689ABDOPQRabdegopq$%&")
-EVAL_SPECIMEN_STRING = "H1OS v1.0.14 (08B$) [aeg] {WwMm} <=>"
+EVAL_SPECIMEN_STRING = "H1OS v1.0.15 (08B$) [aeg] {WwMm} <=>"
 EVAL_ZOOM_STRIP_CHARS = "WwMmABCfgrs$()[]08"
 
 
@@ -279,6 +279,8 @@ def discover_candidate_fonts(
             ("IBM Plex Sans Bold-700 [Legacy w700]", src_dir / "IBMPlexSans-Bold.ttf", "sans", 700, False),
             ("IBM Plex Sans Bold [ExtraBold w800]", src_dir / "IBMPlexSans-ExtraBold.ttf", "sans", 800, False),
             ("IBM Plex Sans Italic [MedItal w500]", src_dir / "IBMPlexSans-MediumItalic.ttf", "sans", 500, True),
+            ("IBM Plex Sans SemiBold Italic (w600)", src_dir / "IBMPlexSans-SemiBoldItalic.ttf", "sans", 600, True),
+            ("IBM Plex Sans Bold Italic (w700)", src_dir / "IBMPlexSans-BoldItalic.ttf", "sans", 700, True),
             ("IBM Plex Sans Cond Normal [Medium w500]", src_dir / "IBMPlexSansCondensed-Medium.ttf", "cond", 500, False),
             ("IBM Plex Sans Cond Bold [ExtraBold w800]", src_dir / "IBMPlexSansCondensed-ExtraBold.ttf", "cond", 800, False),
             ("IBM Plex Mono Normal [Medium w500]", src_dir / "IBMPlexMono-Medium.ttf", "mono", 500, False),
@@ -298,12 +300,12 @@ def discover_candidate_fonts(
                 ("Inter Bold (w700) [External]", inter_dir / "Inter-Bold.otf", "sans", 700, False),
                 ("Inter ExtraBold (w800) [External]", inter_dir / "Inter-ExtraBold.otf", "sans", 800, False),
             ])
-        ex_v114 = src_dir.parent.parent / "docs" / "audits" / "exhibits" / "v1.0.14" / "approx-fonts-ttf"
+        ex_v114 = src_dir.parent.parent / "docs" / "audits" / "exhibits" / "v1.0.15" / "approx-fonts-ttf"
         if ex_v114.is_dir():
             if (ex_v114 / "Inter-ExtraBold.ttf").is_file():
-                default_specs.append(("Inter ExtraBold (w800) [v1.0.14 Exhibit]", ex_v114 / "Inter-ExtraBold.ttf", "sans", 800, False))
+                default_specs.append(("Inter ExtraBold (w800) [v1.0.15 Exhibit]", ex_v114 / "Inter-ExtraBold.ttf", "sans", 800, False))
             if (ex_v114 / "InterDisplay-ThinItalic.ttf").is_file():
-                default_specs.append(("InterDisplay ThinItalic (w100) [v1.0.14 Exhibit]", ex_v114 / "InterDisplay-ThinItalic.ttf", "sans", 100, True))
+                default_specs.append(("InterDisplay ThinItalic (w100) [v1.0.15 Exhibit]", ex_v114 / "InterDisplay-ThinItalic.ttf", "sans", 100, True))
         for lbl, p, fg, wght, is_it in default_specs:
             if p.is_file():
                 candidates.append((lbl, p, fg, wght, is_it))
@@ -559,7 +561,7 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
                 size_px=sz,
                 codepoints=codepoints,
                 raster_mode="autohint_mono",
-                threshold=128,
+                threshold=int(task.get("threshold", 128)),
                 font_number=0,
             )
             raw_glyphs = [_clone_glyph(g) for g in glyphs]
@@ -790,19 +792,38 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
     return summary, raw_strikes_by_size, tuned_strikes_by_size
 
 
-def render_font_eval_comparison_sheet(
+def compute_composite_epd_score(d: FontEvalSummary) -> float:
+    """Compute a composite 1-BPP EPD readiness score across 14px and 16px strikes for ranking contenders."""
+    m16 = d.by_size.get(16)
+    m14 = d.by_size.get(14)
+    raw_hq16 = m16.raw_hq_conf_pct if m16 else 0.0
+    raw_st16 = m16.raw_stem_2px_pct if m16 else 0.0
+    raw_cnt16 = m16.raw_counter_pct if m16 else 0.0
+    burden16 = m16.tuning_burden_pct if m16 else 100.0
+    raw_hq14 = m14.raw_hq_conf_pct if m14 else raw_hq16
+    raw_st14 = m14.raw_stem_2px_pct if m14 else raw_st16
+    raw_cnt14 = m14.raw_counter_pct if m14 else raw_cnt16
+    fl_bonus = max(0.0, (24 - min(d.size_floor_raw_px, 24)) * 2.5) + max(0.0, (24 - min(d.size_floor_tuned_px, 24)) * 1.5)
+    return (
+        0.35 * raw_hq16
+        + 0.20 * raw_hq14
+        + 0.15 * raw_st16
+        + 0.10 * raw_st14
+        + 0.10 * raw_cnt16
+        + 0.10 * raw_cnt14
+        - 0.15 * burden16
+        + fl_bonus
+    )
+
+
+def _render_master_sheet_page(
     out_png: Path,
-    summaries: Sequence[FontEvalSummary],
+    shown: Sequence[FontEvalSummary],
     raw_strikes_map: Dict[str, Dict[int, List[GlyphStrike]]],
     tuned_strikes_map: Dict[str, Dict[int, List[GlyphStrike]]],
     sizes: Sequence[int],
-    max_rows_in_master_png: int = 60,
+    page_subtitle: str = "",
 ) -> None:
-    """
-    Render the Master Multi-Font Comparison Sheet showing BOTH `RAW` (top sub-row) and `TUNED`
-    (bottom sub-row) side-by-side for each evaluated font across sizes.
-    """
-    shown = list(summaries[:max_rows_in_master_png])
     row_h = 74
     hdr_h = 80
     left_col_w = 290
@@ -904,8 +925,75 @@ def render_font_eval_comparison_sheet(
                     if pen_x > x_col + size_col_w - 14:
                         break
 
+    if page_subtitle:
+        draw.text((img_w - pad - 420, 14), page_subtitle, fill=(110, 230, 165))
     out_png.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_png, optimize=True)
+
+
+def render_font_eval_comparison_sheet(
+    out_png: Path,
+    summaries: Sequence[FontEvalSummary],
+    raw_strikes_map: Dict[str, Dict[int, List[GlyphStrike]]],
+    tuned_strikes_map: Dict[str, Dict[int, List[GlyphStrike]]],
+    sizes: Sequence[int],
+    max_rows_per_page: int = 75,
+) -> List[Path]:
+    """
+    Render the Master Multi-Font Comparison Sheet(s) without ever dropping or truncating samples (v1.0.15):
+      - When `len(summaries) <= max_rows_per_page`, writes all rows into `out_png`.
+      - When `len(summaries) > max_rows_per_page` (e.g., 408 fonts in `eval_fonts`):
+        1. Emits paginated full-corpus sheets (`font_eval_comparison_sheet_p01_of_06.png` .. `p06_of_06.png`)
+           so 100% of evaluated samples are plotted in full resolution, AND
+        2. Emits `out_png` (`font_eval_comparison_sheet.png`) sorted by Composite EPD Readiness Score
+           (Top Contenders across Normal, Bold, and Italic).
+    """
+    written_paths: List[Path] = []
+    total = len(summaries)
+    if total == 0:
+        return written_paths
+
+    if max_rows_per_page <= 0 or total <= max_rows_per_page:
+        _render_master_sheet_page(
+            out_png,
+            summaries,
+            raw_strikes_map,
+            tuned_strikes_map,
+            sizes,
+            page_subtitle=f"ALL {total} FONTS PLOTTED (Page 1/1)",
+        )
+        written_paths.append(out_png)
+        return written_paths
+
+    # 1. Emit paginated sheets covering 100% of all evaluated fonts
+    num_pages = int(math.ceil(total / float(max_rows_per_page)))
+    for p_idx in range(num_pages):
+        start_i = p_idx * max_rows_per_page
+        end_i = min(total, start_i + max_rows_per_page)
+        chunk = summaries[start_i:end_i]
+        page_path = out_png.parent / f"{out_png.stem}_p{p_idx + 1:02d}_of_{num_pages:02d}{out_png.suffix}"
+        _render_master_sheet_page(
+            page_path,
+            chunk,
+            raw_strikes_map,
+            tuned_strikes_map,
+            sizes,
+            page_subtitle=f"PAGE {p_idx + 1}/{num_pages} (Fonts {start_i + 1}..{end_i} of {total})",
+        )
+        written_paths.append(page_path)
+
+    # 2. Emit `out_png` as the Ranked Top Contenders Master Overview
+    ranked = sorted(summaries, key=compute_composite_epd_score, reverse=True)[:max_rows_per_page]
+    _render_master_sheet_page(
+        out_png,
+        ranked,
+        raw_strikes_map,
+        tuned_strikes_map,
+        sizes,
+        page_subtitle=f"TOP {len(ranked)} RANKED CONTENDERS (of {total} Total; Full Set in _p01..p{num_pages:02d})",
+    )
+    written_paths.insert(0, out_png)
+    return written_paths
 
 
 def generate_markdown_report(
@@ -918,7 +1006,7 @@ def generate_markdown_report(
         "",
         "## 1. Executive Summary: Pre-Tune (`RAW`) vs. Post-Tune (`TUNED`) & Tuning Burden Analysis",
         "",
-        "Every candidate font and weight was evaluated across sizes both **Before (`RAW`)** and **After (`TUNED`)** the v1.0.13 Surgical Tournament (`Render -> 8x Upscale -> Compare to 8x HQ Master` Confidence & Open-Valley Sanity Gate):",
+        "Every candidate font and weight was evaluated across sizes both **Before (`RAW`)** and **After (`TUNED`)** the v1.0.15 Surgical Tournament (`Render -> 8x Upscale -> Compare to 8x HQ Master` Confidence & Open-Valley Sanity Gate):",
         "- **HQ Confidence (`RAW -> TUNED`)**: Direct structural IoU (`0..100%`) of the 8x nearest-neighbor upscaled 1-BPP strike against the 8x continuous HQ Master.",
         "- **Tuning Burden (`%`)**: Percentage of benchmark characters that required surgical patching. **Lower Tuning Burden + Higher Raw HQ Confidence** identifies typefaces and weights that work cleanly out-of-the-box with minimal or zero pixel intervention!",
         "- **Per-Font Visual Inspection Sheets**: Saved individually in `build/font_eval/sheets/<font_stem>_eval.png`.",
@@ -978,6 +1066,8 @@ def main() -> None:
         default="surgical",
         help="Auto-tune intervention level: off (native weights only), wart-only (4-dir wart shaving + mirror sync), surgical (default), or full",
     )
+    parser.add_argument("--threshold", type=int, default=128, help="Grayscale threshold (1..254, or 0 for weight/size/Otsu dynamic threshold; default: 128)")
+    parser.add_argument("--max-rows-per-page", type=int, default=75, help="Max font rows per master comparison PNG page before paginating (0 = single giant image; default: 75)")
     parser.add_argument("-j", "--jobs", type=int, default=None, help="Number of parallel CPU worker processes (default: all CPU cores)")
     args = parser.parse_args()
 
@@ -1004,6 +1094,7 @@ def main() -> None:
             "is_italic": is_it,
             "sizes": list(args.sizes),
             "tune_mode": args.tune_mode,
+            "threshold": args.threshold,
             "sheets_dir": str(sheets_dir),
         }
         for (lbl, fpath, fg, wght, is_it) in candidates
@@ -1065,11 +1156,11 @@ def main() -> None:
     )
 
     png_path = out_dir / "font_eval_comparison_sheet.png"
-    render_font_eval_comparison_sheet(png_path, summaries, raw_strikes_map, tuned_strikes_map, args.sizes)
+    written_master_pngs = render_font_eval_comparison_sheet(png_path, summaries, raw_strikes_map, tuned_strikes_map, args.sizes, max_rows_per_page=args.max_rows_per_page)
     elapsed = time.perf_counter() - t0
     print(f"[+] Wrote {len(summaries)} Per-Font PNG Evaluation Sheets -> {sheets_dir}")
     print(f"[+] Wrote Font Evaluation Markdown & CSV Reports  -> {md_path}")
-    print(f"[+] Wrote Master Pre/Post Visual Scorecard PNG    -> {png_path} ({elapsed:.2f}s)")
+    print(f"[+] Wrote {len(written_master_pngs)} Master Pre/Post Visual Scorecard PNG(s) -> {png_path} ({elapsed:.2f}s)")
 
 
 if __name__ == "__main__":

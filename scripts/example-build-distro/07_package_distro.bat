@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [07] Humidyne Labs - Humiditron epd-font v1.0.14 - Package Distribution Bundle
+echo [07] Humidyne Labs - Humiditron epd-font v1.0.15 - Package Distribution Bundle
 echo      Workflow    : General Embedded Example Distribution Workflow
 echo      Dist Output : dist\example_distro\
 echo ============================================================================

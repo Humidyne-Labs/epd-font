@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.11",
+  "schema_version": "1.0.15",
   "scheme_id": "ui_balanced",
   "project_brand": "Humiditron General Embedded GUI Balanced Scheme",
   "description": "Balanced UI typography scheme (IBM Plex Sans 12-24px + Mono 14-20px + Lucide UI icons).",

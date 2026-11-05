@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_tuner.py (v1.0.14)
+humid1_bilevel_tuner.py (v1.0.15)
 =================================
 Humidyne Labs / Humiditron `epd-font` Surgical Multi-Method Typographic Tuner,
 Render -> Upscale (8x) -> HQ Master Confidence Sanity Gate & Open-Valley Preserver.
 
 Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
-Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/humid1-audit-v1.0.14.txt`)
+Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/humid1-audit-v1.0.15.txt`)
 License    : MIT License
 
-What's New in v1.0.13:
+What's New in v1.0.15:
 ----------------------
 1. Render -> Upscale (8x) -> HQ Master Confidence & Sanity-Check Gate (`compute_upscaled_hq_metrics`):
    Upscales each 1-BPP glyph by 8x (`INTER_NEAREST`) into the exact coordinate frame of the 8x
@@ -58,7 +58,7 @@ except ImportError:
 
 from PIL import Image, ImageDraw
 
-TOOL_VERSION = "1.0.14"
+TOOL_VERSION = "1.0.15"
 
 # Characters whose horizontal crossbars are structural and should be protected from vanishing
 HORIZONTAL_BAR_CHARS = set("eftEFHTzZ=-+~÷±≤≥≠≈#[")
@@ -262,7 +262,7 @@ def compute_upscaled_hq_metrics(
     hq_master: Optional[np.ndarray],
 ) -> UpscaledHQMetrics:
     """
-    Render -> Upscale (8x) -> Compare to HQ Master Sanity-Check Engine (v1.0.13):
+    Render -> Upscale (8x) -> Compare to HQ Master Sanity-Check Engine (v1.0.15):
     Upscales `bitmap_1bit` via nearest-neighbor to the exact dimensions of `hq_master` (8x)
     and computes:
       - `hq_conf_iou`    : Intersection-over-Union confidence (0..100%)
@@ -337,7 +337,7 @@ def detect_skin_tags_and_notches(
     codepoint: int = 0,
 ) -> Tuple[int, int, List[Tuple[int, int]], List[Tuple[int, int]]]:
     """
-    Method 7 & Method 18 (v1.0.14 4-Directional Outline-Wart & Notch Regularizer):
+    Method 7 & Method 18 (v1.0.15 4-Directional Outline-Wart & Notch Regularizer):
     Detects non-topological 1-pixel horizontal AND vertical "outline-warts" (spurs / pimples)
     and 1-pixel exterior stem notches.
     """
@@ -438,7 +438,7 @@ def clean_skin_tags_and_notches(
     codepoint: int = 0,
 ) -> np.ndarray:
     """
-    Method 8 + Method 18 (v1.0.13 Valley-Safe Boundary Regularizer):
+    Method 8 + Method 18 (v1.0.15 Valley-Safe Boundary Regularizer):
     Iteratively removes 1-pixel skin tags and fills outermost stem wall notches, accepting each
     single-pixel flip if and only if BOTH Betti numbers (B0, B1) AND the row's horizontal run count
     (`len(_get_row_runs(work[r]))`) remain strictly invariant (so V-valleys are NEVER bridged!).
@@ -642,7 +642,7 @@ def evaluate_glyph_candidate(
     base_valley_stats: Optional[Tuple[int, int, List[int]]] = None,
 ) -> CandidateEval:
     """
-    Weighted Multi-Objective Typographic Evaluation Engine with Render -> Upscale -> HQ Sanity Gate (v1.0.13):
+    Weighted Multi-Objective Typographic Evaluation Engine with Render -> Upscale -> HQ Sanity Gate (v1.0.15):
       - Hard Gate 1 : Betti numbers (B0 foreground components, B1 enclosed counters) must match HQ Master!
       - Hard Gate 2 : Open-Valley Invariance — candidate must NEVER collapse multi-stroke horizontal
                       run counts (`max_row_runs`) or bridge >20% of inter-stem open valley rows!
@@ -794,15 +794,36 @@ def evaluate_glyph_candidate(
 
 
 # =============================================================================
-# CANDIDATE SYNTHESIS METHODS (M1 .. M8)
+# STREAMLINED v1.0.15 3-STAGE CANDIDATE SYNTHESIS & DYNAMIC THRESHOLDING
 # =============================================================================
+# Stage 0 (M0_wart_shaved)       : Native FreeType + 4-Directional 1px Outline-Wart Shaver (handles 73%..97% of glyphs)
+# Stage 1 (M1_dyn_thresh)        : 8x HQ Master Area-Downscale with Dynamic Weight/Size/Otsu Threshold Sweep + Hysteresis
+# Stage 2 (M2_collinear_stem)    : Trajectory-Consistent Outward Collinear Stem Floor (>=2px) + Counter-Punch
+# Stage 3 (M3_central_spine)     : Central Vertical Spine Expansion ('$', '+', '±', '¢', '¥', 'Φ', 'Ψ') + Mirror Sync
+
+
+def compute_dynamic_hq_threshold(hq_master: Optional[np.ndarray], is_bold_role: bool = False, h0: int = 16) -> int:
+    """
+    Compute a dynamic threshold in [96..152] for the 8x continuous HQ master (replacing hardcoded 115/120/128):
+      - Lower (~104..116) on Regular/Medium or compact sizes (<=14px) to preserve >=2px stem mass.
+      - Higher (~132..148) on Bold/ExtraBold to prevent anti-aliased fringe bleed from pinching internal counters.
+    """
+    if hq_master is None or hq_master.size == 0:
+        return 120
+    t_prior = 136 if is_bold_role else (110 if h0 <= 11 else 118)
+    active = hq_master[hq_master > 16]
+    if active.size < 16:
+        return t_prior
+    p45 = float(np.percentile(active, 45))
+    return int(np.clip(round(0.70 * t_prior + 0.30 * p45), 96, 152))
+
 
 def _apply_counter_punch(
     work: np.ndarray,
     orig_counters: np.ndarray,
     upscaled_small_counters: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    """Method 21 (Jenson-Garamond Counter-Punch): Guarantee every expected internal cavity stays open."""
+    """Jenson-Garamond Counter-Punch: Guarantee every expected internal cavity stays open."""
     if not HAS_CV2 or not np.any(orig_counters > 0):
         return work
     h, w = work.shape
@@ -814,8 +835,7 @@ def _apply_counter_punch(
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(c_mask, connectivity=4)
     for i in range(1, num_labels):
         hole_comp = (labels == i).astype(np.uint8) * 255
-        open_px = np.count_nonzero(cv2.bitwise_and(cv2.bitwise_not(res), hole_comp))
-        if open_px > 0:
+        if np.count_nonzero(cv2.bitwise_and(cv2.bitwise_not(res), hole_comp)) > 0:
             continue
         hw = stats[i, cv2.CC_STAT_WIDTH]
         hh = stats[i, cv2.CC_STAT_HEIGHT]
@@ -828,8 +848,7 @@ def _apply_counter_punch(
         else:
             core = hole_comp
         res = cv2.bitwise_and(res, cv2.bitwise_not(core))
-        open_px = np.count_nonzero(cv2.bitwise_and(cv2.bitwise_not(res), hole_comp))
-        if open_px == 0:
+        if np.count_nonzero(cv2.bitwise_and(cv2.bitwise_not(res), hole_comp)) == 0:
             cy = int(stats[i, cv2.CC_STAT_TOP] + hh // 2)
             cx = int(stats[i, cv2.CC_STAT_LEFT] + hw // 2)
             if 0 <= cy < h and 0 <= cx < w:
@@ -846,122 +865,42 @@ def _apply_counter_punch(
     return res
 
 
-def synth_m1_phase_shift_sweep(
+def synth_m1_dynamic_threshold_sweep(
     hq_master: np.ndarray,
     target_w: int,
     target_h: int,
     orig_counters: np.ndarray,
+    codepoint: int = 0,
+    is_bold_role: bool = False,
 ) -> List[Tuple[str, np.ndarray]]:
-    """Method 2 & 12: Sub-Pixel Phase-Shift & Clamped Lanczos/Area Threshold Sweep."""
+    """
+    Stage 1 (v1.0.15 Dynamic Threshold + Dual-Hysteresis Area-Downscale):
+    Replaces the slow 54-candidate warpAffine grid sweep (M1), 4x Python medial-axis loop (M2),
+    4x SDF distance transform (M3), and M4 with a single fast INTER_AREA downscale evaluated
+    across Dynamic Thresholds centered around T_dyn = compute_dynamic_hq_threshold(hq_master).
+    """
     if not HAS_CV2 or hq_master is None or hq_master.size == 0 or target_w < 2 or target_h < 2:
         return []
-    mh, mw = hq_master.shape
-    out: List[Tuple[str, np.ndarray]] = []
-    for dw in (0, 1):
-        tw = target_w + dw
-        for dx in (-0.25, 0.0, 0.25):
-            for dy in (-0.20, 0.0, 0.20):
-                sx = dx * (float(mw) / float(tw))
-                sy = dy * (float(mh) / float(target_h))
-                mat = np.float32([[1, 0, sx], [0, 1, sy]])
-                shifted = cv2.warpAffine(hq_master, mat, (mw, mh), flags=cv2.INTER_LINEAR, borderValue=0)
-                ds = cv2.resize(shifted, (tw, target_h), interpolation=cv2.INTER_AREA)
-                for th in (105, 118, 132):
-                    cand = (ds >= th).astype(np.uint8) * 255
-                    cand = _apply_counter_punch(cand, orig_counters)
-                    out.append((f"M1_phase(w+{dw},t={th})", cand))
-    return out
-
-
-def synth_m2_centerline_line_tracer(
-    base_1bit: np.ndarray,
-    hq_master: Optional[np.ndarray],
-    orig_counters: np.ndarray,
-    min_stem: int = 2,
-) -> List[Tuple[str, np.ndarray]]:
-    """
-    Method 6 & `line_tracer.docx` (Medial Axis Centerline Graph + Asymmetric `[1, 1]` Stroke Kernel).
-    """
-    if not HAS_CV2:
-        return []
-    h, w = base_1bit.shape
-    src = hq_master if (hq_master is not None and hq_master.size > 0) else base_1bit
-    out: List[Tuple[str, np.ndarray]] = []
-
-    for dw in (0, 1):
-        tw = w + dw
-        rsz = cv2.resize(src, (tw * 4, h * 4), interpolation=cv2.INTER_LINEAR)
-        bw_hi = (rsz >= 115).astype(np.uint8) * 255
-        dist = cv2.distanceTransform(bw_hi, cv2.DIST_L2, 3)
-        skel_hi = np.zeros_like(bw_hi)
-        for r in range(1, bw_hi.shape[0] - 1):
-            for c in range(1, bw_hi.shape[1] - 1):
-                d = dist[r, c]
-                if d >= 0.85:
-                    if (d >= dist[r, c - 1] and d >= dist[r, c + 1]) or (d >= dist[r - 1, c] and d >= dist[r + 1, c]):
-                        skel_hi[r, c] = 255
-        skel_lo = cv2.resize(skel_hi, (tw, h), interpolation=cv2.INTER_AREA)
-        skel_1px = (skel_lo >= 32).astype(np.uint8) * 255
-        base_rsz = cv2.resize(base_1bit, (tw, h), interpolation=cv2.INTER_NEAREST)
-        skel_1px = cv2.bitwise_or(skel_1px, _erode_safe(base_rsz, 1, 2))
-        k_asym = np.ones((1, min_stem), np.uint8)
-        stroked = cv2.dilate(skel_1px, k_asym, iterations=1)
-        stroked = _apply_counter_punch(stroked, orig_counters)
-        out.append((f"M2_line_tracer(w+{dw})", stroked))
-    return out
-
-
-def _erode_safe(binary_img: np.ndarray, kh: int, kw: int) -> np.ndarray:
-    if not HAS_CV2 or binary_img.size == 0:
-        return binary_img
-    return cv2.erode(binary_img, np.ones((kh, kw), np.uint8), iterations=1, borderType=cv2.BORDER_CONSTANT, borderValue=0)
-
-
-def synth_m3_sdf_level_set(
-    base_1bit: np.ndarray,
-    hq_master: Optional[np.ndarray],
-    orig_counters: np.ndarray,
-) -> List[Tuple[str, np.ndarray]]:
-    """Method 10: Signed Distance Field (SDF) Adaptive Zero-Level-Set Perturbation."""
-    if not HAS_CV2:
-        return []
-    h, w = base_1bit.shape
-    src = hq_master if (hq_master is not None and hq_master.size > 0) else base_1bit
-    bw_hi = (cv2.resize(src, (w * 4, h * 4), interpolation=cv2.INTER_LINEAR) >= 120).astype(np.uint8) * 255
-    d_in = cv2.distanceTransform(bw_hi, cv2.DIST_L2, 3)
-    d_out = cv2.distanceTransform(cv2.bitwise_not(bw_hi), cv2.DIST_L2, 3)
-    sdf = d_in - d_out
-    out: List[Tuple[str, np.ndarray]] = []
-    for dw in (0, 1):
-        tw = w + dw
-        sdf_lo = cv2.resize(sdf, (tw, h), interpolation=cv2.INTER_AREA)
-        for delta in (0.30, 0.55):
-            cand = (sdf_lo + delta >= 0.0).astype(np.uint8) * 255
-            cand = _apply_counter_punch(cand, orig_counters)
-            out.append((f"M3_sdf(w+{dw},d={delta})", cand))
-    return out
-
-
-def synth_m4_hysteresis_and_ink_traps(
-    base_1bit: np.ndarray,
-    hq_master: Optional[np.ndarray],
-    orig_counters: np.ndarray,
-    codepoint: int,
-) -> List[Tuple[str, np.ndarray]]:
-    """Method 13 & 19: Dual-Threshold Hysteresis Super-Sampling + LoG Acute Vertex Ink Traps."""
-    if not HAS_CV2 or hq_master is None or hq_master.size == 0:
-        return []
-    h, w = base_1bit.shape
+    t_center = compute_dynamic_hq_threshold(hq_master, is_bold_role=is_bold_role, h0=target_h)
     ch_str = chr(codepoint) if 0x20 <= codepoint <= 0xFFFF else ""
     out: List[Tuple[str, np.ndarray]] = []
+
     for dw in (0, 1):
-        tw = w + dw
-        u = cv2.resize(hq_master, (tw, h), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
-        strong = (u >= 0.50).astype(np.uint8) * 255
-        weak = (u >= 0.28).astype(np.uint8) * 255
-        cand = strong.copy()
-        for r in range(h):
-            runs = _get_row_runs(cand[r])
+        tw = target_w + dw
+        ds = cv2.resize(hq_master, (tw, target_h), interpolation=cv2.INTER_AREA)
+        # 1. Dynamic threshold sweep around t_center
+        for dt in (-14, -4, 6, 16):
+            th = int(np.clip(t_center + dt, 92, 158))
+            cand = (ds >= th).astype(np.uint8) * 255
+            cand = _apply_counter_punch(cand, orig_counters)
+            out.append((f"M1_dyn_thresh(w+{dw},t={th})", cand))
+
+        # 2. Dual-threshold hysteresis + acute vertex ink-trap pass
+        strong = (ds >= t_center).astype(np.uint8) * 255
+        weak = (ds >= max(64, t_center - 44)).astype(np.uint8) * 255
+        hyst = strong.copy()
+        for r in range(target_h):
+            runs = _get_row_runs(hyst[r])
             if len(runs) >= 3 and tw < 11:
                 continue
             for idx, (s, e) in enumerate(runs):
@@ -969,19 +908,20 @@ def synth_m4_hysteresis_and_ink_traps(
                     left_lim = (runs[idx - 1][1] + 2) if idx > 0 else 0
                     right_lim = (runs[idx + 1][0] - 2) if idx + 1 < len(runs) else (tw - 1)
                     if e + 1 <= right_lim and weak[r, e + 1] > 0:
-                        cand[r, e + 1] = 255
+                        hyst[r, e + 1] = 255
                     elif s - 1 >= left_lim and weak[r, s - 1] > 0:
-                        cand[r, s - 1] = 255
-        if ch_str in "MWNvwy%&#" and tw >= 6 and h >= 7:
+                        hyst[r, s - 1] = 255
+        if ch_str in "MWNvwy%&#" and tw >= 6 and target_h >= 7:
             kernel_cross = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.int8)
-            blobs = cv2.morphologyEx(cand, cv2.MORPH_HITMISS, kernel_cross)
-            cand_trap = cv2.bitwise_and(cand, cv2.bitwise_not(blobs))
-            b0_a, b1_a, _ = compute_betti_numbers(cand)
-            b0_b, b1_b, _ = compute_betti_numbers(cand_trap)
+            blobs = cv2.morphologyEx(hyst, cv2.MORPH_HITMISS, kernel_cross)
+            hyst_trap = cv2.bitwise_and(hyst, cv2.bitwise_not(blobs))
+            b0_a, b1_a, _ = compute_betti_numbers(hyst)
+            b0_b, b1_b, _ = compute_betti_numbers(hyst_trap)
             if b0_a == b0_b and b1_a == b1_b:
-                cand = cand_trap
-        cand = _apply_counter_punch(cand, orig_counters)
-        out.append((f"M4_hysteresis_inktrap(w+{dw})", cand))
+                hyst = hyst_trap
+        hyst = _apply_counter_punch(hyst, orig_counters)
+        out.append((f"M1_hysteresis(w+{dw},t={t_center})", hyst))
+
     return out
 
 
@@ -993,7 +933,7 @@ def synth_m5_whole_stem_collinear_autofloor(
     can_widen: bool = True,
 ) -> List[Tuple[str, np.ndarray]]:
     """
-    Method 16 & 21: Whole-Column / Trajectory-Consistent Outward Stem Dilation + Counter-Punch.
+    Stage 2 (Collinear Outward & In-Place >=2px Stem Floor + Counter-Punch):
     Respects the Multi-Stroke Pigeonhole Law on scanlines with `len(runs) >= 3`.
     """
     h, w = base_1bit.shape
@@ -1027,13 +967,13 @@ def synth_m5_whole_stem_collinear_autofloor(
             elif can_l:
                 inp[r, s - 1] = 255
     inp = _apply_counter_punch(inp, orig_counters, upscaled_small_counters)
-    out.append(("M5_collinear_inplace", inp))
+    out.append(("M2_collinear_inplace", inp))
 
     if not can_widen:
         return out
 
     if w == 1:
-        out.append(("M5_collinear_outward", np.repeat(base_1bit, min_stem, axis=1)))
+        out.append(("M2_collinear_outward", np.repeat(base_1bit, min_stem, axis=1)))
         return out
 
     work = np.pad(base_1bit, ((0, 0), (1, 1)), mode="constant", constant_values=0)
@@ -1090,55 +1030,7 @@ def synth_m5_whole_stem_collinear_autofloor(
     if len(xs) > 0:
         res = res[:, int(xs.min()) : int(xs.max()) + 1]
     res = _apply_counter_punch(res, orig_counters, upscaled_small_counters)
-    out.append(("M5_collinear_outward", res))
-    return out
-
-
-def synth_m6_italic_diagonal_rectifier(
-    base_1bit: np.ndarray,
-    orig_counters: np.ndarray,
-    min_stem: int = 2,
-) -> List[Tuple[str, np.ndarray]]:
-    """
-    Method 5 & 14 (Rational Diophantine Slant & Gabor Diagonal Continuity):
-    Symmetric rightward and leftward diagonal/curve rectifiers (respecting multi-stroke valleys).
-    """
-    h, w = base_1bit.shape
-    out: List[Tuple[str, np.ndarray]] = []
-
-    work_r = np.pad(base_1bit, ((0, 0), (0, 1)), mode="constant", constant_values=0)
-    pw = work_r.shape[1]
-    for r in range(h):
-        runs = _get_row_runs(work_r[r])
-        if len(runs) >= 3 and pw < (min_stem * len(runs) + (len(runs) - 1)):
-            continue
-        for idx, (s, e) in enumerate(runs):
-            if (e - s + 1) < min_stem:
-                right_lim = (runs[idx + 1][0] - 2) if idx + 1 < len(runs) else (pw - 1)
-                if e + 1 <= right_lim:
-                    work_r[r, e + 1] = 255
-    ys, xs = np.nonzero(work_r > 0)
-    if len(xs) > 0:
-        work_r = work_r[:, int(xs.min()) : int(xs.max()) + 1]
-    work_r = _apply_counter_punch(work_r, orig_counters)
-    out.append(("M6_diagonal_rectified_r", work_r))
-
-    work_l = np.pad(base_1bit, ((0, 0), (1, 0)), mode="constant", constant_values=0)
-    for r in range(h):
-        runs = _get_row_runs(work_l[r])
-        if len(runs) >= 3 and pw < (min_stem * len(runs) + (len(runs) - 1)):
-            continue
-        for idx, (s, e) in enumerate(runs):
-            if (e - s + 1) < min_stem:
-                left_lim = (runs[idx - 1][1] + 2) if idx > 0 else 0
-                if s - 1 >= left_lim:
-                    work_l[r, s - 1] = 255
-    ys2, xs2 = np.nonzero(work_l > 0)
-    if len(xs2) > 0:
-        work_l = work_l[:, int(xs2.min()) : int(xs2.max()) + 1]
-    work_l = _apply_counter_punch(work_l, orig_counters)
-    out.append(("M6_diagonal_rectified_l", work_l))
-
+    out.append(("M2_collinear_outward", res))
     return out
 
 
@@ -1185,9 +1077,7 @@ def synth_m8_central_spine_expansion(
     min_stem: int = 2,
     can_widen: bool = True,
 ) -> List[Tuple[str, np.ndarray]]:
-    """
-    Method M8 (Central-Spine Column Expansion for '$', '+', '±', '¢', '¥', 'Φ', 'Ψ').
-    """
+    """Stage 3 (Central-Spine Column Expansion for '$', '+', '±', '¢', '¥', 'Φ', 'Ψ')."""
     if codepoint not in CENTRAL_SPINE_CODEPOINTS:
         return []
     h, w = base_1bit.shape
@@ -1217,19 +1107,25 @@ def synth_m8_central_spine_expansion(
         dup_rect = _rectify_spine_tips_and_outer_walls(dup, min_stem=min_stem)
         if dup_c is not None:
             dup_rect = _apply_counter_punch(dup_rect, dup_c)
-        out.append(("M8_central_spine_dup", dup_rect))
+        out.append(("M3_central_spine_dup", dup_rect))
 
         padded = np.pad(dup, ((0, 0), (1, 1)), mode="constant", constant_values=0)
         pad_rect = _rectify_spine_tips_and_outer_walls(padded, min_stem=min_stem)
         if dup_c is not None:
             pad_c = np.pad(dup_c, ((0, 0), (1, 1)), mode="constant", constant_values=0)
             pad_rect = _apply_counter_punch(pad_rect, pad_c)
-        out.append(("M8_central_spine_full", pad_rect))
+        out.append(("M3_central_spine_full", pad_rect))
 
     inp = _rectify_spine_tips_and_outer_walls(base_1bit, min_stem=min_stem)
     inp = _apply_counter_punch(inp, orig_counters)
-    out.append(("M8_central_spine_tips", inp))
+    out.append(("M3_central_spine_tips", inp))
     return out
+
+
+# Backward-compatible function aliases
+synth_m1_phase_shift_sweep = synth_m1_dynamic_threshold_sweep
+synth_m2_collinear_stem_rescue = synth_m5_whole_stem_collinear_autofloor
+synth_m3_central_spine = synth_m8_central_spine_expansion
 
 
 def inspect_and_repair_glyph_bitmap(
@@ -1247,7 +1143,7 @@ def inspect_and_repair_glyph_bitmap(
     tune_mode: str = "surgical",
 ) -> Tuple[np.ndarray, RepairAuditRecord]:
     """
-    Run the Surgical Multi-Method Typographic Tournament (`M0..M8`) on a single glyph (v1.0.14):
+    Run the Surgical Multi-Method Typographic Tournament (`M0..M8`) on a single glyph (v1.0.15):
       - `tune_mode == "off"`       : 100% Untouched Native FreeType (metrics & audit only).
       - `tune_mode == "wart-only"` : Zero stem thickening; only 4-directional 1px outline-wart shaving (`M0_wart_shaved`).
       - `tune_mode == "surgical"`  : Universal 4-directional outline-wart shaving (`M0_wart_shaved`) on all glyphs +
@@ -1295,7 +1191,8 @@ def inspect_and_repair_glyph_bitmap(
     if expected_holes_override is not None:
         expected_b1 = expected_holes_override
     elif master_hi is not None and master_hi.size > 0:
-        b0_hi, b1_hi, hi_counters = compute_betti_numbers((master_hi >= 120).astype(np.uint8) * 255)
+        t_hq_dyn = compute_dynamic_hq_threshold(master_hi, is_bold_role=is_bold_role, h0=h0)
+        b0_hi, b1_hi, hi_counters = compute_betti_numbers((master_hi >= t_hq_dyn).astype(np.uint8) * 255)
         expected_b0 = b0_hi if b0_hi > 0 else b0_base
         if ch_str in PINCH_FORBIDDEN_CHARS:
             expected_b1 = 0
@@ -1464,16 +1361,14 @@ def inspect_and_repair_glyph_bitmap(
 
     raw_candidates: List[Tuple[str, np.ndarray]] = []
     if master_hi is not None and master_hi.size > 0:
-        raw_candidates.extend(synth_m1_phase_shift_sweep(master_hi, w0, h0, orig_counters))
-        raw_candidates.extend(synth_m3_sdf_level_set(base_1bit, master_hi, orig_counters))
-        raw_candidates.extend(synth_m4_hysteresis_and_ink_traps(base_1bit, master_hi, orig_counters, codepoint))
-    raw_candidates.extend(synth_m2_centerline_line_tracer(base_1bit, master_hi, orig_counters, min_stem=min_stem))
+        raw_candidates.extend(
+            synth_m1_dynamic_threshold_sweep(master_hi, w0, h0, orig_counters, codepoint=codepoint, is_bold_role=is_bold_role)
+        )
     raw_candidates.extend(
         synth_m5_whole_stem_collinear_autofloor(
             base_1bit, orig_counters, upscaled_small_counters, min_stem=min_stem, can_widen=can_widen
         )
     )
-    raw_candidates.extend(synth_m6_italic_diagonal_rectifier(base_1bit, orig_counters, min_stem=min_stem))
     raw_candidates.extend(
         synth_m8_central_spine_expansion(base_1bit, orig_counters, codepoint, min_stem=min_stem, can_widen=can_widen)
     )
@@ -1576,7 +1471,7 @@ def synchronize_mirror_glyph_pairs(
     is_monospace: bool = False,
 ) -> int:
     """
-    Bilateral Mirror-Pair Synchronization (v1.0.13):
+    Bilateral Mirror-Pair Synchronization (v1.0.15):
     Only synchronizes a paired delimiter/arrow tuple `(cp_l, cp_r)` if at least one partner
     was repaired (`rl.repaired or rr.repaired`) or if their bounding-box widths differ (`gl.box_w != gr.box_w`),
     and always prefers the wider / higher-confidence partner (never shrinking a bold glyph).

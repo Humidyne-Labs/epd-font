@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.14)
+humid1_generate_1bpp.py (v1.0.15)
 =================================
 Humidyne Labs / Humiditron `epd-font` Modular 1-BPP Font Foundry Orchestrator.
 
@@ -8,7 +8,7 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-Modular Architecture (v1.0.14):
+Modular Architecture (v1.0.15):
 -------------------------------
 - `humid1_ft_raster.py`     : FreeType 2 ctypes bindings, glyph strike model, kerning & 1-BPP rasterizer.
 - `humid1_bilevel_tuner.py` : Iterative Multi-Method Typographic Tournament (`M0..M8`) + Bilateral Mirror Sync.
@@ -97,7 +97,7 @@ from humid1_lvgl_bdf_export import (
     write_total_disk_size_report,
 )
 
-TOOL_VERSION = "1.0.14"
+TOOL_VERSION = "1.0.15"
 
 # =============================================================================
 # 2. SUB-FAMILY REGISTRY, SIZE FLOORS & BUILD PROFILES
@@ -171,7 +171,7 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800) -> Dict[s
     """
     Map semantic roles (thin, extralight, light, normal, text, medium, semibold, bold, extrabold, italic, bold_italic)
     to instantiated static TTF filenames.
-    In v1.0.14, when `normal_weight >= 500` (`Medium`), `bold` defaults to `ExtraBold` (`bold_weight=800`)
+    In v1.0.15, when `normal_weight >= 500` (`Medium`), `bold` defaults to `ExtraBold` (`bold_weight=800`)
     so `normal` (`Medium 500`), `bold` (`ExtraBold 800`), and `italic` (`MediumItalic 500`) maintain
     unmistakable stroke-weight hierarchy across all sizes (`10px–24px`).
     """
@@ -387,7 +387,7 @@ def ensure_static_plex_assets(
 
 
 # =============================================================================
-# 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v0.0.6)
+# 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v1.0.15)
 # =============================================================================
 
 def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "", style: str = "") -> str:
@@ -533,7 +533,7 @@ Examples:
     parser = argparse.ArgumentParser(
         prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.14 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
+            "Humidyne Labs / Humiditron `epd-font` v1.0.15 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
             "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
         ),
         epilog=epilog_text,
@@ -668,7 +668,7 @@ Examples:
     )
     parser.add_argument(
         "--raster-mode",
-        choices=["autohint-mono", "bytecode-mono", "gray-threshold"],
+        choices=["autohint-mono", "bytecode-mono", "gray-threshold", "dynamic-threshold"],
         default="autohint-mono",
         help="FreeType 1-bpp rasterizer mode (default: autohint-mono)",
     )
@@ -676,7 +676,7 @@ Examples:
         "--threshold",
         type=int,
         default=128,
-        help="Grayscale threshold (0-255) when --raster-mode=gray-threshold",
+        help="Grayscale threshold (1-255, or 0 for weight/size/Otsu dynamic threshold)",
     )
     parser.add_argument(
         "--audit-screens",
@@ -1063,7 +1063,7 @@ def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.14)
+    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.15)
     raw_src_arg = args.src_dir or args.font_dir
     if raw_src_arg:
         cand_src = Path(raw_src_arg).resolve()
@@ -1188,7 +1188,7 @@ def main() -> None:
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
     kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
     vault_data: dict = {
-        "vault_version": "1.0.14",
+        "vault_version": "1.0.15",
         "raster_mode": raster_m,
         "normal_weight": normal_w,
         "strikes": {},

@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/Humidyne-Labs/epd-font",
   "organization": "Humidyne Labs / Humiditron",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "release_archive_tag": "v1.0.9",
   "previous_version": "1.0.15",
   "release_date": "2026-11-05",
@@ -90,5 +90,6 @@
     }
   },
   "static_ttf_count": 88,
-  "patch_count": 651
+  "patch_count": 651,
+  "codename": "FontLust Division-of-Labor Triad Edition (Hinted IBM Plex + Hinted Google Noto + Terminus)"
 }

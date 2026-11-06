@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.16",
+  "schema_version": "1.0.17",
   "scheme_id": "ui_balanced",
   "project_brand": "Humiditron General Embedded GUI Balanced Scheme",
   "description": "Balanced UI typography scheme (IBM Plex Sans 12-24px + Mono 14-20px + Lucide UI icons).",
@@ -40,12 +40,12 @@
       "HUMID1_FONT_TELEMETRY_SM": "humid1_font_plex_mono_normal_14",
       "HUMID1_FONT_TELEMETRY_MD": "humid1_font_plex_mono_bold_20",
       "HUMID1_FONT_TELEMETRY_LG": "humid1_font_plex_mono_bold_24",
-      "HUMID1_FONT_TELEMETRY_XL": "humid1_font_plex_mono_bold_32",
-      "HUMID1_FONT_TERMINAL": "humid1_font_terminus_normal_16",
-      "HUMID1_ICON_FA7_DEFAULT": "humid1_icon_fa7_solid_16",
+      "HUMID1_FONT_TELEMETRY_XL": "humid1_font_plex_mono_bold_24",
+      "HUMID1_FONT_TERMINAL": "humid1_font_plex_mono_bold_16",
+      "HUMID1_ICON_FA7_DEFAULT": "humid1_icon_lucide_regular_16",
       "HUMID1_ICON_LUCIDE_DEFAULT": "humid1_icon_lucide_regular_16",
-      "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_phosphor_regular_16",
-      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_tabler_regular_16"
+      "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_lucide_regular_16",
+      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_lucide_regular_16"
     }
   },
   "character_sets": {
@@ -495,10 +495,26 @@
       "family": "sans",
       "style": "bold",
       "sizes": [
+        12,
         14,
         16,
         20,
         24
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_plex_sans_normal_{size}"
+    },
+    {
+      "family": "sans",
+      "style": "italic",
+      "sizes": [
+        14,
+        16,
+        20
       ],
       "char_sets": [
         "ascii_printable",
@@ -534,6 +550,22 @@
       ],
       "kerning": false,
       "fallback": null
+    },
+    {
+      "family": "mono",
+      "style": "bold",
+      "sizes": [
+        14,
+        16,
+        20,
+        24
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units"
+      ],
+      "kerning": false,
+      "fallback": "humid1_font_plex_sans_bold_{size}"
     }
   ]
 }

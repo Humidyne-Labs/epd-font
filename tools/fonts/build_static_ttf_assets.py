@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.16)
+build_static_ttf_assets.py (v1.0.17)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -54,7 +54,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.16"
+TOOL_VERSION = "1.0.17"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES
@@ -147,6 +147,32 @@ TERMINUS_BDF_CONVERSION_TABLE: List[Tuple[str, str, str, str, int]] = [
     ("Terminus-Bold-36.ttf",   "terminus", "ter-u18b.bdf", "Bold-36",   2),
     ("Terminus-Normal-40.ttf", "terminus", "ter-u20n.bdf", "Normal-40", 2),
     ("Terminus-Bold-40.ttf",   "terminus", "ter-u20b.bdf", "Bold-40",   2),
+]
+
+
+NOTO_STATIC_COPY_TABLE: List[Tuple[str, str, str]] = [
+    ("NotoSans-Regular.ttf", "noto_sans", "NotoSans-Regular.ttf"),
+    ("NotoSans-Medium.ttf", "noto_sans", "NotoSans-Medium.ttf"),
+    ("NotoSans-Bold.ttf", "noto_sans", "NotoSans-Bold.ttf"),
+    ("NotoSans-ExtraBold.ttf", "noto_sans", "NotoSans-ExtraBold.ttf"),
+    ("NotoSans-Black.ttf", "noto_sans", "NotoSans-Black.ttf"),
+    ("NotoSans-MediumItalic.ttf", "noto_sans", "NotoSans-MediumItalic.ttf"),
+    ("NotoSans-SemiBoldItalic.ttf", "noto_sans", "NotoSans-SemiBoldItalic.ttf"),
+    ("NotoSans-SemiCondensedMedium.ttf", "noto_cond", "NotoSans-SemiCondensedMedium.ttf"),
+    ("NotoSans-SemiCondensedExtraBold.ttf", "noto_cond", "NotoSans-SemiCondensedExtraBold.ttf"),
+    ("NotoSans-SemiCondensedBlack.ttf", "noto_cond", "NotoSans-SemiCondensedBlack.ttf"),
+    ("NotoSans-SemiCondensedSemiBoldItalic.ttf", "noto_cond", "NotoSans-SemiCondensedSemiBoldItalic.ttf"),
+    ("NotoSans-CondensedSemiBold.ttf", "noto_cond", "NotoSans-CondensedSemiBold.ttf"),
+    ("NotoSans-CondensedBlack.ttf", "noto_cond", "NotoSans-CondensedBlack.ttf"),
+    ("NotoSans-CondensedSemiBoldItalic.ttf", "noto_cond", "NotoSans-CondensedSemiBoldItalic.ttf"),
+    ("NotoSansMono-Medium.ttf", "noto_mono", "NotoSansMono-Medium.ttf"),
+    ("NotoSansMono-ExtraBold.ttf", "noto_mono", "NotoSansMono-ExtraBold.ttf"),
+    ("NotoSansMono-Black.ttf", "noto_mono", "NotoSansMono-Black.ttf"),
+    ("NotoSerif-Medium.ttf", "noto_serif", "NotoSerif-Medium.ttf"),
+    ("NotoSerif-Black.ttf", "noto_serif", "NotoSerif-Black.ttf"),
+    ("NotoSerif-MediumItalic.ttf", "noto_serif", "NotoSerif-MediumItalic.ttf"),
+    ("NotoSerif-SemiBoldItalic.ttf", "noto_serif", "NotoSerif-SemiBoldItalic.ttf"),
+    ("NotoSansMath-Regular.ttf", "noto_math", "NotoSansMath-Regular.ttf"),
 ]
 
 ICON_CONVERSION_TABLE: List[Tuple[str, str, str, str]] = [
@@ -671,10 +697,15 @@ def generate_icon_and_font_catalogs(
 
     text_families = {
         "sans": [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "sans"],
-        "cond": [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "cond"],
+        "cond": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_cond"] + [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "cond"],
         "mono": [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "mono"],
-        "serif": [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "serif"],
-        "math": ["IBMPlexMath-Regular.ttf"],
+        "serif": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_serif"] + [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "serif"],
+        "math": ["NotoSansMath-Regular.ttf", "IBMPlexMath-Regular.ttf"],
+        "noto_sans": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_sans"],
+        "noto_cond": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_cond"],
+        "noto_mono": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_mono"],
+        "noto_serif": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_serif"],
+        "noto_math": ["NotoSansMath-Regular.ttf"],
         "terminus": [row[0] for row in TERMINUS_BDF_CONVERSION_TABLE],
     }
     for cat_name in ("humid1_font_catalog.json", "plex_catalog.json"):
@@ -714,6 +745,8 @@ def collect_upstream_licenses(file_index: Dict[str, Path], out_static_dir: Path)
                 target_name = "IBMPlex_Mono_OFL.txt"
             elif "sans" in p_str:
                 target_name = "IBMPlex_Sans_OFL.txt"
+            elif "noto" in p_str:
+                target_name = "Noto_OFL.txt"
             elif "serif" in p_str:
                 target_name = "IBMPlex_Serif_OFL.txt"
             elif "awsome" in p_str or "awesome" in p_str:
@@ -817,6 +850,16 @@ def build_all_static_assets(
         if dst_path.is_file() and not force:
             built_files.append(dst_path)
             continue
+        # Prefer official Hinted static IBM Plex cut from assets/font_assets/ibm-plex-font/hinted_static/ when present
+        hinted_cand = file_index.get(f"hinted_static/{target_name}") or file_index.get(target_name)
+        if hinted_cand and "hinted_static" in hinted_cand.as_posix() and float(coords.get("wght", 400.0)) <= 700.0:
+            tasks.append({
+                "kind": "copy_ttf",
+                "target_name": target_name,
+                "src_path": str(hinted_cand),
+                "dst_path": str(dst_path),
+            })
+            continue
         src_path = file_index.get(src_fname) or file_index.get(src_fname.lower())
         if src_path:
             tasks.append({
@@ -826,6 +869,22 @@ def build_all_static_assets(
                 "dst_path": str(dst_path),
                 "coords": coords,
                 "aliases": aliases,
+            })
+
+    for target_name, fam_group, src_fname in NOTO_STATIC_COPY_TABLE:
+        if allowed_fams and fam_group not in allowed_fams and "noto" not in allowed_fams and fam_group.replace("noto_", "") not in allowed_fams:
+            continue
+        dst_path = out_dir / target_name
+        if dst_path.is_file() and not force:
+            built_files.append(dst_path)
+            continue
+        src_path = file_index.get(src_fname) or file_index.get(src_fname.lower())
+        if src_path:
+            tasks.append({
+                "kind": "copy_ttf",
+                "target_name": target_name,
+                "src_path": str(src_path),
+                "dst_path": str(dst_path),
             })
 
     if not allowed_fams or "math" in allowed_fams or "plex" in allowed_fams:

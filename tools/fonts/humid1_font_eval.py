@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_font_eval.py (v1.0.16)
+humid1_font_eval.py (v1.0.17)
 =============================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Font & Weight Evaluation Suite,
 Tri-Role Visual Contrast Triad Scorer (`Normal` + `Bold Punch` + `Subtle Italic`),
@@ -10,13 +10,13 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-What's New in v1.0.16:
+What's New in v1.0.17:
 ----------------------
 1. Tri-Role Visual Contrast Triad Scorer (`evaluate_family_triads`):
    Fixes the v1.0.15 single-font isolated scoring bias that caused `Normal (w600)`,
    `Bold (w700)`, and `Italic (w800)` to converge to visually indistinguishable `~2.3px–2.5px`
    stems (`+6.5%` Bold delta, with Italic heavier than Bold).
-   In v1.0.16, typefaces are scored both per-role (`compute_role_aware_epd_score`) and as
+   In v1.0.17, typefaces are scored both per-role (`compute_role_aware_epd_score`) and as
    **3-Role Family Triads (`Normal` + `Bold Punch` + `Subtle Iso-Weight Italic`)**:
      - `NORMAL (BODY)`   : Clean `2.00px–2.25px` stem (`w400–w500`), leaving headroom for Bold.
      - `BOLD (PUNCH)`    : True `2.90px–3.45px` stem (`w800 ExtraBold` / `w900 Black`), delivering
@@ -31,7 +31,7 @@ What's New in v1.0.16:
    Stem-Jump (`+px`), and 2x-zoomed glyph triad strips (`H B a e g s w $`).
 3. Multi-Corpus JSON Re-Digest Mode (`--re-digest-json`):
    Can directly ingest and re-evaluate existing `font_eval_report.json` datasets (e.g., 425-font
-   multi-archive runs) under the v1.0.16 Tri-Role Visual Contrast Triad Scorer.
+   multi-archive runs) under the v1.0.17 Tri-Role Visual Contrast Triad Scorer.
 """
 
 from __future__ import annotations
@@ -71,12 +71,12 @@ from humid1_ft_raster import (
     rasterize_font_strike,
 )
 
-TOOL_VERSION = "1.0.16"
+TOOL_VERSION = "1.0.17"
 
 # Diagnostic benchmark character set (57 critical glyphs: counters, multi-valley diagonals, paired brackets, symbols)
 EVAL_BENCHMARK_CHARS = "0124689ABCDHIJMNOPQRWabcefghijlmnoqrstvwxyz$%&()[]{}/\\|!<>+="
 EVAL_COUNTER_CHARS = set("04689ABDOPQRabdegopq$%&")
-EVAL_SPECIMEN_STRING = "H1OS v1.0.16 (08B$) [aeg] {WwMm} <=>"
+EVAL_SPECIMEN_STRING = "H1OS v1.0.17 (08B$) [aeg] {WwMm} <=>"
 EVAL_ZOOM_STRIP_CHARS = "WwMmABCfgrs$()[]08"
 TRIAD_ZOOM_CHARS = "HBaegsw$"
 
@@ -331,7 +331,28 @@ def discover_candidate_fonts(
             ("IBM Plex Serif Bold [ExtraBold w800]", src_dir / "IBMPlexSerif-ExtraBold.ttf", "serif", 800, False),
             ("IBM Plex Serif Italic [MedItal w500]", src_dir / "IBMPlexSerif-MediumItalic.ttf", "serif", 500, True),
             ("IBM Plex Serif Italic [SemiBoldItal w600]", src_dir / "IBMPlexSerif-SemiBoldItalic.ttf", "serif", 600, True),
+            # Hinted Google Noto Sans & Width Specialists (v1.0.17)
+            ("Noto Sans Normal [Medium w500]", src_dir / "NotoSans-Medium.ttf", "sans", 500, False),
+            ("Noto Sans Bold [ExtraBold w800]", src_dir / "NotoSans-ExtraBold.ttf", "sans", 800, False),
+            ("Noto Sans Black [Black w900]", src_dir / "NotoSans-Black.ttf", "sans", 900, False),
+            ("Noto Sans Italic [MedItal w500]", src_dir / "NotoSans-MediumItalic.ttf", "sans", 500, True),
+            ("Noto Sans Italic [SemiBoldItal w600]", src_dir / "NotoSans-SemiBoldItalic.ttf", "sans", 600, True),
+            ("Noto Sans SemiCond Normal [Medium w500]", src_dir / "NotoSans-SemiCondensedMedium.ttf", "cond", 500, False),
+            ("Noto Sans SemiCond Bold [ExtraBold w800]", src_dir / "NotoSans-SemiCondensedExtraBold.ttf", "cond", 800, False),
+            ("Noto Sans SemiCond Black [Black w900]", src_dir / "NotoSans-SemiCondensedBlack.ttf", "cond", 900, False),
+            ("Noto Sans SemiCond Italic [SemiBoldItal w600]", src_dir / "NotoSans-SemiCondensedSemiBoldItalic.ttf", "cond", 600, True),
+            ("Noto Sans Cond Normal [SemiBold w600]", src_dir / "NotoSans-CondensedSemiBold.ttf", "cond", 600, False),
+            ("Noto Sans Cond Bold [Black w900]", src_dir / "NotoSans-CondensedBlack.ttf", "cond", 900, False),
+            ("Noto Sans Cond Italic [SemiBoldItal w600]", src_dir / "NotoSans-CondensedSemiBoldItalic.ttf", "cond", 600, True),
+            ("Noto Sans Mono Normal [Medium w500]", src_dir / "NotoSansMono-Medium.ttf", "mono", 500, False),
+            ("Noto Sans Mono Bold [ExtraBold w800]", src_dir / "NotoSansMono-ExtraBold.ttf", "mono", 800, False),
+            ("Noto Sans Mono Black [Black w900]", src_dir / "NotoSansMono-Black.ttf", "mono", 900, False),
+            ("Noto Serif Normal [Medium w500]", src_dir / "NotoSerif-Medium.ttf", "serif", 500, False),
+            ("Noto Serif Bold [Black w900]", src_dir / "NotoSerif-Black.ttf", "serif", 900, False),
+            ("Noto Serif Italic [MedItal w500]", src_dir / "NotoSerif-MediumItalic.ttf", "serif", 500, True),
+            ("Noto Serif Italic [SemiBoldItal w600]", src_dir / "NotoSerif-SemiBoldItalic.ttf", "serif", 600, True),
             # Math & Terminus
+            ("Noto Sans Math Regular (w400)", src_dir / "NotoSansMath-Regular.ttf", "math", 400, False),
             ("IBM Plex Math Regular (w400)", src_dir / "IBMPlexMath-Regular.ttf", "math", 400, False),
             ("Terminus Native Bitmap (w400)", src_dir / "Terminus-Normal-16.ttf", "terminus", 400, False),
             ("Terminus Bold Bitmap (w700)", src_dir / "Terminus-Bold-16.ttf", "terminus", 700, False),
@@ -465,11 +486,20 @@ def classify_font_role_and_score(d: FontEvalSummary) -> Tuple[str, float]:
 
 
 def extract_base_family_stem(font_file: str, family_group: str) -> str:
-    """Group font filenames into canonical family stems for Tri-Role Triad pairing."""
+    """Group font filenames into canonical family stems (preserving width sub-families like SemiCondensed/Condensed) for Tri-Role Triad pairing."""
     stem = Path(font_file).stem
     if stem.lower().startswith("terminus-"):
         return "Terminus"
-    m = re.match(r"^([A-Za-z0-9_]+?)-(?:Thin|ExtraLight|Light|Regular|Text|Medium|SemiBold|Bold|ExtraBold|Black|Heavy|Italic|MedItal|Roman|Normal|VGA)", stem)
+    m_width = re.match(
+        r"^([A-Za-z0-9_]+?-(?:SemiCondensed|ExtraCondensed|Condensed))(?:Thin|ExtraLight|Light|Regular|Text|Medium|SemiBold|Bold|ExtraBold|Black|Heavy|Italic|MedItal|Roman|Normal|VGA)",
+        stem,
+    )
+    if m_width:
+        return m_width.group(1)
+    m = re.match(
+        r"^([A-Za-z0-9_]+?)-(?:Thin|ExtraLight|Light|Regular|Text|Medium|SemiBold|Bold|ExtraBold|Black|Heavy|Italic|MedItal|Roman|Normal|VGA)",
+        stem,
+    )
     if m:
         return m.group(1)
     return stem.split("-")[0]
@@ -655,7 +685,7 @@ def render_triad_contrast_sheet(
     sizes: Sequence[int],
 ) -> Optional[Path]:
     """
-    Render the v1.0.16 Tri-Role Visual Contrast Sheet (`font_eval_triad_contrast_sheet.png`)
+    Render the v1.0.17 Tri-Role Visual Contrast Sheet (`font_eval_triad_contrast_sheet.png`)
     stacking `NORMAL (BODY)`, `BOLD (PUNCH)`, and `ITALIC (SUBTLE)` directly on top of one
     another per family so pattern-recognition contrast is immediately visible at a glance.
     """
@@ -1028,7 +1058,7 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
                 font_path=active_path,
                 size_px=sz,
                 codepoints=codepoints,
-                raster_mode="autohint_mono",
+                raster_mode=task.get("raster_mode", "autohint-mono"),
                 threshold=int(task.get("threshold", 128)),
                 font_number=0,
             )
@@ -1183,7 +1213,7 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
             mean_raw_conf = float(np.mean(raw_confs)) if raw_confs else 0.0
             mean_tun_conf = float(np.mean(tun_confs)) if tun_confs else 0.0
 
-            # Size- and slant-aware viable floor gate (v1.0.16):
+            # Size- and slant-aware viable floor gate (v1.0.17):
             # Accounts for 1-BPP diagonal staircase quantization on slanted Italics and 14px grid rounding
             min_raw_hq = (64.0 if is_italic else 68.5) if sz <= 14 else (67.0 if is_italic else 72.0)
             min_tun_hq = (65.0 if is_italic else 69.5) if sz <= 14 else (68.0 if is_italic else 73.0)
@@ -1462,7 +1492,7 @@ def generate_markdown_report(
         "",
         "Why single-font isolated scoring failed in v1.0.15: ranking individual cuts by raw 8x HQ IoU rewarded fonts whose stems landed on `~2.3px–2.5px` (`w600 SemiBold` for Normal, `w700 Bold` for Bold with only `+6.5%` ink difference, and `w800 ExtraBoldItalic` with more ink than Bold!).",
         "",
-        "In **v1.0.16**, `humid1_font_eval.py` evaluates **3-Role Visual Contrast Triads** designed for instant human pattern recognition on a 1-BPP display:",
+        "In **v1.0.17**, `humid1_font_eval.py` evaluates **3-Role Visual Contrast Triads** designed for instant human pattern recognition on a 1-BPP display:",
         "- **`NORMAL (BODY)`**: `~2.00px–2.20px` stem (`Medium w500` / `Regular w400`) — crisp, open counters with contrast headroom.",
         "- **`BOLD (PUNCH)`**: `~2.90px–3.40px` stem (`ExtraBold w800` / `Black w900`) — **`+35% to +65%` more ink mass** and a **`+0.85px to +1.45px` integer stem jump** over `Normal`.",
         "- **`ITALIC (SUBTLE)`**: `~2.05px–2.30px` stem (`MediumItalic w500` / `SemiBoldItalic w600`) — **`[-10% to +12%]` iso-weight ink mass relative to `Normal`** and **`>=25%` lighter than `Bold`**, signaling nuance via slant and cursive terminals (`a`, `e`, `f`, `g`) without bold bloat.",
@@ -1561,7 +1591,7 @@ def main() -> None:
     parser.add_argument("--src-dir", type=str, default=str(repo_root / "build" / "static_ttfs"), help="Directory containing .ttf/.otf/.ttc/.bdf fonts to evaluate")
     parser.add_argument("--out-dir", type=str, default=str(repo_root / "build" / "font_eval"), help="Output directory for reports & PNG sheets")
     parser.add_argument("--fonts", type=str, nargs="*", default=None, help="Optional explicit list of .ttf/.otf/.ttc font paths to evaluate")
-    parser.add_argument("--re-digest-json", type=str, nargs="+", default=None, help="Re-evaluate existing font_eval_report.json file(s) with the v1.0.16 Tri-Role Triad Scorer")
+    parser.add_argument("--re-digest-json", type=str, nargs="+", default=None, help="Re-evaluate existing font_eval_report.json file(s) with the v1.0.17 Tri-Role Triad Scorer")
     parser.add_argument("--sizes", type=int, nargs="+", default=[12, 14, 16, 20, 24], help="Pixel sizes to benchmark (default: 12 14 16 20 24)")
     parser.add_argument(
         "--tune-mode",
@@ -1570,6 +1600,7 @@ def main() -> None:
         default="surgical",
         help="Auto-tune intervention level: off, wart-only, surgical (default), or full",
     )
+    parser.add_argument("--raster-mode", type=str, choices=["autohint-mono", "bytecode-mono", "autohint-1bit", "bytecode-1bit"], default="autohint-mono", help="FreeType rasterization mode (default: autohint-mono)")
     parser.add_argument("--threshold", type=int, default=128, help="Grayscale threshold (1..254, or 0 for dynamic; default: 128)")
     parser.add_argument("--max-rows-per-page", type=int, default=75, help="Max font rows per master comparison PNG page (default: 75)")
     parser.add_argument("-j", "--jobs", type=int, default=None, help="Number of parallel CPU worker processes (default: all CPU cores)")
@@ -1611,6 +1642,7 @@ def main() -> None:
             "is_italic": is_it,
             "sizes": list(args.sizes),
             "tune_mode": args.tune_mode,
+            "raster_mode": args.raster_mode,
             "threshold": args.threshold,
             "sheets_dir": str(sheets_dir),
         }

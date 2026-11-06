@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.16",
+  "schema_version": "1.0.17",
   "scheme_id": "industrial_scada_plc",
   "project_brand": "Humiditron Industrial PLC / SCADA Diagnostics & Alarm Panel Scheme",
   "description": "High-density Condensed alarm banners + Tabular Mono register dumps + FA7 Solid safety icons.",
@@ -30,22 +30,22 @@
     "symbol_prefix": "humid1_",
     "primary_header": "humid1_fonts.h",
     "compat_header": "epd_fonts.h",
-    "default_font": "humid1_font_plex_sans_normal_14",
+    "default_font": "humid1_font_plex_cond_bold_14",
     "semantic_roles": {
       "HUMID1_FONT_UI_MICRO": "humid1_font_terminus_normal_12",
-      "HUMID1_FONT_UI_BODY": "humid1_font_plex_sans_normal_14",
-      "HUMID1_FONT_UI_SUBTITLE": "humid1_font_plex_sans_bold_14",
-      "HUMID1_FONT_UI_TITLE": "humid1_font_plex_sans_bold_16",
-      "HUMID1_FONT_UI_HEADER": "humid1_font_plex_sans_bold_20",
+      "HUMID1_FONT_UI_BODY": "humid1_font_plex_cond_bold_14",
+      "HUMID1_FONT_UI_SUBTITLE": "humid1_font_plex_cond_bold_14",
+      "HUMID1_FONT_UI_TITLE": "humid1_font_plex_cond_bold_16",
+      "HUMID1_FONT_UI_HEADER": "humid1_font_plex_cond_bold_20",
       "HUMID1_FONT_TELEMETRY_SM": "humid1_font_plex_mono_normal_14",
       "HUMID1_FONT_TELEMETRY_MD": "humid1_font_plex_mono_bold_20",
       "HUMID1_FONT_TELEMETRY_LG": "humid1_font_plex_mono_bold_24",
-      "HUMID1_FONT_TELEMETRY_XL": "humid1_font_plex_mono_bold_32",
+      "HUMID1_FONT_TELEMETRY_XL": "humid1_font_plex_mono_bold_24",
       "HUMID1_FONT_TERMINAL": "humid1_font_terminus_normal_16",
       "HUMID1_ICON_FA7_DEFAULT": "humid1_icon_fa7_solid_16",
-      "HUMID1_ICON_LUCIDE_DEFAULT": "humid1_icon_lucide_regular_16",
-      "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_phosphor_regular_16",
-      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_tabler_regular_16"
+      "HUMID1_ICON_LUCIDE_DEFAULT": "humid1_icon_fa7_solid_16",
+      "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_fa7_solid_16",
+      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_fa7_solid_16"
     }
   },
   "character_sets": {
@@ -480,7 +480,9 @@
       "sizes": [
         14,
         16,
-        18
+        18,
+        20,
+        24
       ],
       "char_sets": [
         "ascii_printable",
@@ -494,6 +496,7 @@
       "family": "cond",
       "style": "bold",
       "sizes": [
+        14,
         16,
         18,
         20,
@@ -546,6 +549,7 @@
       "style": "normal",
       "sizes": [
         12,
+        14,
         16
       ],
       "char_sets": [
@@ -567,6 +571,21 @@
       ],
       "kerning": false,
       "fallback": null
+    },
+    {
+      "family": "terminus",
+      "style": "bold",
+      "sizes": [
+        12,
+        14,
+        16
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units"
+      ],
+      "kerning": false,
+      "fallback": "humid1_font_terminus_normal_{size}"
     }
   ]
 }

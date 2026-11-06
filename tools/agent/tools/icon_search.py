@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-icon_search.py (v1.0.16) — Agent-First Multi-Vendor Icon Catalog Search & C Macro Generator
+icon_search.py (v1.0.17) — Agent-First Multi-Vendor Icon Catalog Search & C Macro Generator
 ==========================================================================================
 Searches `build/metadata/{fa7,lucide,phosphor,tabler}_catalog.json` (12,200+ icons) by
 keyword, substring, regex, or codepoint, and outputs:

@@ -1,6 +1,6 @@
-# `epd-font` (v1.0.16) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
+# `epd-font` (v1.0.17) — Humidyne Labs / Humiditron 1-BPP Bilevel Embedded Font & Modular Icon Studio
 
-[![Version](https://img.shields.io/badge/version-v1.0.16-blue.svg)](VERSION.json)
+[![Version](https://img.shields.io/badge/version-v1.0.17-blue.svg)](VERSION.json)
 [![Repository](https://img.shields.io/badge/github-Humidyne--Labs%2Fepd--font-181717.svg)](https://github.com/Humidyne-Labs/epd-font)
 [![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL--1.1%20%2F%20ISC-green.svg)](LICENSE)
 
@@ -8,9 +8,9 @@
 
 ---
 
-## 1. Key Capabilities in v1.0.16
+## 1. Key Capabilities in v1.0.17
 
-1. **80 Standardized Static TrueType (`.ttf`) Binaries (`build/static_ttfs/`)**:
+1. **113 Standardized Static TrueType (`.ttf`) Binaries (`build/static_ttfs/`)**:
    - **IBM Plex Suite (41 cuts)**: `Sans` (`Thin 100`..`Bold 700` + Italics), `Sans Condensed` (`wdth=85`), `Mono`, `Serif`, and `Math`.
    - **Terminus Font v4.49.1 (26 cuts: 22 size-specific Normal/Bold 12-40pt + VGA 14/16 + Regular/Bold aliases)**: `Terminus-Regular.ttf` and `Terminus-Bold.ttf` (`1,356` glyphs each, automatically synthesized from `assets/font_assets/terminus-font-4.49.1.tar.gz` into pure quadratic `.ttf` outlines).
    - **4 Modular Icon Suites (13 cuts, 12,200+ indexed PUA icons)**:
@@ -30,15 +30,15 @@
 
 ---
 
-## 2. Repository Directory Structure (`v1.0.16`)
+## 2. Repository Directory Structure (`v1.0.17`)
 
 ```text
 epd-font/
 ├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron code & tooling)
-├── VERSION.json                             # Release & upstream asset version manifest (v1.0.16)
+├── VERSION.json                             # Release & upstream asset version manifest (v1.0.17)
 ├── font_icon_epd_patches.json               # Root-tracked optical 1-bpp pixel patch manifest (persisted in Git)
 ├── README.md                                # Primary repository overview & quick-start
-├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.16)
+├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.17)
 ├── docs/
 │   ├── HOW_TO_GUIDE.md                      # Complete installation, CLI, scheme & CMake integration guide
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp typography & rasterization specification
@@ -80,7 +80,7 @@ Double-click or run `99_run_full_pipeline.bat` inside any of the 4 workflow fold
 # 1. Install host Python dependencies
 pip install "fonttools>=4.40.0" "Pillow>=10.0.0" "freetype-py>=2.4.0"
 
-# 2. Synthesize all 88 static .ttf files into build/static_ttfs/ and catalogs into build/metadata/
+# 2. Synthesize all 113 static .ttf files into build/static_ttfs/ and catalogs into build/metadata/
 python tools/fonts/build_static_ttf_assets.py --verify
 
 # 3. Build 1-bpp C/H fonts, BDFs, CSVs, and Strike Vault using any general scheme
@@ -100,8 +100,8 @@ python tools/agent/tools/icon_search.py --query thermometer
 
 - **[Complete How-To Guide (`docs/HOW_TO_GUIDE.md`)](docs/HOW_TO_GUIDE.md)** — Step-by-step installation, CLI reference, 16 schemes guide, custom ASCII patching, and CMake integration.
 - **[Maintainer & Architecture Specification (`docs/MAINTAINER_SPEC.md`)](docs/MAINTAINER_SPEC.md)** — Formal 1-bpp rasterization math, Terminus BDF-to-TTF synthesis, and PUA icon catalog architecture.
-- **[Formal v1.0.16 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.16.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.16.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
-- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.16`.
+- **[Formal v1.0.17 Engineering & Audit Report (`docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.17.md`)](docs/audits/HUMIDITRON_AUDIT_REPORT_v1.0.17.md)** — Root-cause analysis of the Phosphor Fill `U+0069_i.txt` bug, repository general-purpose refactoring, Terminus integration, and Agent-First tooling verification.
+- **[Changelog (`CHANGELOG.md`)](CHANGELOG.md)** — Full version history through `v1.0.17`.
 
 
 ## Authoritative Script Execution Order (`00`–`08` & `99`)
@@ -145,6 +145,6 @@ Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distr
 
 
 
-### v1.0.16 `--tune-mode {off,wart-only,surgical,full}` & Realistic Size Floor Calibration
+### v1.0.17 `--tune-mode {off,wart-only,surgical,full}` & Realistic Size Floor Calibration
 - Use `--tune-mode off` for 100% untouched native FreeType weights, `--tune-mode wart-only` for 4-directional 1px outline-wart shaving (`M0_wart_shaved`) + mirror-pair bracket sync with zero stem thickening, or `--tune-mode surgical` (default).
 - `humid1_font_eval.py` (`02_run_font_eval.bat`) now supports multi-face `.ttc` TrueType Collections via `open_ttfont_safe()`, isolates worker exceptions, and enforces `hole_px >= 2` counter cavity checks for realistic pixel size floor estimates.

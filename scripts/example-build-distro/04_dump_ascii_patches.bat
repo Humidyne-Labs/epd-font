@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [04] Humidyne Labs - Humiditron epd-font v1.0.16 - Dump Full-Canvas 1:1 ASCII Patches
+echo [04] Humidyne Labs - Humiditron epd-font v1.0.17 - Dump Full-Canvas 1:1 ASCII Patches
 echo      Workflow : General Embedded Example Distribution Workflow
 echo      Output   : build\example\ascii_patches\
 echo ============================================================================

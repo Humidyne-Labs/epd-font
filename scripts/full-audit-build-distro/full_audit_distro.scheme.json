@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.15",
+  "schema_version": "1.0.17",
   "scheme_id": "full_audit_12_40pt",
   "project_brand": "Humidyne Labs / Humiditron Complete 12-40pt Master Audit & Distribution Suite",
   "description": "Exhaustive 12-40pt build across all text families (IBM Plex Sans, Condensed, Mono, Serif, Math, Terminus) and all 4 icon vendors (Font Awesome 7, Lucide, Phosphor, Tabler) for complete visual inspection, ASCII patch dumping, and master vault creation.",
@@ -17,13 +17,14 @@
   "raster_config": {
     "raster_mode": "autohint-mono",
     "normal_weight": 500,
-    "bold_weight": 700,
+    "bold_weight": 800,
     "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/audit/ascii_patches",
     "min_stem_px": 2,
     "auto_floor": true,
-    "repair_engine": "hybrid"
+    "repair_engine": "hybrid",
+    "italic_weight": 600
   },
   "output_branding": {
     "symbol_prefix": "humid1_",
@@ -993,6 +994,54 @@
       ],
       "kerning": false,
       "fallback": null
+    },
+    {
+      "family": "cond",
+      "style": "italic",
+      "sizes": [
+        12,
+        14,
+        16,
+        18,
+        20,
+        22,
+        24,
+        28,
+        32,
+        36,
+        40
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_plex_cond_normal_{size}"
+    },
+    {
+      "family": "serif",
+      "style": "italic",
+      "sizes": [
+        16,
+        18,
+        20,
+        22,
+        24,
+        28,
+        32,
+        36,
+        40
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_plex_serif_normal_{size}"
     }
   ]
 }

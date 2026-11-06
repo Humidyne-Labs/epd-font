@@ -2,6 +2,28 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.17] — 2026-11-05
+
+### Added
+- **Curated Hinted Google Noto (`noto_v2.013`) + Hinted IBM Plex (`hinted_static`) Asset Suite (`assets/font_assets/`, `build_static_ttf_assets.py`)**:
+  - Added 22 curated Hinted Google Noto v2.013 `.ttf` cuts (`NotoSans`, `NotoSans-SemiCondensed`, `NotoSans-Condensed`, `NotoSansMono`, `NotoSerif`, `NotoSansMath`) + `char_manifest_noto_v2.013.json`.
+  - Added 24 official Hinted IBM Plex static `.ttf` cuts (`Regular w400`, `Medium w500`, `SemiBold w600`, `Bold w700` + Italics across `Sans`, `Condensed`, `Mono`, `Serif`) alongside Variable masters (`ExtraBold w800` synthesis) and Hinted `IBMPlexMath-Regular.ttf`.
+  - `build_static_ttf_assets.py` now builds and verifies **113 static `.ttf` files (`113 PASSED, 0 FAILED`)** in `build/static_ttfs/`.
+- **Best-of-the-Best Division-of-Labor Mapping (`humid1_generate_1bpp.py`, `h1os_full.scheme.json`, `h1os_lite.scheme.json`)**:
+  - Upgraded `cond` role to Hinted `NotoSans-SemiCondensed` (`Medium w500` + `Black w900` + `SemiBoldItalic w600` — Triad Score `91.0`, `14px` Bold floor, `100.0%` counters), `serif` role to Hinted `NotoSerif` (`Medium w500` + `Black w900` + `MediumItalic w500` — Triad Score `84.9`, `16px/14px` floors, replacing `IBMPlexSerif` without `Literata`), and `math` role to Hinted `NotoSansMath-Regular.ttf` (with automatic secondary glyph fallback to `IBMPlexMath-Regular.ttf`).
+  - Added explicit `noto_sans`, `noto_cond`, `noto_mono`, `noto_serif`, `noto_math`, `plex_sans`, `plex_cond`, `plex_mono`, `plex_serif`, and `plex_math` family keys.
+
+### Fixed
+- **Unified FreeType 2 Auto-Hinting Engine (`humid1_ft_raster.py`, `humid1_font_eval.py`)**:
+  - Fixed `"autohint_mono"` vs `"autohint-mono"` discrepancy in `resolve_freetype_flags()` so both build and evaluation pipelines execute Symmetric 8-Bit Auto-Hinting + Coverage Thresholding (`FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL`), improving `16px` HQ confidence by `+3.6%..+5.7%` and eliminating 1-bit scanline spurs. Added `--raster-mode` CLI flag to `humid1_font_eval.py`.
+- **Closed-Loop Bowl-Join Bridge Sealer & Pre-Exit Gate Fix (`humid1_bilevel_tuner.py`)**:
+  - Added Step 2a (`HQ Coverage Hysteresis Arch Recovery + 1px/2px Bowl-Join Bridge Sealer`) inside `carve_and_unpinch_counters()` to seal 1px anti-aliased bowl-to-stem join leaks on `q, b, a, 8`, achieving **`100.0%` counter survival at `16px` across 50 of 51 foundry cuts**.
+  - Fixed undefined `b1_m0_now` variable in `inspect_and_repair_glyph_bitmap()` when `--tune-mode off` is used, and fixed pre-exit checks (`lines 1423–1438`) testing `b1_base` instead of `b1_m0_now`.
+- **Width-Preserving Family Stem Extraction (`humid1_font_eval.py`)**:
+  - Updated `extract_base_family_stem()` to preserve `SemiCondensed`, `Condensed`, and `ExtraCondensed` width sub-families during Triad evaluation.
+- **Zero-Hole Audit & Fix Across All 20 `.scheme.json` Files**:
+  - Upgraded all 20 `.scheme.json` files to `schema_version: "1.0.17"`, fixed 6 broken `default_font` pointers and 121 unresolved `semantic_roles` pointers (`0` broken pointers remain), and recompiled `1,073` auto-repaired glyph patches into `font_icon_epd_patches.json`.
+
 ## [v1.0.16] — 2026-11-05
 
 ### Fixed

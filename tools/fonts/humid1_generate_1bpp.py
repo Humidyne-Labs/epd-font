@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.16)
+humid1_generate_1bpp.py (v1.0.17)
 =================================
 Humidyne Labs / Humiditron `epd-font` Modular 1-BPP Font Foundry Orchestrator.
 
@@ -8,7 +8,7 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-Modular Architecture (v1.0.16):
+Modular Architecture (v1.0.17):
 -------------------------------
 - `humid1_ft_raster.py`     : FreeType 2 ctypes bindings, glyph strike model, kerning & 1-BPP rasterizer.
 - `humid1_bilevel_tuner.py` : Iterative Multi-Method Typographic Tournament (`M0..M8`) + Bilateral Mirror Sync.
@@ -97,7 +97,7 @@ from humid1_lvgl_bdf_export import (
     write_total_disk_size_report,
 )
 
-TOOL_VERSION = "1.0.16"
+TOOL_VERSION = "1.0.17"
 
 # =============================================================================
 # 2. SUB-FAMILY REGISTRY, SIZE FLOORS & BUILD PROFILES
@@ -105,10 +105,20 @@ TOOL_VERSION = "1.0.16"
 
 SUBFAMILY_FLOORS = {
     "sans": 10,
+    "plex_sans": 10,
+    "noto_sans": 10,
     "mono": 10,
+    "plex_mono": 10,
+    "noto_mono": 10,
     "cond": 12,
-    "serif": 16,
+    "plex_cond": 12,
+    "noto_cond": 12,
+    "serif": 14,
+    "plex_serif": 16,
+    "noto_serif": 14,
     "math": 14,
+    "plex_math": 14,
+    "noto_math": 14,
     "terminus": 10,
     "unifont": 16,
     "custom": 10,
@@ -171,7 +181,7 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_we
     """
     Map semantic roles (thin, extralight, light, normal, text, medium, semibold, bold, extrabold, italic, bold_italic)
     to instantiated static TTF filenames.
-    In v1.0.16, the Tri-Role Visual Contrast Hierarchy enforces:
+    In v1.0.17, the Tri-Role Visual Contrast Hierarchy enforces:
       - `normal` : `Medium (500)` (`~2.17px` stem, `1.00x` baseline ink)
       - `bold`   : `ExtraBold (800)` (`~3.13px` stem, `+35.7%` to `+40.1%` ink punch over `normal`!)
       - `italic` : `SemiBoldItalic (600)` on Sans/Cond (`+1.3%` iso-weight ink vs `normal`, `96.7%` >=2px stems)
@@ -186,62 +196,130 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_we
     mono_ital_tag = {400: "Italic", 500: "MediumItalic", 600: "MediumItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "MediumItalic")
     serif_ital_tag = {400: "Italic", 500: "MediumItalic", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
 
+    plex_sans_map = {
+        "thin": "IBMPlexSans-Thin.ttf",
+        "extralight": "IBMPlexSans-ExtraLight.ttf",
+        "light": "IBMPlexSans-Light.ttf",
+        "normal": f"IBMPlexSans-{tag}.ttf",
+        "regular": "IBMPlexSans-Regular.ttf",
+        "text": "IBMPlexSans-Text.ttf",
+        "medium": "IBMPlexSans-Medium.ttf",
+        "semibold": "IBMPlexSans-SemiBold.ttf",
+        "bold": f"IBMPlexSans-{b_tag}.ttf",
+        "bold_700": "IBMPlexSans-Bold.ttf",
+        "extrabold": "IBMPlexSans-ExtraBold.ttf",
+        "italic": f"IBMPlexSans-{ital_tag}.ttf",
+        "bold_italic": f"IBMPlexSans-{b_ital_tag}.ttf",
+    }
+    plex_mono_map = {
+        "light": "IBMPlexMono-Light.ttf",
+        "normal": f"IBMPlexMono-{tag}.ttf",
+        "regular": "IBMPlexMono-Regular.ttf",
+        "text": "IBMPlexMono-Text.ttf",
+        "medium": "IBMPlexMono-Medium.ttf",
+        "semibold": "IBMPlexMono-SemiBold.ttf",
+        "bold": f"IBMPlexMono-{b_tag}.ttf",
+        "bold_700": "IBMPlexMono-Bold.ttf",
+        "extrabold": "IBMPlexMono-ExtraBold.ttf",
+        "italic": f"IBMPlexMono-{mono_ital_tag}.ttf",
+        "bold_italic": f"IBMPlexMono-{b_ital_tag}.ttf",
+    }
+    plex_cond_map = {
+        "light": "IBMPlexSansCondensed-Light.ttf",
+        "normal": f"IBMPlexSansCondensed-{tag}.ttf",
+        "regular": "IBMPlexSansCondensed-Regular.ttf",
+        "text": "IBMPlexSansCondensed-Text.ttf",
+        "medium": "IBMPlexSansCondensed-Medium.ttf",
+        "semibold": "IBMPlexSansCondensed-SemiBold.ttf",
+        "bold": f"IBMPlexSansCondensed-{b_tag}.ttf",
+        "bold_700": "IBMPlexSansCondensed-Bold.ttf",
+        "extrabold": "IBMPlexSansCondensed-ExtraBold.ttf",
+        "italic": f"IBMPlexSansCondensed-{cond_ital_tag}.ttf",
+        "bold_italic": f"IBMPlexSansCondensed-{b_ital_tag}.ttf",
+    }
+    plex_serif_map = {
+        "light": "IBMPlexSerif-Light.ttf",
+        "normal": f"IBMPlexSerif-{tag}.ttf",
+        "regular": "IBMPlexSerif-Regular.ttf",
+        "text": "IBMPlexSerif-Text.ttf",
+        "medium": "IBMPlexSerif-Medium.ttf",
+        "semibold": "IBMPlexSerif-SemiBold.ttf",
+        "bold": f"IBMPlexSerif-{b_tag}.ttf",
+        "bold_700": "IBMPlexSerif-Bold.ttf",
+        "extrabold": "IBMPlexSerif-ExtraBold.ttf",
+        "italic": f"IBMPlexSerif-{serif_ital_tag}.ttf",
+        "bold_italic": f"IBMPlexSerif-{b_ital_tag}.ttf",
+    }
+    noto_sans_map = {
+        "normal": "NotoSans-Medium.ttf",
+        "regular": "NotoSans-Regular.ttf",
+        "medium": "NotoSans-Medium.ttf",
+        "bold": "NotoSans-Black.ttf",
+        "bold_700": "NotoSans-Bold.ttf",
+        "extrabold": "NotoSans-ExtraBold.ttf",
+        "black": "NotoSans-Black.ttf",
+        "italic": "NotoSans-SemiBoldItalic.ttf",
+        "medium_italic": "NotoSans-MediumItalic.ttf",
+        "bold_italic": "NotoSans-SemiBoldItalic.ttf",
+    }
+    # v1.0.17 Best-of-the-Best Division of Labor:
+    # `cond` maps to Hinted NotoSans-SemiCondensed (Triad Score 90.4..93.0, 14px/12px/14px floors, +49.3% Bold punch)
+    noto_cond_map = {
+        "normal": "NotoSans-SemiCondensedMedium.ttf",
+        "regular": "NotoSans-SemiCondensedMedium.ttf",
+        "medium": "NotoSans-SemiCondensedMedium.ttf",
+        "semibold": "NotoSans-CondensedSemiBold.ttf",
+        "bold": "NotoSans-SemiCondensedBlack.ttf",
+        "extrabold": "NotoSans-SemiCondensedExtraBold.ttf",
+        "black": "NotoSans-SemiCondensedBlack.ttf",
+        "condensed_normal": "NotoSans-CondensedSemiBold.ttf",
+        "condensed_bold": "NotoSans-CondensedBlack.ttf",
+        "condensed_italic": "NotoSans-CondensedSemiBoldItalic.ttf",
+        "italic": "NotoSans-SemiCondensedSemiBoldItalic.ttf",
+        "bold_italic": "NotoSans-SemiCondensedSemiBoldItalic.ttf",
+    }
+    noto_mono_map = {
+        "normal": "NotoSansMono-Medium.ttf",
+        "regular": "NotoSansMono-Medium.ttf",
+        "medium": "NotoSansMono-Medium.ttf",
+        "bold": "NotoSansMono-ExtraBold.ttf",
+        "extrabold": "NotoSansMono-ExtraBold.ttf",
+        "black": "NotoSansMono-Black.ttf",
+        "italic": "IBMPlexMono-MediumItalic.ttf",
+        "bold_italic": "IBMPlexMono-ExtraBoldItalic.ttf",
+    }
+    # `serif` maps to Hinted NotoSerif (Triad Score 89.3, 16px/16px/16px floors, +37.4% Bold punch, -2.0% iso-weight Italic)
+    noto_serif_map = {
+        "normal": "NotoSerif-Medium.ttf",
+        "regular": "NotoSerif-Medium.ttf",
+        "medium": "NotoSerif-Medium.ttf",
+        "bold": "NotoSerif-Black.ttf",
+        "black": "NotoSerif-Black.ttf",
+        "italic": "NotoSerif-MediumItalic.ttf",
+        "semibold_italic": "NotoSerif-SemiBoldItalic.ttf",
+        "bold_italic": "NotoSerif-SemiBoldItalic.ttf",
+    }
+    # `math` maps to Hinted NotoSansMath-Regular.ttf (with secondary fallback to IBMPlexMath-Regular.ttf)
+    noto_math_map = {
+        "regular": "NotoSansMath-Regular.ttf",
+        "normal": "NotoSansMath-Regular.ttf",
+    }
     return {
-        "sans": {
-            "thin": "IBMPlexSans-Thin.ttf",
-            "extralight": "IBMPlexSans-ExtraLight.ttf",
-            "light": "IBMPlexSans-Light.ttf",
-            "normal": f"IBMPlexSans-{tag}.ttf",
-            "regular": "IBMPlexSans-Regular.ttf",
-            "text": "IBMPlexSans-Text.ttf",
-            "medium": "IBMPlexSans-Medium.ttf",
-            "semibold": "IBMPlexSans-SemiBold.ttf",
-            "bold": f"IBMPlexSans-{b_tag}.ttf",
-            "bold_700": "IBMPlexSans-Bold.ttf",
-            "extrabold": "IBMPlexSans-ExtraBold.ttf",
-            "italic": f"IBMPlexSans-{ital_tag}.ttf",
-            "bold_italic": f"IBMPlexSans-{b_ital_tag}.ttf",
-        },
-        "mono": {
-            "light": "IBMPlexMono-Light.ttf",
-            "normal": f"IBMPlexMono-{tag}.ttf",
-            "regular": "IBMPlexMono-Regular.ttf",
-            "text": "IBMPlexMono-Text.ttf",
-            "medium": "IBMPlexMono-Medium.ttf",
-            "semibold": "IBMPlexMono-SemiBold.ttf",
-            "bold": f"IBMPlexMono-{b_tag}.ttf",
-            "bold_700": "IBMPlexMono-Bold.ttf",
-            "extrabold": "IBMPlexMono-ExtraBold.ttf",
-            "italic": f"IBMPlexMono-{mono_ital_tag}.ttf",
-            "bold_italic": f"IBMPlexMono-{b_ital_tag}.ttf",
-        },
-        "cond": {
-            "light": "IBMPlexSansCondensed-Light.ttf",
-            "normal": f"IBMPlexSansCondensed-{tag}.ttf",
-            "regular": "IBMPlexSansCondensed-Regular.ttf",
-            "text": "IBMPlexSansCondensed-Text.ttf",
-            "medium": "IBMPlexSansCondensed-Medium.ttf",
-            "semibold": "IBMPlexSansCondensed-SemiBold.ttf",
-            "bold": f"IBMPlexSansCondensed-{b_tag}.ttf",
-            "bold_700": "IBMPlexSansCondensed-Bold.ttf",
-            "extrabold": "IBMPlexSansCondensed-ExtraBold.ttf",
-            "italic": f"IBMPlexSansCondensed-{cond_ital_tag}.ttf",
-            "bold_italic": f"IBMPlexSansCondensed-{b_ital_tag}.ttf",
-        },
-        "serif": {
-            "light": "IBMPlexSerif-Light.ttf",
-            "normal": f"IBMPlexSerif-{tag}.ttf",
-            "regular": "IBMPlexSerif-Regular.ttf",
-            "text": "IBMPlexSerif-Text.ttf",
-            "medium": "IBMPlexSerif-Medium.ttf",
-            "semibold": "IBMPlexSerif-SemiBold.ttf",
-            "bold": f"IBMPlexSerif-{b_tag}.ttf",
-            "bold_700": "IBMPlexSerif-Bold.ttf",
-            "extrabold": "IBMPlexSerif-ExtraBold.ttf",
-            "italic": f"IBMPlexSerif-{serif_ital_tag}.ttf",
-            "bold_italic": f"IBMPlexSerif-{b_ital_tag}.ttf",
-        },
-        "math": {
+        "sans": plex_sans_map,
+        "plex_sans": plex_sans_map,
+        "noto_sans": noto_sans_map,
+        "mono": plex_mono_map,
+        "plex_mono": plex_mono_map,
+        "noto_mono": noto_mono_map,
+        "cond": noto_cond_map,
+        "noto_cond": noto_cond_map,
+        "plex_cond": plex_cond_map,
+        "serif": noto_serif_map,
+        "noto_serif": noto_serif_map,
+        "plex_serif": plex_serif_map,
+        "math": noto_math_map,
+        "noto_math": noto_math_map,
+        "plex_math": {
             "regular": "IBMPlexMath-Regular.ttf",
             "normal": "IBMPlexMath-Regular.ttf",
         },
@@ -390,7 +468,7 @@ def ensure_static_plex_assets(
 
 
 # =============================================================================
-# 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v1.0.16)
+# 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v1.0.17)
 # =============================================================================
 
 def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "", style: str = "") -> str:
@@ -536,7 +614,7 @@ Examples:
     parser = argparse.ArgumentParser(
         prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.16 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
+            "Humidyne Labs / Humiditron `epd-font` v1.0.17 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
             "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
         ),
         epilog=epilog_text,
@@ -880,8 +958,8 @@ def _execute_strike_worker_task(task: dict) -> dict:
                 return _bt.cv2.resize(cropped12, (max(1, target_w), max(1, target_h)), interpolation=_bt.cv2.INTER_NEAREST)
 
             recs = []
-            is_mono_f = family in ("mono", "terminus", "unifont")
-            is_ital_or_ser = ("italic" in role.lower()) or (family == "serif")
+            is_mono_f = family in ("mono", "plex_mono", "noto_mono", "terminus", "unifont")
+            is_ital_or_ser = ("italic" in role.lower()) or (family in ("serif", "plex_serif", "noto_serif"))
 
             for g_item in glyphs:
                 if not g_item.rows or g_item.codepoint <= 0x0020:
@@ -1080,7 +1158,7 @@ def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.16)
+    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.17)
     raw_src_arg = args.src_dir or args.font_dir
     if raw_src_arg:
         cand_src = Path(raw_src_arg).resolve()
@@ -1092,7 +1170,7 @@ def main() -> None:
         font_dir = (repo_root / "build" / "static_ttfs").resolve()
 
     # If workflow is gen-assets or build/static_ttfs is missing, invoke build_static_ttf_assets.py
-    if args.workflow == "gen-assets" or not (font_dir / "IBMPlexSans-Regular.ttf").is_file() or not (font_dir / "IBMPlexSans-ExtraBold.ttf").is_file():
+    if args.workflow == "gen-assets" or not (font_dir / "IBMPlexSans-Regular.ttf").is_file() or not (font_dir / "IBMPlexSans-ExtraBold.ttf").is_file() or not (font_dir / "NotoSans-SemiCondensedBlack.ttf").is_file():
         sys.path.insert(0, str(script_dir))
         import build_static_ttf_assets as bsta
         raw_assets_root = Path(args.plex_dir).resolve() if args.plex_dir else (repo_root / "assets").resolve()
@@ -1209,7 +1287,7 @@ def main() -> None:
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
     kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
     vault_data: dict = {
-        "vault_version": "1.0.16",
+        "vault_version": "1.0.17",
         "raster_mode": raster_m,
         "normal_weight": normal_w,
         "strikes": {},
@@ -1284,7 +1362,7 @@ def main() -> None:
             codepoints = [cp for cp in codepoints if cp >= 0xE000]
             if family == "icon_tabler" and role == "filled" and not codepoints:
                 codepoints = parse_unicode_range(DEFAULT_ICON_FALLBACK_RANGES["icon_tabler_filled"])
-        enable_kern = family in ("sans", "cond", "serif")
+        enable_kern = family in ("sans", "plex_sans", "noto_sans", "cond", "plex_cond", "noto_cond", "serif", "plex_serif", "noto_serif")
 
         for sz in valid_sizes:
             # For Terminus, select the exact size-specific native .ttf (Terminus-Normal-<sz>.ttf / Terminus-Bold-<sz>.ttf)

@@ -3,7 +3,7 @@ setlocal
 set EPD_NO_PAUSE=1
 cd /d "%~dp0"
 echo ============================================================================
-echo [99] Humidyne Labs - Humiditron epd-font v1.0.16 - Full End-to-End Pipeline
+echo [99] Humidyne Labs - Humiditron epd-font v1.0.17 - Full End-to-End Pipeline
 echo      Workflow : H1OS and humid1-os Firmware Distribution Workflow
 echo ============================================================================
 call 01_build_static_ttfs.bat

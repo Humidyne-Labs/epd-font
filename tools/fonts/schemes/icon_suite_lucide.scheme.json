@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.16",
+  "schema_version": "1.0.17",
   "scheme_id": "icon_suite_lucide",
   "project_brand": "Humiditron Standalone Lucide v1.16.0 Icon Strike Pack",
   "description": "Modular Lucide v1.16.0 outline icon strikes across 12-36px.",
@@ -30,22 +30,22 @@
     "symbol_prefix": "humid1_",
     "primary_header": "humid1_fonts.h",
     "compat_header": "epd_fonts.h",
-    "default_font": "humid1_font_plex_sans_normal_14",
+    "default_font": "humid1_icon_lucide_regular_14",
     "semantic_roles": {
-      "HUMID1_FONT_UI_MICRO": "humid1_font_plex_sans_normal_12",
-      "HUMID1_FONT_UI_BODY": "humid1_font_plex_sans_normal_14",
-      "HUMID1_FONT_UI_SUBTITLE": "humid1_font_plex_sans_bold_14",
-      "HUMID1_FONT_UI_TITLE": "humid1_font_plex_sans_bold_16",
-      "HUMID1_FONT_UI_HEADER": "humid1_font_plex_sans_bold_20",
-      "HUMID1_FONT_TELEMETRY_SM": "humid1_font_plex_mono_normal_14",
-      "HUMID1_FONT_TELEMETRY_MD": "humid1_font_plex_mono_bold_20",
-      "HUMID1_FONT_TELEMETRY_LG": "humid1_font_plex_mono_bold_24",
-      "HUMID1_FONT_TELEMETRY_XL": "humid1_font_plex_mono_bold_32",
-      "HUMID1_FONT_TERMINAL": "humid1_font_terminus_normal_16",
-      "HUMID1_ICON_FA7_DEFAULT": "humid1_icon_fa7_solid_16",
+      "HUMID1_FONT_UI_MICRO": "humid1_icon_lucide_regular_12",
+      "HUMID1_FONT_UI_BODY": "humid1_icon_lucide_regular_14",
+      "HUMID1_FONT_UI_SUBTITLE": "humid1_icon_lucide_regular_14",
+      "HUMID1_FONT_UI_TITLE": "humid1_icon_lucide_regular_16",
+      "HUMID1_FONT_UI_HEADER": "humid1_icon_lucide_regular_20",
+      "HUMID1_FONT_TELEMETRY_SM": "humid1_icon_lucide_regular_14",
+      "HUMID1_FONT_TELEMETRY_MD": "humid1_icon_lucide_regular_20",
+      "HUMID1_FONT_TELEMETRY_LG": "humid1_icon_lucide_regular_24",
+      "HUMID1_FONT_TELEMETRY_XL": "humid1_icon_lucide_regular_32",
+      "HUMID1_FONT_TERMINAL": "humid1_icon_lucide_regular_16",
+      "HUMID1_ICON_FA7_DEFAULT": "humid1_icon_lucide_regular_16",
       "HUMID1_ICON_LUCIDE_DEFAULT": "humid1_icon_lucide_regular_16",
-      "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_phosphor_regular_16",
-      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_tabler_regular_16"
+      "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_lucide_regular_16",
+      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_lucide_regular_16"
     }
   },
   "character_sets": {

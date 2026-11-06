@@ -1,4 +1,4 @@
-# Complete How-To Guide — `epd-font` (v1.0.16)
+# Complete How-To Guide — `epd-font` (v1.0.17)
 
 **Repository**: `https://github.com/Humidyne-Labs/epd-font`  
 **Organization**: Humidyne Labs / Humiditron  
@@ -123,6 +123,6 @@ Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distr
 
 
 
-### v1.0.16 `--tune-mode {off,wart-only,surgical,full}` & Realistic Size Floor Calibration
+### v1.0.17 `--tune-mode {off,wart-only,surgical,full}` & Realistic Size Floor Calibration
 - Use `--tune-mode off` for 100% untouched native FreeType weights, `--tune-mode wart-only` for 4-directional 1px outline-wart shaving (`M0_wart_shaved`) + mirror-pair bracket sync with zero stem thickening, or `--tune-mode surgical` (default).
 - `humid1_font_eval.py` (`02_run_font_eval.bat`) now supports multi-face `.ttc` TrueType Collections via `open_ttfont_safe()`, isolates worker exceptions, and enforces `hole_px >= 2` counter cavity checks for realistic pixel size floor estimates.

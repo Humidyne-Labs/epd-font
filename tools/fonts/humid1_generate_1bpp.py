@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.15)
+humid1_generate_1bpp.py (v1.0.16)
 =================================
 Humidyne Labs / Humiditron `epd-font` Modular 1-BPP Font Foundry Orchestrator.
 
@@ -8,7 +8,7 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-Modular Architecture (v1.0.15):
+Modular Architecture (v1.0.16):
 -------------------------------
 - `humid1_ft_raster.py`     : FreeType 2 ctypes bindings, glyph strike model, kerning & 1-BPP rasterizer.
 - `humid1_bilevel_tuner.py` : Iterative Multi-Method Typographic Tournament (`M0..M8`) + Bilateral Mirror Sync.
@@ -97,7 +97,7 @@ from humid1_lvgl_bdf_export import (
     write_total_disk_size_report,
 )
 
-TOOL_VERSION = "1.0.15"
+TOOL_VERSION = "1.0.16"
 
 # =============================================================================
 # 2. SUB-FAMILY REGISTRY, SIZE FLOORS & BUILD PROFILES
@@ -167,21 +167,24 @@ VARIABLE_INSTANTIATION_MAP = [
 ]
 
 
-def get_family_roles(normal_weight: int = 500, bold_weight: int = 800) -> Dict[str, Dict[str, str]]:
+def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_weight: int = 600) -> Dict[str, Dict[str, str]]:
     """
     Map semantic roles (thin, extralight, light, normal, text, medium, semibold, bold, extrabold, italic, bold_italic)
     to instantiated static TTF filenames.
-    In v1.0.15, when `normal_weight >= 500` (`Medium`), `bold` defaults to `ExtraBold` (`bold_weight=800`)
-    so `normal` (`Medium 500`), `bold` (`ExtraBold 800`), and `italic` (`MediumItalic 500`) maintain
-    unmistakable stroke-weight hierarchy across all sizes (`10px–24px`).
+    In v1.0.16, the Tri-Role Visual Contrast Hierarchy enforces:
+      - `normal` : `Medium (500)` (`~2.17px` stem, `1.00x` baseline ink)
+      - `bold`   : `ExtraBold (800)` (`~3.13px` stem, `+35.7%` to `+40.1%` ink punch over `normal`!)
+      - `italic` : `SemiBoldItalic (600)` on Sans/Cond (`+1.3%` iso-weight ink vs `normal`, `96.7%` >=2px stems)
+                   and `MediumItalic (500)` on Mono/Serif (`-3.1%` iso-weight ink vs `normal`) so Italic
+                   remains a subtle cursive emphasis (`>=25%` lighter than Bold!).
     """
     tag = {100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular", 450: "Text", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold"}.get(normal_weight, "Medium")
     b_tag = {600: "SemiBold", 700: "Bold", 800: "ExtraBold"}.get(bold_weight, "ExtraBold" if normal_weight >= 500 else "Bold")
     b_ital_tag = "ExtraBoldItalic" if b_tag == "ExtraBold" else "BoldItalic"
-    ital_tag = {400: "Italic", 450: "TextItalic", 500: "MediumItalic", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(normal_weight, "MediumItalic")
-    cond_ital_tag = "Italic" if normal_weight == 400 else "MedItal"
-    mono_ital_tag = "Italic" if normal_weight == 400 else "MediumItalic"
-    serif_ital_tag = "Italic" if normal_weight == 400 else "MediumItalic"
+    ital_tag = {400: "Italic", 450: "TextItalic", 500: "MediumItalic", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
+    cond_ital_tag = {400: "Italic", 500: "MedItal", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
+    mono_ital_tag = {400: "Italic", 500: "MediumItalic", 600: "MediumItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "MediumItalic")
+    serif_ital_tag = {400: "Italic", 500: "MediumItalic", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
 
     return {
         "sans": {
@@ -387,7 +390,7 @@ def ensure_static_plex_assets(
 
 
 # =============================================================================
-# 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v1.0.15)
+# 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v1.0.16)
 # =============================================================================
 
 def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "", style: str = "") -> str:
@@ -533,7 +536,7 @@ Examples:
     parser = argparse.ArgumentParser(
         prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.15 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
+            "Humidyne Labs / Humiditron `epd-font` v1.0.16 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
             "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
         ),
         epilog=epilog_text,
@@ -628,7 +631,21 @@ Examples:
         type=int,
         choices=[100, 200, 300, 400, 450, 500, 600, 700],
         default=500,
-        help="OpenType weight for 'normal' slot (default: 500 Medium for >=2px EPD stem legibility)",
+        help="OpenType weight for 'normal' slot (default: 500 Medium for ~2.15px EPD stem legibility)",
+    )
+    parser.add_argument(
+        "--bold-weight",
+        type=int,
+        choices=[600, 700, 800],
+        default=800,
+        help="OpenType weight for 'bold' slot (default: 800 ExtraBold for +35%%..+40%% ink punch over normal)",
+    )
+    parser.add_argument(
+        "--italic-weight",
+        type=int,
+        choices=[400, 450, 500, 600, 700, 800],
+        default=600,
+        help="OpenType weight for 'italic' slot (default: 600 SemiBoldItalic iso-weight subtle emphasis)",
     )
     parser.add_argument(
         "--min-stem",
@@ -1063,7 +1080,7 @@ def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.15)
+    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.16)
     raw_src_arg = args.src_dir or args.font_dir
     if raw_src_arg:
         cand_src = Path(raw_src_arg).resolve()
@@ -1164,18 +1181,22 @@ def main() -> None:
     if scheme_path.is_file():
         scheme_cfg, raw_plan = load_plan_from_scheme_json(scheme_path)
         rcfg = scheme_cfg.get("raster_config", {})
-        normal_w = rcfg.get("normal_weight", args.normal_weight)
+        normal_w = int(rcfg.get("normal_weight", args.normal_weight))
+        bold_w = int(rcfg.get("bold_weight", args.bold_weight))
+        italic_w = int(rcfg.get("italic_weight", args.italic_weight))
         raster_m = rcfg.get("raster_mode", args.raster_mode)
         print(f"[+] Loaded declarative font scheme: {scheme_path.name} ({scheme_cfg.get('project_brand', '')})")
     else:
         normal_w = args.normal_weight
+        bold_w = args.bold_weight
+        italic_w = args.italic_weight
         raster_m = args.raster_mode
         raw_plan = [
             (fam, role, szs, r_str, False, fb_pat, "")
             for (fam, role, szs, r_str, _, fb_pat) in PROFILES[args.profile]
         ]
 
-    family_roles = get_family_roles(normal_w)
+    family_roles = get_family_roles(normal_w, bold_w, italic_w)
     if args.families:
         allowed_fams = set(args.families)
         raw_plan = [item for item in raw_plan if item[0] in allowed_fams]
@@ -1188,7 +1209,7 @@ def main() -> None:
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
     kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
     vault_data: dict = {
-        "vault_version": "1.0.15",
+        "vault_version": "1.0.16",
         "raster_mode": raster_m,
         "normal_weight": normal_w,
         "strikes": {},

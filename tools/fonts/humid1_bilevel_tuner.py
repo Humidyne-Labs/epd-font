@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_tuner.py (v1.0.15)
+humid1_bilevel_tuner.py (v1.0.16)
 =================================
 Humidyne Labs / Humiditron `epd-font` Surgical Multi-Method Typographic Tuner,
 Render -> Upscale (8x) -> HQ Master Confidence Sanity Gate & Open-Valley Preserver.
 
 Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
-Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/humid1-audit-v1.0.15.txt`)
+Spec Ref   : SPEC-TYPO-MATH-1BPP-001 (`docs/audits/humid1-audit-v1.0.16.txt`)
 License    : MIT License
 
-What's New in v1.0.15:
+What's New in v1.0.16:
 ----------------------
 1. Render -> Upscale (8x) -> HQ Master Confidence & Sanity-Check Gate (`compute_upscaled_hq_metrics`):
    Upscales each 1-BPP glyph by 8x (`INTER_NEAREST`) into the exact coordinate frame of the 8x
@@ -58,7 +58,7 @@ except ImportError:
 
 from PIL import Image, ImageDraw
 
-TOOL_VERSION = "1.0.15"
+TOOL_VERSION = "1.0.16"
 
 # Characters whose horizontal crossbars are structural and should be protected from vanishing
 HORIZONTAL_BAR_CHARS = set("eftEFHTzZ=-+~÷±≤≥≠≈#[")
@@ -91,6 +91,8 @@ CANONICAL_MIN_HOLES: Dict[str, int] = {
     "a": 1, "b": 1, "d": 1, "e": 1, "g": 1, "o": 1, "p": 1, "q": 1,
     "%": 2, "@": 1,
 }
+
+SINGLE_COUNTER_OPEN_TAIL_CHARS = set("0469ADOPQRabdeopq")
 
 # Open-curve / multi-valley characters that must NEVER pinch shut into false enclosed loops (expected_b1 == 0)
 PINCH_FORBIDDEN_CHARS = set("CEFGHIJKLMNSTUVWXYZcfhijlmnrstuvwxyz!()[]{}/\\|<>+-=~")
@@ -262,7 +264,7 @@ def compute_upscaled_hq_metrics(
     hq_master: Optional[np.ndarray],
 ) -> UpscaledHQMetrics:
     """
-    Render -> Upscale (8x) -> Compare to HQ Master Sanity-Check Engine (v1.0.15):
+    Render -> Upscale (8x) -> Compare to HQ Master Sanity-Check Engine (v1.0.16):
     Upscales `bitmap_1bit` via nearest-neighbor to the exact dimensions of `hq_master` (8x)
     and computes:
       - `hq_conf_iou`    : Intersection-over-Union confidence (0..100%)
@@ -337,7 +339,7 @@ def detect_skin_tags_and_notches(
     codepoint: int = 0,
 ) -> Tuple[int, int, List[Tuple[int, int]], List[Tuple[int, int]]]:
     """
-    Method 7 & Method 18 (v1.0.15 4-Directional Outline-Wart & Notch Regularizer):
+    Method 7 & Method 18 (v1.0.16 4-Directional Outline-Wart & Notch Regularizer):
     Detects non-topological 1-pixel horizontal AND vertical "outline-warts" (spurs / pimples)
     and 1-pixel exterior stem notches.
     """
@@ -438,7 +440,7 @@ def clean_skin_tags_and_notches(
     codepoint: int = 0,
 ) -> np.ndarray:
     """
-    Method 8 + Method 18 (v1.0.15 Valley-Safe Boundary Regularizer):
+    Method 8 + Method 18 (v1.0.16 Valley-Safe Boundary Regularizer):
     Iteratively removes 1-pixel skin tags and fills outermost stem wall notches, accepting each
     single-pixel flip if and only if BOTH Betti numbers (B0, B1) AND the row's horizontal run count
     (`len(_get_row_runs(work[r]))`) remain strictly invariant (so V-valleys are NEVER bridged!).
@@ -642,7 +644,7 @@ def evaluate_glyph_candidate(
     base_valley_stats: Optional[Tuple[int, int, List[int]]] = None,
 ) -> CandidateEval:
     """
-    Weighted Multi-Objective Typographic Evaluation Engine with Render -> Upscale -> HQ Sanity Gate (v1.0.15):
+    Weighted Multi-Objective Typographic Evaluation Engine with Render -> Upscale -> HQ Sanity Gate (v1.0.16):
       - Hard Gate 1 : Betti numbers (B0 foreground components, B1 enclosed counters) must match HQ Master!
       - Hard Gate 2 : Open-Valley Invariance — candidate must NEVER collapse multi-stroke horizontal
                       run counts (`max_row_runs`) or bridge >20% of inter-stem open valley rows!
@@ -794,7 +796,7 @@ def evaluate_glyph_candidate(
 
 
 # =============================================================================
-# STREAMLINED v1.0.15 3-STAGE CANDIDATE SYNTHESIS & DYNAMIC THRESHOLDING
+# STREAMLINED v1.0.16 3-STAGE CANDIDATE SYNTHESIS & DYNAMIC THRESHOLDING
 # =============================================================================
 # Stage 0 (M0_wart_shaved)       : Native FreeType + 4-Directional 1px Outline-Wart Shaver (handles 73%..97% of glyphs)
 # Stage 1 (M1_dyn_thresh)        : 8x HQ Master Area-Downscale with Dynamic Weight/Size/Otsu Threshold Sweep + Hysteresis
@@ -816,6 +818,116 @@ def compute_dynamic_hq_threshold(hq_master: Optional[np.ndarray], is_bold_role: 
         return t_prior
     p45 = float(np.percentile(active, 45))
     return int(np.clip(round(0.70 * t_prior + 0.30 * p45), 96, 152))
+
+
+
+def carve_and_unpinch_counters(
+    base_1bit: np.ndarray,
+    hq_master: Optional[np.ndarray],
+    expected_b1: int,
+    ch_str: str,
+    is_bold_role: bool = False,
+) -> np.ndarray:
+    """
+    Surgical Counter-Carver & S-Curve Un-Pincher (v1.0.16):
+    Allows heavy ExtraBold (w800) / Black (w900) strikes (3px+ stem punch) and subtle
+    MediumItalic/SemiBoldItalic strikes to maintain 100% open counters and un-pinched S/M valleys
+    at 12px..20px without shrinking their outer stem weights:
+      1. Un-pinches false closed loops (`b1 > 0` on open characters in PINCH_FORBIDDEN_CHARS like 's', 'M', 'w').
+      2. Carves collapsed internal counters (`b1 < expected_b1` on 'e', 'a', '8', 'B', '%') at the lowest-coverage
+         interior pixel of the 8x continuous HQ master.
+      3. Expands 1px pinholes (`hole_px == 1`) to 2px on core single-loop letters in Bold/ExtraBold strikes.
+    """
+    if base_1bit is None or base_1bit.size == 0:
+        return base_1bit
+    work = base_1bit.copy()
+    h, w = work.shape
+    if h < 5 or w < 4:
+        return work
+
+    if hq_master is not None and hq_master.size > 0 and HAS_CV2:
+        hq_cov = cv2.resize(hq_master, (w, h), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+    else:
+        hq_cov = np.full((h, w), 0.5, dtype=np.float32)
+
+    b0, b1, holes = compute_betti_numbers(work)
+
+    # 1. Un-pinch false closed loops on open characters ('s', 'c', 'w', 'M', etc.)
+    if ch_str in PINCH_FORBIDDEN_CHARS and b1 > 0:
+        for _ in range(b1 + 1):
+            b0_now, b1_now, holes_now = compute_betti_numbers(work)
+            if b1_now == 0:
+                break
+            ext_bg = (work == 0) & (holes_now == 0)
+            best_pt = None
+            best_cov = 999.0
+            for r in range(h):
+                for c in range(w):
+                    if work[r, c] == 0:
+                        continue
+                    adj_hole = any(
+                        0 <= r + dr < h and 0 <= c + dc < w and holes_now[r + dr, c + dc] > 0
+                        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1))
+                    )
+                    adj_ext = (
+                        r in (0, h - 1)
+                        or c in (0, w - 1)
+                        or any(
+                            0 <= r + dr < h and 0 <= c + dc < w and ext_bg[r + dr, c + dc]
+                            for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1))
+                        )
+                    )
+                    if adj_hole and adj_ext and float(hq_cov[r, c]) < best_cov:
+                        probe = work.copy()
+                        probe[r, c] = 0
+                        b0_p, b1_p, _ = compute_betti_numbers(probe)
+                        if b0_p == b0_now and b1_p < b1_now:
+                            best_cov = float(hq_cov[r, c])
+                            best_pt = (r, c)
+            if best_pt is not None:
+                work[best_pt[0], best_pt[1]] = 0
+
+    # 2. Carve collapsed internal counters (b1 < expected_b1)
+    b0, b1, holes = compute_betti_numbers(work)
+    if b1 < expected_b1:
+        int_pts = [
+            (float(hq_cov[r, c]), r, c)
+            for r in range(1, h - 1)
+            for c in range(1, w - 1)
+            if work[r, c] > 0
+        ]
+        int_pts.sort()
+        for _, r, c in int_pts[:10]:
+            probe = work.copy()
+            probe[r, c] = 0
+            b0_p, b1_p, _ = compute_betti_numbers(probe)
+            if b0_p == b0 and b1_p > b1:
+                work = probe
+                b1 = b1_p
+                if b1 >= expected_b1:
+                    break
+
+    # 3. Expand 1px pinhole counter to >=2px on core single-loop letters in Bold/ExtraBold strikes
+    b0, b1, holes = compute_betti_numbers(work)
+    if is_bold_role and ch_str in "069ADOPQRabdeopq" and b1 >= 1 and int(np.count_nonzero(holes)) == 1:
+        hy, hx = np.nonzero(holes > 0)
+        r0, c0 = int(hy[0]), int(hx[0])
+        best_nb = None
+        best_cov = 999.0
+        for dr, dc in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            nr, nc = r0 + dr, c0 + dc
+            if 1 <= nr < h - 1 and 1 <= nc < w - 1 and work[nr, nc] > 0:
+                probe = work.copy()
+                probe[nr, nc] = 0
+                b0_p, b1_p, h_p = compute_betti_numbers(probe)
+                if b0_p == b0 and b1_p == b1 and int(np.count_nonzero(h_p)) >= 2:
+                    if float(hq_cov[nr, nc]) < best_cov:
+                        best_cov = float(hq_cov[nr, nc])
+                        best_nb = (nr, nc)
+        if best_nb is not None:
+            work[best_nb[0], best_nb[1]] = 0
+
+    return work
 
 
 def _apply_counter_punch(
@@ -874,7 +986,7 @@ def synth_m1_dynamic_threshold_sweep(
     is_bold_role: bool = False,
 ) -> List[Tuple[str, np.ndarray]]:
     """
-    Stage 1 (v1.0.15 Dynamic Threshold + Dual-Hysteresis Area-Downscale):
+    Stage 1 (v1.0.16 Dynamic Threshold + Dual-Hysteresis Area-Downscale):
     Replaces the slow 54-candidate warpAffine grid sweep (M1), 4x Python medial-axis loop (M2),
     4x SDF distance transform (M3), and M4 with a single fast INTER_AREA downscale evaluated
     across Dynamic Thresholds centered around T_dyn = compute_dynamic_hq_threshold(hq_master).
@@ -1143,7 +1255,7 @@ def inspect_and_repair_glyph_bitmap(
     tune_mode: str = "surgical",
 ) -> Tuple[np.ndarray, RepairAuditRecord]:
     """
-    Run the Surgical Multi-Method Typographic Tournament (`M0..M8`) on a single glyph (v1.0.15):
+    Run the Surgical Multi-Method Typographic Tournament (`M0..M8`) on a single glyph (v1.0.16):
       - `tune_mode == "off"`       : 100% Untouched Native FreeType (metrics & audit only).
       - `tune_mode == "wart-only"` : Zero stem thickening; only 4-directional 1px outline-wart shaving (`M0_wart_shaved`).
       - `tune_mode == "surgical"`  : Universal 4-directional outline-wart shaving (`M0_wart_shaved`) on all glyphs +
@@ -1196,6 +1308,10 @@ def inspect_and_repair_glyph_bitmap(
         expected_b0 = b0_hi if b0_hi > 0 else b0_base
         if ch_str in PINCH_FORBIDDEN_CHARS:
             expected_b1 = 0
+        elif ch_str in SINGLE_COUNTER_OPEN_TAIL_CHARS:
+            expected_b1 = 1
+            if b1_hi >= 1 > b1_base and HAS_CV2 and w0 >= 4 and h0 >= 5:
+                orig_counters = cv2.bitwise_or(orig_counters, cv2.resize(hi_counters, (w0, h0), interpolation=cv2.INTER_NEAREST))
         else:
             expected_b1 = max(expected_b1, b1_hi)
             if b1_hi > b1_base and HAS_CV2 and w0 >= 4 and h0 >= 5:
@@ -1238,13 +1354,13 @@ def inspect_and_repair_glyph_bitmap(
             box_h_after=h0,
             holes_expected=expected_b1,
             holes_before=b1_base,
-            holes_after=b1_base,
+            holes_after=b1_m0_now,
             thin_v_before=needs_h0,
             thin_h_before=needs_v0,
             thin_v_after=needs_h0,
             thin_h_after=needs_v0,
             repaired=False,
-            size_floor_warning=(b1_base < expected_b1) or (ch_str in PINCH_FORBIDDEN_CHARS and b1_base > 0),
+            size_floor_warning=(b1_m0_now < expected_b1) or (ch_str in PINCH_FORBIDDEN_CHARS and b1_m0_now > 0),
             engine_used="M0_untouched",
             rows_before=rows_before,
             rows_after=rows_before,
@@ -1259,21 +1375,23 @@ def inspect_and_repair_glyph_bitmap(
         )
         return base_1bit, rec
 
-    # Universal 4-Directional Outline-Wart Shaving Pass (`M0_wart_shaved`) on raw glyph:
-    # Even when a glyph skips stem thickening (e.g., Bold/ExtraBold or >=14px Medium/SemiBold),
-    # shave any HQ-verified 1px horizontal/vertical outline-warts or outer-wall notches!
-    m0_work = base_1bit
+    # Universal Pre-Exit Pass:
+    # (A) Surgical Counter-Carving & Un-Pinching (`M0_counter_carved`) so heavy Bold/ExtraBold/Black (3px+ stem punch)
+    #     and subtle MediumItalic/SemiBoldItalic cuts keep 100% open counters without losing stem weight!
+    # (B) 4-Directional Outline-Wart Shaving (`M0_wart_shaved`).
+    m0_work = carve_and_unpinch_counters(base_1bit, master_hi, expected_b1=expected_b1, ch_str=ch_str, is_bold_role=is_bold_role)
     m0_eval_work = eval_m0
-    m0_hq_work = raw_hq_metrics
-    m0_engine = "M0_verified"
-    if eval_m0.skin_tags > 0 or eval_m0.notches > 0:
+    m0_hq_work = compute_upscaled_hq_metrics(m0_work, master_hi) if not np.array_equal(m0_work, base_1bit) else raw_hq_metrics
+    m0_engine = "M0_counter_carved" if not np.array_equal(m0_work, base_1bit) else "M0_verified"
+    _, b1_m0_now, _ = compute_betti_numbers(m0_work)
+    if eval_m0.skin_tags > 0 or eval_m0.notches > 0 or m0_engine == "M0_counter_carved":
         hq_base_cov = None
         if master_hi is not None and master_hi.size > 0 and HAS_CV2:
             hq_base_cov = cv2.resize(master_hi, (w0, h0), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
         shaved = clean_skin_tags_and_notches(
-            base_1bit,
+            m0_work,
             expected_b0=b0_base,
-            expected_b1=b1_base,
+            expected_b1=b1_m0_now,
             hq_coverage=hq_base_cov,
             allow_corner_bevel=False,
             codepoint=codepoint,
@@ -1281,17 +1399,17 @@ def inspect_and_repair_glyph_bitmap(
         shaved, sbw, sbh, _, _ = trim_binary_array(shaved)
         if sbw > 0 and sbh > 0 and binary_array_to_rows(shaved) != rows_before:
             up_shaved = compute_upscaled_hq_metrics(shaved, master_hi)
-            if up_shaved.hq_conf_iou >= raw_hq_metrics.hq_conf_iou - 0.25:
+            if up_shaved.hq_conf_iou >= raw_hq_metrics.hq_conf_iou - (3.5 if m0_engine == 'M0_counter_carved' else 0.25):
                 m0_work = shaved
                 m0_hq_work = up_shaved
-                m0_engine = "M0_wart_shaved"
+                m0_engine = "M0_counter_carved" if m0_engine == "M0_counter_carved" else "M0_wart_shaved"
                 m0_eval_work = evaluate_glyph_candidate(
                     "M0_wart_shaved",
                     shaved,
                     master_hi,
                     upscaled_small_ref,
                     expected_b0=b0_base,
-                    expected_b1=b1_base,
+                    expected_b1=b1_m0_now,
                     min_stem=min_stem,
                     orig_w=w0,
                     is_italic_or_serif=is_italic_or_serif,
@@ -1301,7 +1419,7 @@ def inspect_and_repair_glyph_bitmap(
                     base_valley_stats=base_valley_stats,
                 )
 
-    skip_for_bold = (tune_mode != "full") and is_bold_role and (b1_base >= expected_b1) and (w0 > 2)
+    skip_for_bold = (tune_mode != "full") and is_bold_role and (b1_m0_now >= expected_b1) and (w0 > 2)
     skip_for_multi_valley = (tune_mode != "full") and (ch_str in MULTI_VALLEY_CHARS) and (b1_base >= expected_b1) and (w0 < 12 or raw_hq_metrics.hq_conf_iou >= 50.0)
     skip_for_high_conf = (
         (tune_mode != "full")
@@ -1333,13 +1451,13 @@ def inspect_and_repair_glyph_bitmap(
             box_h_after=m0_work.shape[0],
             holes_expected=expected_b1,
             holes_before=b1_base,
-            holes_after=b1_base,
+            holes_after=b1_m0_now,
             thin_v_before=needs_h0,
             thin_h_before=needs_v0,
             thin_v_after=needs_h_m0_after,
             thin_h_after=needs_v_m0_after,
             repaired=m0_changed,
-            size_floor_warning=(b1_base < expected_b1) or (ch_str in PINCH_FORBIDDEN_CHARS and b1_base > 0),
+            size_floor_warning=(b1_m0_now < expected_b1) or (ch_str in PINCH_FORBIDDEN_CHARS and b1_m0_now > 0),
             engine_used=m0_engine,
             rows_before=rows_before,
             rows_after=rows_m0_after,
@@ -1471,7 +1589,7 @@ def synchronize_mirror_glyph_pairs(
     is_monospace: bool = False,
 ) -> int:
     """
-    Bilateral Mirror-Pair Synchronization (v1.0.15):
+    Bilateral Mirror-Pair Synchronization (v1.0.16):
     Only synchronizes a paired delimiter/arrow tuple `(cp_l, cp_r)` if at least one partner
     was repaired (`rl.repaired or rr.repaired`) or if their bounding-box widths differ (`gl.box_w != gr.box_w`),
     and always prefers the wider / higher-confidence partner (never shrinking a bold glyph).

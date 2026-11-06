@@ -2,6 +2,23 @@
 
 All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
 
+## [v1.0.16] — 2026-11-05
+
+### Fixed
+- **Resolved Visual Weight Homogeneity Across `Normal`, `Bold`, and `Italic` (`humid1_font_eval.py`, `humid1_generate_1bpp.py`, `*.scheme.json`)**:
+  - Diagnosed why single-font isolated scoring in `v1.0.15` caused `Normal (w600 SemiBold, 2.36px)`, `Bold (w700 Bold, 2.57px — only +6.5% ink delta)`, and `Italic (w800 ExtraBoldItalic, 3.08px — heavier than Bold!)` to look like the same weight or invert the hierarchy.
+  - Fixed `humid1_generate_1bpp.py` ignoring `bold_weight` and `italic_weight` from `.scheme.json` and updated all 19 `.scheme.json` files (`h1os_full.scheme.json`, `h1os_lite.scheme.json`, `example.scheme.json`, `tools/fonts/schemes/*.scheme.json`) from `"bold_weight": 700` to **`"bold_weight": 800, "italic_weight": 600, "normal_weight": 500`**.
+  - `Sans` at `16px` now delivers **`2.17px` `Normal` (`w500`, `2,566` ink)** vs. **`3.13px` `Bold` (`w800 ExtraBold`, `3,482` ink = `+35.7%` Ink Punch / `+0.96px` stem jump!)** vs. **`2.30px` `Italic` (`w600 SemiBoldItalic`, `2,600` ink = `+1.3%` iso-weight subtle emphasis, `-33.9%` lighter than Bold!)**.
+- **Universal Counter-Carving & Loop-Unpinching on Heavy `ExtraBold (w800)` / `Black (w900)` & `Italic` Cuts (`humid1_bilevel_tuner.py`)**:
+  - Added `carve_and_unpinch_counters()` (`M0_counter_carved`) so glyphs that skip stem thickening (`is_bold_role=True` or high-confidence `M0`) still have collapsed/pinholed counters (`<2px` on `a, e, o, b, d, p, q, g, 0, 4, 6, 8, 9, A, B, D, O, P, Q, R, $, %, &`) and pinched open curves (`s, c, w, M`) surgically carved open using the `8x` HQ continuous master.
+  - Clamped `expected_b1 = 1` on `SINGLE_COUNTER_OPEN_TAIL_CHARS` (`0469ADOPQRabdeopq`) so single-story italic `a` or two-story hooks never trigger false 2-hole targets. Both `IBMPlexSans-ExtraBold (w800)` and `IBMPlexSans-SemiBoldItalic (w600)` now achieve **`100.0%` counter survival from `12px` to `24px`**.
+
+### Added
+- **Tri-Role Visual Contrast Triad Scorer & Contrast Sheet (`humid1_font_eval.py`)**:
+  - Added `classify_font_role_and_score()`, `evaluate_family_triads()`, `render_triad_contrast_sheet()` (`build/font_eval/font_eval_triad_contrast_sheet.png`), and `--re-digest-json` to evaluate complete `(Normal + Bold Punch + Subtle Iso-Weight Italic)` family triads and re-digest the 425-font / 30-family evaluation corpus.
+- **Instantiated `SemiBoldItalic (w600)` Static TTFs Across All IBM Plex Families (`build_static_ttf_assets.py`)**:
+  - Added `IBMPlexSansCondensed-SemiBoldItalic.ttf`, `IBMPlexMono-SemiBoldItalic.ttf`, and `IBMPlexSerif-SemiBoldItalic.ttf` alongside `IBMPlexSans-SemiBoldItalic.ttf`.
+
 ## [v1.0.15] — 2026-11-05
 
 ### Fixed

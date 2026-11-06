@@ -1,35 +1,37 @@
 #!/usr/bin/env python3
 """
-humid1_font_eval.py (v1.0.15)
+humid1_font_eval.py (v1.0.16)
 =============================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Font & Weight Evaluation Suite,
-Pre-Tune vs. Post-Tune Traceability Engine, Upscaled-to-HQ Confidence Scorer &
-Per-Font Visual Sheet Generator.
+Tri-Role Visual Contrast Triad Scorer (`Normal` + `Bold Punch` + `Subtle Italic`),
+Pre-Tune vs. Post-Tune Traceability Engine & Per-Font Visual Sheet Generator.
 
 Repository : https://github.com/Humidyne-Labs/epd-font
 Target OS  : https://github.com/Humidyne-Labs/H1OS
 License    : MIT License
 
-What's New in v1.0.15:
+What's New in v1.0.16:
 ----------------------
-1. Dynamic Recursive Directory Scanner (`--src-dir` / `--fonts`):
-   Automatically discovers all `.ttf`, `.otf`, `.ttc` (TrueType Collection), and `.bdf`
-   font files in ANY directory passed via `--src-dir` (e.g., a 700MB+ `eval_fonts` collection
-   with 400+ font files, or `build/static_ttfs`), skipping PUA-only icon fonts automatically.
-2. Full Pre-Tune (`RAW`) vs. Post-Tune (`TUNED`) Traceability Across All Sizes:
-   Records and displays both untouched FreeType (`RAW`) and tournament-repaired (`TUNED`)
-   metrics side-by-side at every size (`10..24px`), including:
-     - `hq_conf_raw` vs `hq_conf_tuned` (Render -> 8x Upscale -> Compare to 8x HQ Master IoU %)
-     - `hq_diff_raw` vs `hq_diff_tuned` (Pixel Mismatch % vs 8x HQ Master)
-     - `stem_2px_raw` vs `stem_2px_tuned` (`>=2px` Stem Survival %)
-     - `counter_raw` vs `counter_tuned` (Enclosed Counter Survival %)
-     - `tuning_burden_pct` (`%` of glyphs modified by auto-tune — lower = better natural fit!)
-3. Per-Font Dedicated Visual Inspection PNG (`build/font_eval/sheets/<font_stem>_eval.png`):
-   Generates an individual high-contrast PNG inspection sheet for EVERY evaluated font showing
-   1:1 and 2x-zoomed `PRE-TUNE (RAW)` vs `POST-TUNE (TUNED)` specimen strings and critical
-   glyph cards (`W w M m A B C f g r s $ ( ) [ ] 0 8`) across all tested sizes.
-4. Multi-Core Parallel Execution (`ProcessPoolExecutor`):
-   Evaluates all discovered fonts in parallel across all CPU cores (`-j/--jobs`).
+1. Tri-Role Visual Contrast Triad Scorer (`evaluate_family_triads`):
+   Fixes the v1.0.15 single-font isolated scoring bias that caused `Normal (w600)`,
+   `Bold (w700)`, and `Italic (w800)` to converge to visually indistinguishable `~2.3px–2.5px`
+   stems (`+6.5%` Bold delta, with Italic heavier than Bold).
+   In v1.0.16, typefaces are scored both per-role (`compute_role_aware_epd_score`) and as
+   **3-Role Family Triads (`Normal` + `Bold Punch` + `Subtle Iso-Weight Italic`)**:
+     - `NORMAL (BODY)`   : Clean `2.00px–2.25px` stem (`w400–w500`), leaving headroom for Bold.
+     - `BOLD (PUNCH)`    : True `2.90px–3.45px` stem (`w800 ExtraBold` / `w900 Black`), delivering
+                           `+35% to +65%` more ink mass and a `+0.85px to +1.45px` integer stem jump
+                           over `Normal` while maintaining `>=95%` open counters.
+     - `ITALIC (SUBTLE)` : Iso-weight slanted cursive emphasis (`w500 MediumItalic` / `w600 SemiBoldItalic`),
+                           within `[-10% .. +12%]` of `Normal` ink mass and `>=25%` lighter than `Bold`
+                           so Italic whispers nuance while Bold punches attention!
+2. Dedicated Tri-Role Visual Contrast Sheet (`build/font_eval/font_eval_triad_contrast_sheet.png`):
+   Stacks `NORMAL (BODY)`, `BOLD (PUNCH)`, and `ITALIC (SUBTLE)` directly on top of one another
+   for every evaluated family across `14px`, `16px`, and `20px` with live Ink-Punch (`+%`),
+   Stem-Jump (`+px`), and 2x-zoomed glyph triad strips (`H B a e g s w $`).
+3. Multi-Corpus JSON Re-Digest Mode (`--re-digest-json`):
+   Can directly ingest and re-evaluate existing `font_eval_report.json` datasets (e.g., 425-font
+   multi-archive runs) under the v1.0.16 Tri-Role Visual Contrast Triad Scorer.
 """
 
 from __future__ import annotations
@@ -44,6 +46,7 @@ import os
 import re
 import sys
 import time
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -68,13 +71,14 @@ from humid1_ft_raster import (
     rasterize_font_strike,
 )
 
-TOOL_VERSION = "1.0.15"
+TOOL_VERSION = "1.0.16"
 
 # Diagnostic benchmark character set (57 critical glyphs: counters, multi-valley diagonals, paired brackets, symbols)
 EVAL_BENCHMARK_CHARS = "0124689ABCDHIJMNOPQRWabcefghijlmnoqrstvwxyz$%&()[]{}/\\|!<>+="
 EVAL_COUNTER_CHARS = set("04689ABDOPQRabdegopq$%&")
-EVAL_SPECIMEN_STRING = "H1OS v1.0.15 (08B$) [aeg] {WwMm} <=>"
+EVAL_SPECIMEN_STRING = "H1OS v1.0.16 (08B$) [aeg] {WwMm} <=>"
 EVAL_ZOOM_STRIP_CHARS = "WwMmABCfgrs$()[]08"
+TRIAD_ZOOM_CHARS = "HBaegsw$"
 
 
 @dataclass
@@ -112,8 +116,40 @@ class FontEvalSummary:
     mean_16px_raw_hq_conf_pct: float
     mean_16px_tuned_hq_conf_pct: float
     recommendation_tier: str
+    intended_role: str = "NORMAL (BODY)"
+    role_fit_score: float = 0.0
     sheet_png: str = ""
     by_size: Dict[int, SizeMetrics] = field(default_factory=dict)
+
+
+@dataclass
+class FamilyTriadSummary:
+    family_stem: str
+    family_group: str
+    normal_label: str
+    normal_file: str
+    normal_weight: int
+    normal_stem_16px: float
+    normal_ink_16px: int
+    normal_hq_16px: float
+    bold_label: str
+    bold_file: str
+    bold_weight: int
+    bold_stem_16px: float
+    bold_ink_16px: int
+    bold_cnt_16px: float
+    italic_label: str
+    italic_file: str
+    italic_weight: int
+    italic_stem_16px: float
+    italic_ink_16px: int
+    italic_cnt_16px: float
+    bold_ink_jump_pct: float
+    bold_stem_jump_px: float
+    italic_ink_delta_pct: float
+    bold_over_italic_pct: float
+    triad_contrast_score: float
+    triad_verdict: str
 
 
 def _render_hq_gray_for_face(ft, hq_face, cp_val: int) -> Optional[np.ndarray]:
@@ -177,7 +213,6 @@ def inspect_font_metadata(font_path: Path) -> Optional[Tuple[str, str, int, bool
     fname_low = font_path.name.lower()
     if any(ic in fname_low for ic in ("fontawesome", "lucide", "phosphor", "tabler")):
         return None
-    # Skip size-specific Terminus strikes other than 16px so Terminus isn't duplicated 24 times
     if fname_low.startswith("terminus-") and not any(
         fname_low.startswith(p) for p in ("terminus-normal-16", "terminus-bold-16")
     ):
@@ -190,7 +225,6 @@ def inspect_font_metadata(font_path: Path) -> Optional[Tuple[str, str, int, bool
     try:
         tt = open_ttfont_safe(font_path, font_number=0, lazy=True)
         cmap = tt.getBestCmap() or {}
-        # Must support basic Latin uppercase/lowercase ('A', 'B', 'W', 'a', 'g', 'w')
         if not (0x0041 in cmap and 0x0057 in cmap and 0x0061 in cmap):
             tt.close()
             return None
@@ -211,7 +245,6 @@ def inspect_font_metadata(font_path: Path) -> Optional[Tuple[str, str, int, bool
     except Exception:
         return None
 
-    # Infer weight from filename if OS/2 weight_class stayed at 400 on a named cut
     if weight_class == 400:
         if "extrabold" in fname_low or "xbd" in fname_low or "extrabd" in fname_low:
             weight_class = 800
@@ -255,9 +288,10 @@ def discover_candidate_fonts(
     Discover candidate fonts to benchmark:
       - If `explicit_fonts` is provided, evaluates those exact font files.
       - If `src_dir` is `build/static_ttfs` (the internal foundry asset dir), evaluates the
-        canonical Humid1 benchmark suite PLUS any additional external fonts in `src_dir`.
-      - If `src_dir` is an external directory (such as the user's `eval_fonts` folder),
-        recursively scans and evaluates ALL `.ttf`, `.otf`, and `.ttc` files inside `src_dir`!
+        canonical Humid1 Tri-Role benchmark suite (including Normal, Bold Punch, and Subtle Italic
+        cuts across Sans, Condensed, Mono, Serif, Math, Terminus, and Inter).
+      - If `src_dir` is an external directory (such as `eval_fonts`), recursively scans all
+        `.ttf`, `.otf`, and `.ttc` files inside `src_dir`.
     """
     candidates: List[Tuple[str, Path, str, int, bool]] = []
     if explicit_fonts:
@@ -273,20 +307,31 @@ def discover_candidate_fonts(
     is_internal_static = (src_dir / "IBMPlexSans-ExtraBold.ttf").is_file() and (src_dir / "Terminus-Normal-16.ttf").is_file()
     if is_internal_static:
         default_specs = [
+            # Sans Tri-Role Candidates
             ("IBM Plex Sans Regular (w400)", src_dir / "IBMPlexSans-Regular.ttf", "sans", 400, False),
             ("IBM Plex Sans Normal [Medium w500]", src_dir / "IBMPlexSans-Medium.ttf", "sans", 500, False),
             ("IBM Plex Sans SemiBold (w600)", src_dir / "IBMPlexSans-SemiBold.ttf", "sans", 600, False),
             ("IBM Plex Sans Bold-700 [Legacy w700]", src_dir / "IBMPlexSans-Bold.ttf", "sans", 700, False),
             ("IBM Plex Sans Bold [ExtraBold w800]", src_dir / "IBMPlexSans-ExtraBold.ttf", "sans", 800, False),
             ("IBM Plex Sans Italic [MedItal w500]", src_dir / "IBMPlexSans-MediumItalic.ttf", "sans", 500, True),
-            ("IBM Plex Sans SemiBold Italic (w600)", src_dir / "IBMPlexSans-SemiBoldItalic.ttf", "sans", 600, True),
+            ("IBM Plex Sans Italic [SemiBoldItal w600]", src_dir / "IBMPlexSans-SemiBoldItalic.ttf", "sans", 600, True),
             ("IBM Plex Sans Bold Italic (w700)", src_dir / "IBMPlexSans-BoldItalic.ttf", "sans", 700, True),
+            # Condensed Tri-Role Candidates
             ("IBM Plex Sans Cond Normal [Medium w500]", src_dir / "IBMPlexSansCondensed-Medium.ttf", "cond", 500, False),
             ("IBM Plex Sans Cond Bold [ExtraBold w800]", src_dir / "IBMPlexSansCondensed-ExtraBold.ttf", "cond", 800, False),
+            ("IBM Plex Sans Cond Italic [MedItal w500]", src_dir / "IBMPlexSansCondensed-MedItal.ttf", "cond", 500, True),
+            ("IBM Plex Sans Cond Italic [SemiBoldItal w600]", src_dir / "IBMPlexSansCondensed-SemiBoldItalic.ttf", "cond", 600, True),
+            # Mono Tri-Role Candidates
             ("IBM Plex Mono Normal [Medium w500]", src_dir / "IBMPlexMono-Medium.ttf", "mono", 500, False),
             ("IBM Plex Mono Bold [ExtraBold w800]", src_dir / "IBMPlexMono-ExtraBold.ttf", "mono", 800, False),
+            ("IBM Plex Mono Italic [MedItal w500]", src_dir / "IBMPlexMono-MediumItalic.ttf", "mono", 500, True),
+            ("IBM Plex Mono Italic [SemiBoldItal w600]", src_dir / "IBMPlexMono-SemiBoldItalic.ttf", "mono", 600, True),
+            # Serif Tri-Role Candidates
             ("IBM Plex Serif Normal [Medium w500]", src_dir / "IBMPlexSerif-Medium.ttf", "serif", 500, False),
             ("IBM Plex Serif Bold [ExtraBold w800]", src_dir / "IBMPlexSerif-ExtraBold.ttf", "serif", 800, False),
+            ("IBM Plex Serif Italic [MedItal w500]", src_dir / "IBMPlexSerif-MediumItalic.ttf", "serif", 500, True),
+            ("IBM Plex Serif Italic [SemiBoldItal w600]", src_dir / "IBMPlexSerif-SemiBoldItalic.ttf", "serif", 600, True),
+            # Math & Terminus
             ("IBM Plex Math Regular (w400)", src_dir / "IBMPlexMath-Regular.ttf", "math", 400, False),
             ("Terminus Native Bitmap (w400)", src_dir / "Terminus-Normal-16.ttf", "terminus", 400, False),
             ("Terminus Bold Bitmap (w700)", src_dir / "Terminus-Bold-16.ttf", "terminus", 700, False),
@@ -299,19 +344,15 @@ def discover_candidate_fonts(
                 ("Inter SemiBold (w600) [External]", inter_dir / "Inter-SemiBold.otf", "sans", 600, False),
                 ("Inter Bold (w700) [External]", inter_dir / "Inter-Bold.otf", "sans", 700, False),
                 ("Inter ExtraBold (w800) [External]", inter_dir / "Inter-ExtraBold.otf", "sans", 800, False),
+                ("Inter Black (w900) [External]", inter_dir / "Inter-Black.otf", "sans", 900, False),
+                ("Inter MediumItalic (w500) [External]", inter_dir / "Inter-MediumItalic.otf", "sans", 500, True),
+                ("Inter SemiBoldItalic (w600) [External]", inter_dir / "Inter-SemiBoldItalic.otf", "sans", 600, True),
             ])
-        ex_v114 = src_dir.parent.parent / "docs" / "audits" / "exhibits" / "v1.0.15" / "approx-fonts-ttf"
-        if ex_v114.is_dir():
-            if (ex_v114 / "Inter-ExtraBold.ttf").is_file():
-                default_specs.append(("Inter ExtraBold (w800) [v1.0.15 Exhibit]", ex_v114 / "Inter-ExtraBold.ttf", "sans", 800, False))
-            if (ex_v114 / "InterDisplay-ThinItalic.ttf").is_file():
-                default_specs.append(("InterDisplay ThinItalic (w100) [v1.0.15 Exhibit]", ex_v114 / "InterDisplay-ThinItalic.ttf", "sans", 100, True))
         for lbl, p, fg, wght, is_it in default_specs:
             if p.is_file():
                 candidates.append((lbl, p, fg, wght, is_it))
         return candidates
 
-    # External font directory (e.g., user's `eval_fonts` directory with 400+ .ttf/.otf/.ttc files):
     if not src_dir.exists():
         print(f"[!] Warning: Source font directory does not exist: {src_dir}", file=sys.stderr)
         return []
@@ -330,6 +371,438 @@ def discover_candidate_fonts(
             lbl, fg, wght, is_it = meta
             candidates.append((lbl, rp, fg, wght, is_it))
     return candidates
+
+
+def classify_font_role_and_score(d: FontEvalSummary) -> Tuple[str, float]:
+    """
+    Classify a font's optimal role in a 3-way 1-BPP hierarchy (`NORMAL (BODY)`, `BOLD (PUNCH)`,
+    `ITALIC (SUBTLE)`, `ITALIC (HEAVY)`, `MICRO (1PX BITMAP)`, or `SUB-FLOOR`) and compute its
+    role-aware fitness score (`0..100+`).
+    """
+    m16 = d.by_size.get(16)
+    m14 = d.by_size.get(14)
+    if not m16:
+        return ("UNSCORED", 0.0)
+
+    is_terminus = "terminus" in d.font_file.lower() or d.family_group == "terminus"
+    if is_terminus:
+        role = "BOLD (2PX BITMAP)" if d.weight_class >= 650 else "MICRO (1PX BITMAP)"
+        score = 92.0 if m16.tuned_counter_pct >= 95.0 else 80.0
+        return (role, round(score, 1))
+
+    w_stem = m16.mean_stem_width_tuned_px
+    cnt16 = m16.tuned_counter_pct
+    cnt14 = m14.tuned_counter_pct if m14 else cnt16
+    hq16 = m16.tuned_hq_conf_pct
+    hq14 = m14.tuned_hq_conf_pct if m14 else hq16
+    st16 = m16.tuned_stem_2px_pct
+    burden16 = m16.tuning_burden_pct
+
+    if d.weight_class <= 250 or w_stem < 1.65 or hq16 < 50.0:
+        return ("SUB-FLOOR (DO NOT USE)", round(max(0.0, hq16 * 0.5), 1))
+
+    if d.is_italic:
+        # Subtle Italic role wants iso-weight stems (~2.00px..2.38px, w400..w600) so it whispers emphasis
+        # rather than impersonating Bold!
+        if d.weight_class <= 600 and 1.95 <= w_stem <= 2.42:
+            role = "ITALIC (SUBTLE)"
+            stem_ideal_pen = abs(w_stem - 2.20) * 18.0
+            score = (
+                0.40 * hq16
+                + 0.15 * hq14
+                + 0.25 * cnt16
+                + 0.15 * st16
+                - 0.12 * burden16
+                + 12.0
+                - stem_ideal_pen
+            )
+        else:
+            role = "ITALIC (HEAVY/BLUDGEON)"
+            # Penalize heavy BoldItalic/ExtraBoldItalic for standard UI italic role because it collides with Bold
+            score = 0.35 * hq16 + 0.20 * cnt16 + 0.15 * st16 - 0.12 * burden16 - 8.0
+        return (role, round(score, 1))
+
+    # Upright cuts: distinguish NORMAL (BODY) vs BOLD (PUNCH) vs MID-WEIGHT (HOMOGENEOUS)
+    if d.weight_class >= 750 or w_stem >= 2.85:
+        role = "BOLD (PUNCH)"
+        # Reward true 2.95px..3.45px stem punch + 100% open counters
+        punch_bonus = min(18.0, max(0.0, (w_stem - 2.65) * 24.0))
+        cnt_pen = max(0.0, (100.0 - cnt16) * 1.5 + (100.0 - cnt14) * 1.0)
+        score = (
+            0.35 * hq16
+            + 0.15 * hq14
+            + 0.20 * cnt16
+            + 0.15 * st16
+            - 0.10 * burden16
+            + punch_bonus
+            - cnt_pen
+        )
+    elif 400 <= d.weight_class <= 550 and 1.95 <= w_stem <= 2.30:
+        role = "NORMAL (BODY)"
+        # Reward clean ~2.12px stem that leaves plenty of contrast headroom for Bold (3.0px+)
+        stem_ideal_pen = abs(w_stem - 2.12) * 20.0
+        score = (
+            0.35 * hq16
+            + 0.20 * hq14
+            + 0.20 * cnt16
+            + 0.15 * st16
+            - 0.12 * burden16
+            + 14.0
+            - stem_ideal_pen
+        )
+    else:
+        # w600 SemiBold / w700 Bold sitting in the ~2.35px..2.65px "Dead Zone" (too heavy for Normal, too light for Bold punch)
+        role = "MID-WEIGHT (LOW CONTRAST)"
+        score = (
+            0.35 * hq16
+            + 0.15 * hq14
+            + 0.20 * cnt16
+            + 0.15 * st16
+            - 0.12 * burden16
+            - 4.0
+        )
+    return (role, round(score, 1))
+
+
+def extract_base_family_stem(font_file: str, family_group: str) -> str:
+    """Group font filenames into canonical family stems for Tri-Role Triad pairing."""
+    stem = Path(font_file).stem
+    if stem.lower().startswith("terminus-"):
+        return "Terminus"
+    m = re.match(r"^([A-Za-z0-9_]+?)-(?:Thin|ExtraLight|Light|Regular|Text|Medium|SemiBold|Bold|ExtraBold|Black|Heavy|Italic|MedItal|Roman|Normal|VGA)", stem)
+    if m:
+        return m.group(1)
+    return stem.split("-")[0]
+
+
+def evaluate_family_triads(
+    summaries: Sequence[FontEvalSummary],
+    ref_sz: int = 16,
+) -> List[FamilyTriadSummary]:
+    """
+    Evaluate and rank complete **Tri-Role Font Family Triads (`Normal` + `Bold Punch` + `Subtle Italic`)**
+    so `Normal`, `Bold`, and `Italic` are guaranteed to have unmistakable visual distinction:
+      - `Bold` vs `Normal`   : Targets `+35% to +65%` ink mass jump and `+0.80px to +1.45px` stem jump.
+      - `Italic` vs `Normal` : Targets `[-10% to +12%]` iso-weight ink mass (subtle slant emphasis)
+                               and `>= 25%` lighter than `Bold`!
+    """
+    by_fam: Dict[str, List[FontEvalSummary]] = defaultdict(list)
+    for s in summaries:
+        if ref_sz not in s.by_size:
+            continue
+        fstem = extract_base_family_stem(s.font_file, s.family_group)
+        by_fam[fstem].append(s)
+
+    triads: List[FamilyTriadSummary] = []
+    for fstem, cuts in sorted(by_fam.items()):
+        uprights = [c for c in cuts if not c.is_italic and c.by_size[ref_sz].tuned_ink_pixels > 0]
+        italics = [c for c in cuts if c.is_italic and c.by_size[ref_sz].tuned_ink_pixels > 0]
+        if len(uprights) < 2:
+            continue
+
+        normal_cands = [
+            c for c in uprights
+            if 380 <= c.weight_class <= 560
+            and c.by_size[ref_sz].tuned_counter_pct >= 94.0
+            and c.by_size[ref_sz].tuned_stem_2px_pct >= 72.0
+        ]
+        if not normal_cands:
+            normal_cands = [c for c in uprights if c.weight_class <= 600 and c.by_size[ref_sz].tuned_counter_pct >= 90.0]
+        if not normal_cands:
+            continue
+
+        # Pick Normal closest to ideal ~2.12px stem (or w500 Medium)
+        best_norm = max(
+            normal_cands,
+            key=lambda c: (
+                c.by_size[ref_sz].tuned_counter_pct * 0.4
+                + c.by_size[ref_sz].tuned_hq_conf_pct * 0.4
+                - abs(c.by_size[ref_sz].mean_stem_width_tuned_px - 2.12) * 28.0
+                + (4.0 if c.weight_class == 500 else 0.0)
+            ),
+        )
+        m_norm = best_norm.by_size[ref_sz]
+
+        bold_cands = [
+            c for c in uprights
+            if c.weight_class > best_norm.weight_class
+            and c.by_size[ref_sz].tuned_counter_pct >= 94.0
+        ]
+        if not bold_cands:
+            continue
+
+        def _score_bold_pair(b_cut: FontEvalSummary) -> float:
+            mb = b_cut.by_size[ref_sz]
+            ink_jump = (mb.tuned_ink_pixels - m_norm.tuned_ink_pixels) / float(max(1, m_norm.tuned_ink_pixels)) * 100.0
+            stem_jump = mb.mean_stem_width_tuned_px - m_norm.mean_stem_width_tuned_px
+            # Ideal Bold Punch: +35%..+62% ink jump, +0.85px..+1.35px stem jump, 100% counters
+            if ink_jump < 18.0 or stem_jump < 0.40:
+                punch_score = ink_jump * 0.6 + stem_jump * 15.0 - 25.0
+            else:
+                punch_score = 42.0 - abs(ink_jump - 46.0) * 0.45 + min(18.0, stem_jump * 15.0)
+            return punch_score + mb.tuned_counter_pct * 0.35 + mb.tuned_hq_conf_pct * 0.25 - mb.tuning_burden_pct * 0.15
+
+        best_bold = max(bold_cands, key=_score_bold_pair)
+        m_bold = best_bold.by_size[ref_sz]
+        bold_ink_jump = (m_bold.tuned_ink_pixels - m_norm.tuned_ink_pixels) / float(max(1, m_norm.tuned_ink_pixels)) * 100.0
+        bold_stem_jump = m_bold.mean_stem_width_tuned_px - m_norm.mean_stem_width_tuned_px
+
+        # Pick Subtle Iso-Weight Italic: closest to Normal ink mass ([-10%..+12%]) and >=25% lighter than Bold
+        best_ital: Optional[FontEvalSummary] = None
+        if italics:
+            viable_itals = [c for c in italics if c.by_size[ref_sz].tuned_counter_pct >= 90.0]
+            if not viable_itals:
+                viable_itals = italics
+
+            def _score_ital_pair(i_cut: FontEvalSummary) -> float:
+                mi = i_cut.by_size[ref_sz]
+                i_delta = (mi.tuned_ink_pixels - m_norm.tuned_ink_pixels) / float(max(1, m_norm.tuned_ink_pixels)) * 100.0
+                b_over_i = (m_bold.tuned_ink_pixels - mi.tuned_ink_pixels) / float(max(1, mi.tuned_ink_pixels)) * 100.0
+                iso_pen = abs(i_delta - 1.0) * 1.4
+                if b_over_i < 20.0:
+                    iso_pen += (20.0 - b_over_i) * 2.2
+                return (
+                    35.0
+                    - iso_pen
+                    + mi.tuned_counter_pct * 0.30
+                    + mi.tuned_hq_conf_pct * 0.25
+                    + mi.tuned_stem_2px_pct * 0.15
+                    - mi.tuning_burden_pct * 0.15
+                )
+
+            best_ital = max(viable_itals, key=_score_ital_pair)
+
+        if best_ital is not None:
+            m_ital = best_ital.by_size[ref_sz]
+            ital_ink_delta = (m_ital.tuned_ink_pixels - m_norm.tuned_ink_pixels) / float(max(1, m_norm.tuned_ink_pixels)) * 100.0
+            bold_over_ital = (m_bold.tuned_ink_pixels - m_ital.tuned_ink_pixels) / float(max(1, m_ital.tuned_ink_pixels)) * 100.0
+            ital_label = best_ital.label
+            ital_file = best_ital.font_file
+            ital_w = best_ital.weight_class
+            ital_stem = m_ital.mean_stem_width_tuned_px
+            ital_ink = m_ital.tuned_ink_pixels
+            ital_cnt = m_ital.tuned_counter_pct
+        else:
+            ital_ink_delta = 0.0
+            bold_over_ital = bold_ink_jump
+            ital_label = "N/A (Upright Pair Only)"
+            ital_file = "-"
+            ital_w = 0
+            ital_stem = 0.0
+            ital_ink = 0
+            ital_cnt = 0.0
+
+        # Compute overall Tri-Role Visual Contrast Score
+        punch_component = min(40.0, max(0.0, bold_ink_jump * 0.72 + bold_stem_jump * 12.0))
+        if bold_ink_jump < 25.0:
+            punch_component -= (25.0 - bold_ink_jump) * 1.2
+        iso_ital_component = 25.0 - min(25.0, abs(ital_ink_delta - 1.0) * 1.3) if best_ital else 8.0
+        if best_ital and bold_over_ital < 22.0:
+            iso_ital_component -= (22.0 - bold_over_ital) * 1.5
+        quality_component = (
+            0.15 * m_norm.tuned_hq_conf_pct
+            + 0.10 * m_bold.tuned_hq_conf_pct
+            + 0.10 * m_bold.tuned_counter_pct
+        )
+        triad_score = round(punch_component + iso_ital_component + quality_component, 1)
+
+        if bold_ink_jump >= 32.0 and bold_stem_jump >= 0.75 and (not best_ital or (-12.0 <= ital_ink_delta <= 14.0 and bold_over_ital >= 24.0)):
+            verdict = "TIER 1 TRIAD: HIGH-PUNCH BOLD + ISO-WEIGHT SUBTLE ITALIC"
+        elif bold_ink_jump >= 24.0 and bold_stem_jump >= 0.55:
+            verdict = "TIER 2 TRIAD: MODERATE BOLD CONTRAST"
+        else:
+            verdict = "TIER 3 TRIAD: LOW WEIGHT CONTRAST (HOMOGENEOUS)"
+
+        triads.append(
+            FamilyTriadSummary(
+                family_stem=fstem,
+                family_group=best_norm.family_group,
+                normal_label=best_norm.label,
+                normal_file=best_norm.font_file,
+                normal_weight=best_norm.weight_class,
+                normal_stem_16px=m_norm.mean_stem_width_tuned_px,
+                normal_ink_16px=m_norm.tuned_ink_pixels,
+                normal_hq_16px=m_norm.tuned_hq_conf_pct,
+                bold_label=best_bold.label,
+                bold_file=best_bold.font_file,
+                bold_weight=best_bold.weight_class,
+                bold_stem_16px=m_bold.mean_stem_width_tuned_px,
+                bold_ink_16px=m_bold.tuned_ink_pixels,
+                bold_cnt_16px=m_bold.tuned_counter_pct,
+                italic_label=ital_label,
+                italic_file=ital_file,
+                italic_weight=ital_w,
+                italic_stem_16px=ital_stem,
+                italic_ink_16px=ital_ink,
+                italic_cnt_16px=ital_cnt,
+                bold_ink_jump_pct=round(bold_ink_jump, 1),
+                bold_stem_jump_px=round(bold_stem_jump, 2),
+                italic_ink_delta_pct=round(ital_ink_delta, 1),
+                bold_over_italic_pct=round(bold_over_ital, 1),
+                triad_contrast_score=triad_score,
+                triad_verdict=verdict,
+            )
+        )
+
+    triads.sort(key=lambda t: t.triad_contrast_score, reverse=True)
+    return triads
+
+
+def render_triad_contrast_sheet(
+    out_png: Path,
+    triads: Sequence[FamilyTriadSummary],
+    tuned_strikes_map: Dict[str, Dict[int, List[GlyphStrike]]],
+    sizes: Sequence[int],
+) -> Optional[Path]:
+    """
+    Render the v1.0.16 Tri-Role Visual Contrast Sheet (`font_eval_triad_contrast_sheet.png`)
+    stacking `NORMAL (BODY)`, `BOLD (PUNCH)`, and `ITALIC (SUBTLE)` directly on top of one
+    another per family so pattern-recognition contrast is immediately visible at a glance.
+    """
+    valid_triads = [
+        t for t in triads
+        if t.normal_label in tuned_strikes_map and t.bold_label in tuned_strikes_map
+    ]
+    if not valid_triads:
+        return None
+
+    disp_sizes = [s for s in (14, 16, 20) if s in sizes]
+    if not disp_sizes:
+        disp_sizes = list(sizes[:3])
+
+    pad = 16
+    hdr_h = 92
+    card_h = 164
+    left_w = 340
+    sz_col_w = 335
+    zoom_col_w = 290
+    img_w = pad * 2 + left_w + len(disp_sizes) * sz_col_w + zoom_col_w
+    img_h = hdr_h + pad * 2 + len(valid_triads) * card_h + 12
+
+    img = Image.new("RGB", (img_w, img_h), (244, 246, 250))
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle([0, 0, img_w, hdr_h], fill=(16, 21, 30))
+    draw.text(
+        (pad, 12),
+        f"HUMID1 v{TOOL_VERSION} TRI-ROLE VISUAL CONTRAST SHEET | NORMAL (BODY) vs. BOLD (PUNCH) vs. ITALIC (SUBTLE EMPHASIS)",
+        fill=(255, 255, 255),
+    )
+    draw.text(
+        (pad, 36),
+        "Pattern-Recognition Hierarchy: NORMAL = 2.0-2.2px Stems (1.00x Baseline) | BOLD = 2.9-3.2px Stems (+35%..+60% Ink Punch) | ITALIC = Iso-Weight Slant (-9%..+11% Ink)",
+        fill=(115, 232, 172),
+    )
+    draw.text(
+        (pad, 60),
+        f"Specimen: \"{EVAL_SPECIMEN_STRING}\" | Right Column: 2x-Zoomed 16px Triad Overlay Strip (\"{TRIAD_ZOOM_CHARS}\")",
+        fill=(185, 202, 224),
+    )
+
+    for idx, tr in enumerate(valid_triads):
+        cy = hdr_h + pad + idx * card_h
+        draw.rectangle([pad, cy, img_w - pad, cy + card_h - 10], fill=(255, 255, 255), outline=(202, 210, 222), width=1)
+        draw.rectangle([pad, cy, pad + left_w, cy + card_h - 10], fill=(235, 240, 247), outline=(202, 210, 222), width=1)
+
+        # Left summary card
+        draw.text((pad + 10, cy + 8), f"{tr.family_stem} [{tr.family_group.upper()}]", fill=(16, 21, 30))
+        v_col = (16, 122, 72) if "TIER 1" in tr.triad_verdict else (155, 85, 18)
+        draw.text((pad + 10, cy + 28), f"Triad Score: {tr.triad_contrast_score:.1f} | {tr.triad_verdict.split(':')[0]}", fill=v_col)
+        draw.text(
+            (pad + 10, cy + 50),
+            f"1. NORMAL : w{tr.normal_weight} ({tr.normal_stem_16px:.2f}px, {tr.normal_ink_16px}px ink)",
+            fill=(30, 42, 58),
+        )
+        draw.text(
+            (pad + 10, cy + 72),
+            f"2. BOLD   : w{tr.bold_weight} ({tr.bold_stem_16px:.2f}px, +{tr.bold_ink_jump_pct:.1f}% INK PUNCH!)",
+            fill=(165, 28, 28),
+        )
+        if tr.italic_weight > 0:
+            draw.text(
+                (pad + 10, cy + 94),
+                f"3. ITALIC : w{tr.italic_weight} ({tr.italic_stem_16px:.2f}px, {tr.italic_ink_delta_pct:+.1f}% vs Norm)",
+                fill=(24, 92, 165),
+            )
+            draw.text(
+                (pad + 10, cy + 116),
+                f"Contrast  : Bold is +{tr.bold_over_italic_pct:.1f}% heavier than Italic",
+                fill=(65, 78, 96),
+            )
+        else:
+            draw.text((pad + 10, cy + 94), "3. ITALIC : (None / Upright Pair Only)", fill=(110, 118, 130))
+
+        role_rows = [
+            ("NORMAL", tr.normal_label, (20, 26, 36), (248, 250, 252)),
+            ("BOLD  ", tr.bold_label, (145, 18, 18), (255, 245, 245)),
+            ("ITALIC", tr.italic_label, (20, 78, 148), (244, 249, 255)),
+        ]
+
+        for r_i, (r_tag, r_lbl, px_col, row_bg) in enumerate(role_rows):
+            ry = cy + 6 + r_i * 48
+            draw.rectangle([pad + left_w + 1, ry, img_w - pad - 1, ry + 45], fill=row_bg)
+            if r_i > 0:
+                draw.line([pad + left_w + 1, ry, img_w - pad - 1, ry], fill=(218, 224, 232), width=1)
+
+            for s_i, sz in enumerate(disp_sizes):
+                x0 = pad + left_w + s_i * sz_col_w + 8
+                draw.text((x0, ry + 2), f"{sz}px {r_tag}", fill=px_col)
+                g_list = tuned_strikes_map.get(r_lbl, {}).get(sz, [])
+                if not g_list:
+                    continue
+                g_map = {g.codepoint: g for g in g_list}
+                pen_x = x0 + 78
+                base_y = ry + 34
+                for ch in EVAL_SPECIMEN_STRING:
+                    cp = ord(ch)
+                    if cp == 0x20:
+                        pen_x += max(3, sz // 3)
+                        continue
+                    g = g_map.get(cp)
+                    if g is None or not g.rows:
+                        pen_x += max(3, sz // 3)
+                        continue
+                    gx0 = pen_x + g.ofs_x
+                    gy0 = base_y - g.ofs_y - g.box_h
+                    for ri_b, r_str in enumerate(g.rows):
+                        for ci_b, px_ch in enumerate(r_str):
+                            if px_ch == "#":
+                                px_x = gx0 + ci_b
+                                px_y = gy0 + ri_b
+                                if x0 + 74 <= px_x < x0 + sz_col_w - 8 and ry + 6 <= px_y < ry + 43:
+                                    img.putpixel((px_x, px_y), px_col)
+                    pen_x += max(g.box_w + 1, g.adv_w_fp4 >> 4)
+                    if pen_x > x0 + sz_col_w - 14:
+                        break
+
+            # Right column: 2x-zoomed 16px glyph strip for direct stem-thickness inspection
+            zx0 = pad + left_w + len(disp_sizes) * sz_col_w + 8
+            g16_list = tuned_strikes_map.get(r_lbl, {}).get(16, [])
+            if g16_list:
+                g16_map = {g.codepoint: g for g in g16_list}
+                zx = zx0
+                zy_base = ry + 38
+                zoom = 2
+                for ch in TRIAD_ZOOM_CHARS:
+                    g = g16_map.get(ord(ch))
+                    if g is None or not g.rows:
+                        continue
+                    gw_z = g.box_w * zoom
+                    if zx + gw_z + 4 > img_w - pad - 6:
+                        break
+                    gy0 = max(ry + 5, zy_base - (g.ofs_y + g.box_h) * zoom)
+                    for ri_b, r_str in enumerate(g.rows):
+                        for ci_b, px_ch in enumerate(r_str):
+                            if px_ch == "#":
+                                px0 = zx + ci_b * zoom
+                                py0 = gy0 + ri_b * zoom
+                                if py0 + zoom <= ry + 44:
+                                    draw.rectangle([px0, py0, px0 + zoom - 1, py0 + zoom - 1], fill=px_col)
+                    zx += gw_z + 6
+
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_png, optimize=True)
+    return out_png
 
 
 def render_single_font_eval_sheet(
@@ -352,7 +825,6 @@ def render_single_font_eval_sheet(
     img = Image.new("RGB", (img_w, img_h), (245, 247, 250))
     draw = ImageDraw.Draw(img)
 
-    # Top header banner
     draw.rectangle([0, 0, img_w, hdr_h], fill=(18, 23, 31))
     fl_raw = f"{summary.size_floor_raw_px}px" if summary.size_floor_raw_px < 99 else ">24px"
     fl_tun = f"{summary.size_floor_tuned_px}px" if summary.size_floor_tuned_px < 99 else ">24px"
@@ -364,8 +836,8 @@ def render_single_font_eval_sheet(
     )
     draw.text(
         (pad, 36),
-        f"Recommendation: {summary.recommendation_tier} | Weight: {summary.weight_class} | "
-        f"Raw Viable Floor: {fl_raw} -> Tuned Floor: {fl_tun}",
+        f"Role: {summary.intended_role} (Score: {summary.role_fit_score:.1f}) | {summary.recommendation_tier} | "
+        f"Raw Floor: {fl_raw} -> Tuned Floor: {fl_tun}",
         fill=(110, 230, 165) if "TIER 1" in summary.recommendation_tier else (240, 200, 110),
     )
     draw.text(
@@ -386,7 +858,6 @@ def render_single_font_eval_sheet(
         draw.rectangle([pad, by, img_w - pad, by + size_block_h - 8], fill=(255, 255, 255), outline=(205, 212, 222), width=1)
         pt96 = sz * 72.0 / 96.0
 
-        # Left size badge column
         draw.rectangle([pad, by, pad + 215, by + size_block_h - 8], fill=(236, 240, 246), outline=(205, 212, 222), width=1)
         draw.text((pad + 10, by + 10), f"{sz}px ({pt96:.1f}pt)", fill=(18, 23, 31))
         draw.text(
@@ -410,7 +881,6 @@ def render_single_font_eval_sheet(
             fill=(65, 78, 96),
         )
 
-        # Two horizontal sub-rows: Sub-Row 0 = PRE-TUNE (RAW), Sub-Row 1 = POST-TUNE (TUNED)
         for sub_idx, (tag_lbl, g_list, hq_c, hq_d, st_r, cnt_r, ink_px, tag_col) in enumerate([
             ("PRE-TUNE (RAW)", raw_glyphs, m.raw_hq_conf_pct, m.raw_hq_diff_pct, m.raw_stem_2px_pct, m.raw_counter_pct, m.raw_ink_pixels, (40, 82, 145)),
             ("POST-TUNE (TUNED)", tun_glyphs, m.tuned_hq_conf_pct, m.tuned_hq_diff_pct, m.tuned_stem_2px_pct, m.tuned_counter_pct, m.tuned_ink_pixels, (18, 118, 72)),
@@ -423,7 +893,6 @@ def render_single_font_eval_sheet(
             stats_line = f"HQConf:{hq_c:4.1f}% (Diff:{hq_d:4.1f}%) | >=2px:{st_r:4.0f}% | Cnt:{cnt_r:4.0f}% | Ink:{ink_px}"
             draw.text((pad + 365, sy + 2), stats_line, fill=(80, 92, 108))
 
-            # Render 1:1 Specimen String on left half (`x = pad + 225 .. pad + 730`)
             g_map = {g.codepoint: g for g in g_list}
             pen_x = pad + 225
             base_y = sy + 44
@@ -450,7 +919,6 @@ def render_single_font_eval_sheet(
                 if pen_x > pad + 725:
                     break
 
-            # Render 2x-Zoomed Critical Inspection Strip on right half (`x = pad + 750 .. img_w - pad - 10`)
             zoom = 2 if sz <= 18 else 1
             zx = pad + 750
             zy_base = sy + 45
@@ -659,7 +1127,6 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
             for ch in EVAL_BENCHMARK_CHARS:
                 r = rec_by_ch.get(ch)
                 if r is None:
-                    # Glyph vanished completely (0 ink pixels in FreeType mono, e.g., Thin w100 / ExtraLight w200)
                     missing_bench += 1
                     raw_confs.append(0.0)
                     tun_confs.append(0.0)
@@ -716,6 +1183,13 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
             mean_raw_conf = float(np.mean(raw_confs)) if raw_confs else 0.0
             mean_tun_conf = float(np.mean(tun_confs)) if tun_confs else 0.0
 
+            # Size- and slant-aware viable floor gate (v1.0.16):
+            # Accounts for 1-BPP diagonal staircase quantization on slanted Italics and 14px grid rounding
+            min_raw_hq = (64.0 if is_italic else 68.5) if sz <= 14 else (67.0 if is_italic else 72.0)
+            min_tun_hq = (65.0 if is_italic else 69.5) if sz <= 14 else (68.0 if is_italic else 73.0)
+            min_raw_st = (65.0 if is_italic else 76.0) if sz <= 14 else (75.0 if is_italic else 82.0)
+            min_tun_st = (74.0 if is_italic else 82.0) if sz <= 14 else (80.0 if is_italic else 85.0)
+
             if is_terminus:
                 pass_raw = (missing_bench == 0) and (c_raw >= 88.0)
                 pass_tun = (missing_bench == 0) and (c_tun >= 88.0)
@@ -723,17 +1197,17 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
                 pass_raw = (
                     (missing_bench == 0)
                     and (pinched_or_pinhole_raw == 0)
-                    and (mean_raw_conf >= 72.0)
+                    and (mean_raw_conf >= min_raw_hq)
                     and (c_raw >= 94.0)
-                    and (s_raw >= 82.0)
+                    and (s_raw >= min_raw_st)
                     and (w_raw >= 1.62)
                 )
                 pass_tun = (
                     (missing_bench == 0)
                     and (pinched_or_pinhole_tun == 0)
-                    and (mean_tun_conf >= 73.0)
+                    and (mean_tun_conf >= min_tun_hq)
                     and (c_tun >= 94.0)
-                    and (s_tun >= 85.0)
+                    and (s_tun >= min_tun_st)
                     and (w_tun >= 1.68)
                     and (burden_pct <= 48.0)
                 )
@@ -771,14 +1245,19 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
             summary.mean_16px_tuning_burden_pct = m_ref.tuning_burden_pct
             summary.mean_16px_raw_hq_conf_pct = m_ref.raw_hq_conf_pct
             summary.mean_16px_tuned_hq_conf_pct = m_ref.tuned_hq_conf_pct
-            if summary.size_floor_raw_px <= 16 and m_ref.tuning_burden_pct <= 22.0 and m_ref.raw_hq_conf_pct >= 72.0:
+            min_t1_hq = 68.0 if is_italic else 72.0
+            if summary.size_floor_raw_px <= 16 and m_ref.tuning_burden_pct <= 22.0 and m_ref.raw_hq_conf_pct >= min_t1_hq:
                 summary.recommendation_tier = "TIER 1: NATIVE READY (Minimal/Zero Tune Needed)"
-            elif summary.size_floor_tuned_px <= 16 and m_ref.tuning_burden_pct <= 48.0 and m_ref.tuned_hq_conf_pct >= 72.0:
+            elif summary.size_floor_tuned_px <= 16 and m_ref.tuning_burden_pct <= 48.0 and m_ref.tuned_hq_conf_pct >= min_t1_hq:
                 summary.recommendation_tier = "TIER 2: VIABLE WITH SURGICAL TUNE"
             elif m_ref.raw_hq_conf_pct < 45.0 or weight_class <= 250:
                 summary.recommendation_tier = "TIER 4: DO NOT USE ON 1-BPP EPD (Sub-Pixel Hairline Dropout)"
             else:
                 summary.recommendation_tier = "TIER 3: HIGH TUNE BURDEN / LARGE SIZES (>=20px) ONLY"
+
+        role_lbl, role_sc = classify_font_role_and_score(summary)
+        summary.intended_role = role_lbl
+        summary.role_fit_score = role_sc
 
         if sheets_dir is not None and raw_strikes_by_size:
             safe_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", font_path.stem)
@@ -793,27 +1272,11 @@ def _worker_evaluate_font(task: dict) -> Tuple[FontEvalSummary, Dict[int, List[G
 
 
 def compute_composite_epd_score(d: FontEvalSummary) -> float:
-    """Compute a composite 1-BPP EPD readiness score across 14px and 16px strikes for ranking contenders."""
-    m16 = d.by_size.get(16)
-    m14 = d.by_size.get(14)
-    raw_hq16 = m16.raw_hq_conf_pct if m16 else 0.0
-    raw_st16 = m16.raw_stem_2px_pct if m16 else 0.0
-    raw_cnt16 = m16.raw_counter_pct if m16 else 0.0
-    burden16 = m16.tuning_burden_pct if m16 else 100.0
-    raw_hq14 = m14.raw_hq_conf_pct if m14 else raw_hq16
-    raw_st14 = m14.raw_stem_2px_pct if m14 else raw_st16
-    raw_cnt14 = m14.raw_counter_pct if m14 else raw_cnt16
-    fl_bonus = max(0.0, (24 - min(d.size_floor_raw_px, 24)) * 2.5) + max(0.0, (24 - min(d.size_floor_tuned_px, 24)) * 1.5)
-    return (
-        0.35 * raw_hq16
-        + 0.20 * raw_hq14
-        + 0.15 * raw_st16
-        + 0.10 * raw_st14
-        + 0.10 * raw_cnt16
-        + 0.10 * raw_cnt14
-        - 0.15 * burden16
-        + fl_bonus
-    )
+    """Return the role-aware 1-BPP fitness score (`d.role_fit_score`)."""
+    if d.role_fit_score != 0.0:
+        return d.role_fit_score
+    _, sc = classify_font_role_and_score(d)
+    return sc
 
 
 def _render_master_sheet_page(
@@ -826,7 +1289,7 @@ def _render_master_sheet_page(
 ) -> None:
     row_h = 74
     hdr_h = 80
-    left_col_w = 290
+    left_col_w = 310
     size_col_w = 345
     pad = 16
 
@@ -838,27 +1301,27 @@ def _render_master_sheet_page(
     draw.rectangle([0, 0, img_w, hdr_h], fill=(18, 23, 31))
     draw.text(
         (pad, 14),
-        f"HUMID1 v{TOOL_VERSION} PRE-TUNE (RAW) vs. POST-TUNE (TUNED) MULTI-FONT SCORECARD (188 DPI 1-BPP)",
+        f"HUMID1 v{TOOL_VERSION} PRE-TUNE (RAW) vs. POST-TUNE (TUNED) ROLE-AWARE SCORECARD (188 DPI 1-BPP)",
         fill=(255, 255, 255),
     )
     draw.text(
         (pad, 38),
-        f"Each Font Row Shows: Top = PRE-TUNE (RAW FreeType) | Bottom = POST-TUNE (Surgical Tournament + 8x HQ Confidence Gate)",
+        "Each Font Row Shows: Top = PRE-TUNE (RAW FreeType) | Bottom = POST-TUNE (Counter-Carving + Surgical Tournament)",
         fill=(182, 200, 222),
     )
     draw.text(
         (pad, 58),
-        f"Specimen: \"{EVAL_SPECIMEN_STRING}\" | Individual Per-Font Sheets Saved in build/font_eval/sheets/",
+        f"Specimen: \"{EVAL_SPECIMEN_STRING}\" | Tri-Role Triad Sheet: build/font_eval/font_eval_triad_contrast_sheet.png",
         fill=(140, 215, 175),
     )
 
     y_tbl = hdr_h + pad
     draw.rectangle([pad, y_tbl, img_w - pad, y_tbl + 38], fill=(32, 40, 54))
-    draw.text((pad + 10, y_tbl + 11), "TYPEFACE / WEIGHT / TIER & FLOORS", fill=(255, 255, 255))
+    draw.text((pad + 10, y_tbl + 11), "TYPEFACE / ROLE / TIER & FLOORS", fill=(255, 255, 255))
     for s_idx, sz in enumerate(sizes):
         x_col = pad + left_col_w + s_idx * size_col_w
         pt96 = sz * 72.0 / 96.0
-        draw.text((x_col + 8, y_tbl + 11), f"{sz}px ({pt96:.1f}pt) — RAW (Top) vs TUNED (Bottom)", fill=(210, 225, 245))
+        draw.text((x_col + 8, y_tbl + 11), f"{sz}px ({pt96:.1f}pt) | RAW (Top) vs TUNED (Bottom)", fill=(210, 225, 245))
 
     for idx, summ in enumerate(shown):
         ry = y_tbl + 42 + idx * row_h
@@ -867,16 +1330,17 @@ def _render_master_sheet_page(
 
         fl_raw = f"{summ.size_floor_raw_px}px" if summ.size_floor_raw_px < 99 else ">24px"
         fl_tun = f"{summ.size_floor_tuned_px}px" if summ.size_floor_tuned_px < 99 else ">24px"
-        tier_short = summ.recommendation_tier.split(":")[0]
+        m16 = summ.by_size.get(16)
+        w16_s = f"{m16.mean_stem_width_tuned_px:.2f}px" if m16 else "N/A"
         draw.text((pad + 8, ry + 6), f"{summ.label}", fill=(18, 23, 31))
         draw.text(
             (pad + 8, ry + 24),
-            f"{tier_short} | Floor: Raw {fl_raw} -> Tuned {fl_tun}",
+            f"{summ.intended_role} | Stem:{w16_s} | Fl:{fl_raw}->{fl_tun}",
             fill=(20, 118, 72) if "TIER 1" in summ.recommendation_tier else (140, 75, 20),
         )
         draw.text(
             (pad + 8, ry + 42),
-            f"16px HQConf: {summ.mean_16px_raw_hq_conf_pct:.0f}%->{summ.mean_16px_tuned_hq_conf_pct:.0f}% | Burden: {summ.mean_16px_tuning_burden_pct:.0f}%",
+            f"RoleScore:{summ.role_fit_score:.1f} | 16px HQ:{summ.mean_16px_raw_hq_conf_pct:.0f}%->{summ.mean_16px_tuned_hq_conf_pct:.0f}% | B:{summ.mean_16px_tuning_burden_pct:.0f}%",
             fill=(75, 88, 105),
         )
 
@@ -896,7 +1360,7 @@ def _render_master_sheet_page(
                 badge_c = (40, 82, 145) if sub_i == 0 else ((20, 118, 72) if m.passes_floor_tuned else (175, 48, 48))
                 draw.text(
                     (x_col + 6, sy),
-                    f"{sub_tag}: HQ:{hc:.0f}% >=2px:{st_p:.0f}%{brd}",
+                    f"{sub_tag}: HQ:{hc:.0f}% >=2px:{st_p:.0f}% W:{m.mean_stem_width_tuned_px:.2f}{brd}",
                     fill=badge_c,
                 )
                 g_map = {g.codepoint: g for g in g_list}
@@ -939,15 +1403,6 @@ def render_font_eval_comparison_sheet(
     sizes: Sequence[int],
     max_rows_per_page: int = 75,
 ) -> List[Path]:
-    """
-    Render the Master Multi-Font Comparison Sheet(s) without ever dropping or truncating samples (v1.0.15):
-      - When `len(summaries) <= max_rows_per_page`, writes all rows into `out_png`.
-      - When `len(summaries) > max_rows_per_page` (e.g., 408 fonts in `eval_fonts`):
-        1. Emits paginated full-corpus sheets (`font_eval_comparison_sheet_p01_of_06.png` .. `p06_of_06.png`)
-           so 100% of evaluated samples are plotted in full resolution, AND
-        2. Emits `out_png` (`font_eval_comparison_sheet.png`) sorted by Composite EPD Readiness Score
-           (Top Contenders across Normal, Bold, and Italic).
-    """
     written_paths: List[Path] = []
     total = len(summaries)
     if total == 0:
@@ -965,7 +1420,6 @@ def render_font_eval_comparison_sheet(
         written_paths.append(out_png)
         return written_paths
 
-    # 1. Emit paginated sheets covering 100% of all evaluated fonts
     num_pages = int(math.ceil(total / float(max_rows_per_page)))
     for p_idx in range(num_pages):
         start_i = p_idx * max_rows_per_page
@@ -982,7 +1436,6 @@ def render_font_eval_comparison_sheet(
         )
         written_paths.append(page_path)
 
-    # 2. Emit `out_png` as the Ranked Top Contenders Master Overview
     ranked = sorted(summaries, key=compute_composite_epd_score, reverse=True)[:max_rows_per_page]
     _render_master_sheet_page(
         out_png,
@@ -990,7 +1443,7 @@ def render_font_eval_comparison_sheet(
         raw_strikes_map,
         tuned_strikes_map,
         sizes,
-        page_subtitle=f"TOP {len(ranked)} RANKED CONTENDERS (of {total} Total; Full Set in _p01..p{num_pages:02d})",
+        page_subtitle=f"TOP {len(ranked)} ROLE-AWARE CONTENDERS (of {total} Total; Full Set in _p01..p{num_pages:02d})",
     )
     written_paths.insert(0, out_png)
     return written_paths
@@ -998,47 +1451,99 @@ def render_font_eval_comparison_sheet(
 
 def generate_markdown_report(
     summaries: Sequence[FontEvalSummary],
+    triads: Sequence[FamilyTriadSummary],
     sizes: Sequence[int],
 ) -> str:
     ref_sz = 16 if 16 in sizes else (sizes[len(sizes) // 2] if sizes else 16)
     lines: List[str] = [
-        f"# Humiditron `epd-font` v{TOOL_VERSION} — Pre-Tune vs. Post-Tune Multi-Font Evaluation Report",
+        f"# Humiditron `epd-font` v{TOOL_VERSION} — Tri-Role Visual Contrast & Pre/Post-Tune Evaluation Report",
         "",
-        "## 1. Executive Summary: Pre-Tune (`RAW`) vs. Post-Tune (`TUNED`) & Tuning Burden Analysis",
+        "## 1. Tri-Role Family Triad Leaderboard (`NORMAL` vs. `BOLD PUNCH` vs. `SUBTLE ITALIC`)",
         "",
-        "Every candidate font and weight was evaluated across sizes both **Before (`RAW`)** and **After (`TUNED`)** the v1.0.15 Surgical Tournament (`Render -> 8x Upscale -> Compare to 8x HQ Master` Confidence & Open-Valley Sanity Gate):",
-        "- **HQ Confidence (`RAW -> TUNED`)**: Direct structural IoU (`0..100%`) of the 8x nearest-neighbor upscaled 1-BPP strike against the 8x continuous HQ Master.",
-        "- **Tuning Burden (`%`)**: Percentage of benchmark characters that required surgical patching. **Lower Tuning Burden + Higher Raw HQ Confidence** identifies typefaces and weights that work cleanly out-of-the-box with minimal or zero pixel intervention!",
-        "- **Per-Font Visual Inspection Sheets**: Saved individually in `build/font_eval/sheets/<font_stem>_eval.png`.",
+        "Why single-font isolated scoring failed in v1.0.15: ranking individual cuts by raw 8x HQ IoU rewarded fonts whose stems landed on `~2.3px–2.5px` (`w600 SemiBold` for Normal, `w700 Bold` for Bold with only `+6.5%` ink difference, and `w800 ExtraBoldItalic` with more ink than Bold!).",
         "",
-        f"| Typeface & Weight Label | Font File | `wght` | Recommendation Tier | Raw Floor | Tuned Floor | {ref_sz}px HQ Conf (`Raw -> Tuned`) | {ref_sz}px `>=2px` Stems (`Raw -> Tuned`) | {ref_sz}px Tuning Burden | Per-Font PNG Sheet |",
-        "| :--- | :--- | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :--- |",
+        "In **v1.0.16**, `humid1_font_eval.py` evaluates **3-Role Visual Contrast Triads** designed for instant human pattern recognition on a 1-BPP display:",
+        "- **`NORMAL (BODY)`**: `~2.00px–2.20px` stem (`Medium w500` / `Regular w400`) — crisp, open counters with contrast headroom.",
+        "- **`BOLD (PUNCH)`**: `~2.90px–3.40px` stem (`ExtraBold w800` / `Black w900`) — **`+35% to +65%` more ink mass** and a **`+0.85px to +1.45px` integer stem jump** over `Normal`.",
+        "- **`ITALIC (SUBTLE)`**: `~2.05px–2.30px` stem (`MediumItalic w500` / `SemiBoldItalic w600`) — **`[-10% to +12%]` iso-weight ink mass relative to `Normal`** and **`>=25%` lighter than `Bold`**, signaling nuance via slant and cursive terminals (`a`, `e`, `f`, `g`) without bold bloat.",
+        "",
+        "| Rank | Family (`Group`) | `NORMAL` (`Stem`, `Ink`) | `BOLD PUNCH` (`Stem`, `Ink Jump`, `Stem Jump`) | `SUBTLE ITALIC` (`Stem`, `Ink vs Normal`, `Lighter vs Bold`) | Triad Score | Verdict |",
+        "| :---: | :--- | :--- | :--- | :--- | :---: | :--- |",
     ]
 
-    for s in summaries:
-        fl_raw = f"`{s.size_floor_raw_px}px`" if s.size_floor_raw_px < 99 else "`>24px`"
-        fl_tun = f"**`{s.size_floor_tuned_px}px`**" if s.size_floor_tuned_px < 99 else "`>24px`"
-        m = s.by_size.get(ref_sz)
-        hq_str = f"`{m.raw_hq_conf_pct:.1f}% -> {m.tuned_hq_conf_pct:.1f}%`" if m else "N/A"
-        st_str = f"`{m.raw_stem_2px_pct:.1f}% -> {m.tuned_stem_2px_pct:.1f}%`" if m else "N/A"
-        bd_str = f"`{m.repaired_glyphs}/{m.total_glyphs} ({m.tuning_burden_pct:.1f}%)`" if m else "N/A"
-        sh_str = f"`{s.sheet_png}`" if s.sheet_png else "N/A"
+    for idx, t in enumerate(triads, 1):
+        norm_s = f"`w{t.normal_weight}` (`{t.normal_stem_16px:.2f}px`, `{t.normal_ink_16px:,}`)"
+        bold_s = f"**`w{t.bold_weight}`** (`{t.bold_stem_16px:.2f}px`, **`+{t.bold_ink_jump_pct:.1f}%`**, **`+{t.bold_stem_jump_px:.2f}px`**)"
+        if t.italic_weight > 0:
+            ital_s = f"`w{t.italic_weight}` (`{t.italic_stem_16px:.2f}px`, **`{t.italic_ink_delta_pct:+.1f}%`** vs Norm, **`-{t.bold_over_italic_pct:.1f}%`** vs Bold)"
+        else:
+            ital_s = "N/A (Upright Pair)"
         lines.append(
-            f"| **{s.label}** | `{s.font_file}` | `{s.weight_class}` | {s.recommendation_tier} | {fl_raw} | {fl_tun} | {hq_str} | {st_str} | {bd_str} | {sh_str} |"
+            f"| **{idx}** | **{t.family_stem}** (`{t.family_group}`) | {norm_s} | {bold_s} | {ital_s} | **`{t.triad_contrast_score:.1f}`** | {t.triad_verdict} |"
         )
 
     lines.extend([
         "",
-        "## 2. Weight Selection vs. Auto-Tuning: Key Takeaways",
+        "## 2. Per-Font Role-Aware & Pre/Post-Tune Scorecard",
         "",
-        "1. **Weight Selection (`Medium 500` / `SemiBold 600` / `ExtraBold 800`) Does 85%+ of the Work Out-of-the-Box**:",
-        "   - At `Regular (400)`, raw 1-BPP rasterization suffers from `<15%` `>=2px` stem survival at `14–16px`, forcing heavy auto-tuning (`>50%` Tuning Burden).",
-        "   - Simply stepping up to **`Medium (500)`** or **`SemiBold (600)`** for `normal` body text and **`ExtraBold (800)`** for `bold` headers raises **untuned (`RAW`)** `>=2px` stem survival to **`80%–98%`** and untuned HQ Confidence to **`75%–86%`**, dropping the surgical tuning burden down to **`0%–18%`** (mostly narrow delimiters `(`, `)`, `[`, `]`, `|`, `!`, `$`).",
-        "2. **Render -> 8x Upscale -> HQ Master Sanity Gate Eliminates Destructive Over-Tuning**:",
-        "   - Multi-valley diagonal characters (`W`, `w`, `M`, `m`, `N`, `X`, `Y`) and already-thick bold characters (`A`, `B`, `C`, `f`, `g`, `r`, `s`) are protected by Open-Valley Invariance and the `<=22%` HQ Diff / Valley-Occlusion Gate, guaranteeing auto-tune never degrades a glyph below its raw FreeType baseline.",
-        "",
+        f"| Typeface & Weight Label | Font File | `wght` | Assigned Role (`Score`) | Recommendation Tier | Raw->Tuned Floor | {ref_sz}px Stem (`Raw->Tun`) | {ref_sz}px Ink (`Tun`) | {ref_sz}px HQ Conf (`Raw->Tun`) | {ref_sz}px Counters | {ref_sz}px Burden |",
+        "| :--- | :--- | :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
     ])
+
+    for s in summaries:
+        fl_raw = f"{s.size_floor_raw_px}px" if s.size_floor_raw_px < 99 else ">24px"
+        fl_tun = f"**{s.size_floor_tuned_px}px**" if s.size_floor_tuned_px < 99 else ">24px"
+        m = s.by_size.get(ref_sz)
+        w_str = f"`{m.mean_stem_width_raw_px:.2f}->{m.mean_stem_width_tuned_px:.2f}px`" if m else "N/A"
+        ink_str = f"`{m.tuned_ink_pixels:,}`" if m else "N/A"
+        hq_str = f"`{m.raw_hq_conf_pct:.1f}%->{m.tuned_hq_conf_pct:.1f}%`" if m else "N/A"
+        cnt_str = f"`{m.tuned_counter_pct:.1f}%`" if m else "N/A"
+        bd_str = f"`{m.repaired_glyphs}/{m.total_glyphs} ({m.tuning_burden_pct:.1f}%)`" if m else "N/A"
+        lines.append(
+            f"| **{s.label}** | `{s.font_file}` | `{s.weight_class}` | **{s.intended_role}** (`{s.role_fit_score:.1f}`) | {s.recommendation_tier} | `{fl_raw}` -> {fl_tun} | {w_str} | {ink_str} | {hq_str} | {cnt_str} | {bd_str} |"
+        )
+
+    lines.append("")
     return "\n".join(lines)
+
+
+def load_summaries_from_json_files(json_paths: Sequence[str]) -> List[FontEvalSummary]:
+    """Load and deduplicate `FontEvalSummary` records from existing JSON evaluation reports."""
+    loaded: List[FontEvalSummary] = []
+    seen_files = set()
+    for jp in json_paths:
+        p = Path(jp).resolve()
+        if not p.is_file():
+            continue
+        raw_list = json.loads(p.read_text(encoding="utf-8"))
+        for item in raw_list:
+            ff = item.get("font_file", "")
+            if ff in seen_files:
+                continue
+            seen_files.add(ff)
+            by_sz: Dict[int, SizeMetrics] = {}
+            for k, v in item.get("by_size", {}).items():
+                by_sz[int(k)] = SizeMetrics(**v)
+            summ = FontEvalSummary(
+                label=item["label"],
+                font_file=ff,
+                family_group=item["family_group"],
+                weight_class=int(item["weight_class"]),
+                is_italic=bool(item["is_italic"]),
+                size_floor_raw_px=int(item["size_floor_raw_px"]),
+                size_floor_tuned_px=int(item["size_floor_tuned_px"]),
+                mean_16px_tuning_burden_pct=float(item["mean_16px_tuning_burden_pct"]),
+                mean_16px_raw_hq_conf_pct=float(item["mean_16px_raw_hq_conf_pct"]),
+                mean_16px_tuned_hq_conf_pct=float(item["mean_16px_tuned_hq_conf_pct"]),
+                recommendation_tier=item["recommendation_tier"],
+                sheet_png=item.get("sheet_png", ""),
+                by_size=by_sz,
+            )
+            role_lbl, role_sc = classify_font_role_and_score(summ)
+            summ.intended_role = role_lbl
+            summ.role_fit_score = role_sc
+            loaded.append(summ)
+    return loaded
 
 
 def main() -> None:
@@ -1049,41 +1554,53 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="humid1_font_eval.py",
         description=(
-            f"Humidyne Labs `epd-font` v{TOOL_VERSION} — Multi-Core Font & Weight Evaluation Suite.\n"
-            "Scans any font directory (`--src-dir`), evaluates both PRE-TUNE (RAW) and POST-TUNE (TUNED)\n"
-            "across sizes, emits per-font visual PNG sheets (`build/font_eval/sheets/*.png`), and writes\n"
-            "comparative Markdown, CSV, and JSON reports."
+            f"Humidyne Labs `epd-font` v{TOOL_VERSION} — Multi-Core Font & Weight Evaluation Suite\n"
+            "with Tri-Role Visual Contrast Triad Scorer (Normal + Bold Punch + Subtle Italic)."
         ),
     )
-    parser.add_argument("--src-dir", type=str, default=str(repo_root / "build" / "static_ttfs"), help="Directory containing .ttf/.otf/.ttc/.bdf fonts to evaluate (scans recursively)")
-    parser.add_argument("--out-dir", type=str, default=str(repo_root / "build" / "font_eval"), help="Output directory for reports & per-font PNG sheets")
+    parser.add_argument("--src-dir", type=str, default=str(repo_root / "build" / "static_ttfs"), help="Directory containing .ttf/.otf/.ttc/.bdf fonts to evaluate")
+    parser.add_argument("--out-dir", type=str, default=str(repo_root / "build" / "font_eval"), help="Output directory for reports & PNG sheets")
     parser.add_argument("--fonts", type=str, nargs="*", default=None, help="Optional explicit list of .ttf/.otf/.ttc font paths to evaluate")
+    parser.add_argument("--re-digest-json", type=str, nargs="+", default=None, help="Re-evaluate existing font_eval_report.json file(s) with the v1.0.16 Tri-Role Triad Scorer")
     parser.add_argument("--sizes", type=int, nargs="+", default=[12, 14, 16, 20, 24], help="Pixel sizes to benchmark (default: 12 14 16 20 24)")
     parser.add_argument(
         "--tune-mode",
         type=str,
         choices=["off", "wart-only", "surgical", "full"],
         default="surgical",
-        help="Auto-tune intervention level: off (native weights only), wart-only (4-dir wart shaving + mirror sync), surgical (default), or full",
+        help="Auto-tune intervention level: off, wart-only, surgical (default), or full",
     )
-    parser.add_argument("--threshold", type=int, default=128, help="Grayscale threshold (1..254, or 0 for weight/size/Otsu dynamic threshold; default: 128)")
-    parser.add_argument("--max-rows-per-page", type=int, default=75, help="Max font rows per master comparison PNG page before paginating (0 = single giant image; default: 75)")
+    parser.add_argument("--threshold", type=int, default=128, help="Grayscale threshold (1..254, or 0 for dynamic; default: 128)")
+    parser.add_argument("--max-rows-per-page", type=int, default=75, help="Max font rows per master comparison PNG page (default: 75)")
     parser.add_argument("-j", "--jobs", type=int, default=None, help="Number of parallel CPU worker processes (default: all CPU cores)")
     args = parser.parse_args()
 
-    src_dir = Path(args.src_dir).resolve()
     out_dir = Path(args.out_dir).resolve()
     sheets_dir = out_dir / "sheets"
     out_dir.mkdir(parents=True, exist_ok=True)
     sheets_dir.mkdir(parents=True, exist_ok=True)
 
+    ref_sz = 16 if 16 in args.sizes else args.sizes[len(args.sizes) // 2]
+
+    if args.re_digest_json:
+        summaries = load_summaries_from_json_files(args.re_digest_json)
+        triads = evaluate_family_triads(summaries, ref_sz=ref_sz)
+        md_report = generate_markdown_report(summaries, triads, args.sizes)
+        md_path = out_dir / "font_eval_triad_digest.md"
+        md_path.write_text(md_report, encoding="utf-8")
+        triad_json_path = out_dir / "font_eval_triads.json"
+        triad_json_path.write_text(json.dumps([asdict(t) for t in triads], indent=2) + "\n", encoding="utf-8")
+        print(f"[+] Re-digested {len(summaries)} font cuts across {len(triads)} family triads -> {md_path}")
+        return
+
+    src_dir = Path(args.src_dir).resolve()
     candidates = discover_candidate_fonts(src_dir, args.fonts)
     if not candidates:
         print(f"[!] No evaluable Latin .ttf/.otf/.ttc fonts found in {src_dir}.", file=sys.stderr)
         raise SystemExit(1)
 
     max_workers = args.jobs if (args.jobs and args.jobs > 0) else (os.cpu_count() or 4)
-    print(f"[*] Benchmarking {len(candidates)} font cuts across sizes {args.sizes} using {max_workers} CPU cores (Pre-Tune + Post-Tune + Per-Font PNG Sheets)...")
+    print(f"[*] Benchmarking {len(candidates)} font cuts across sizes {args.sizes} using {max_workers} CPU cores (Role-Aware + Tri-Role Triad Scorer)...")
 
     tasks = [
         {
@@ -1104,8 +1621,6 @@ def main() -> None:
     raw_strikes_map: Dict[str, Dict[int, List[GlyphStrike]]] = {}
     tuned_strikes_map: Dict[str, Dict[int, List[GlyphStrike]]] = {}
 
-    ref_sz = 16 if 16 in args.sizes else args.sizes[len(args.sizes) // 2]
-
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as pool:
         for idx, (summ, r_map, t_map) in enumerate(pool.map(_worker_evaluate_font, tasks), 1):
             summaries.append(summ)
@@ -1113,15 +1628,15 @@ def main() -> None:
             tuned_strikes_map[summ.label] = t_map
             m_ref = summ.by_size.get(ref_sz)
             info = (
-                f"{ref_sz}px HQConf:{m_ref.raw_hq_conf_pct:4.1f}%->{m_ref.tuned_hq_conf_pct:4.1f}% | "
-                f">=2px:{m_ref.raw_stem_2px_pct:4.1f}%->{m_ref.tuned_stem_2px_pct:4.1f}% | "
-                f"Burden:{m_ref.tuning_burden_pct:4.1f}%"
+                f"{summ.intended_role:16s} ({summ.role_fit_score:4.1f}) | "
+                f"{ref_sz}px Stem:{m_ref.mean_stem_width_tuned_px:.2f}px Ink:{m_ref.tuned_ink_pixels:4d} Cnt:{m_ref.tuned_counter_pct:5.1f}%"
             ) if m_ref else ""
             print(
-                f"    [{idx:>3}/{len(tasks):<3}] {summ.label:42s} | Floor: Raw {summ.size_floor_raw_px:>2}px -> Tuned {summ.size_floor_tuned_px:>2}px | {info}"
+                f"    [{idx:>3}/{len(tasks):<3}] {summ.label:42s} | Fl:{summ.size_floor_raw_px:>2}->{summ.size_floor_tuned_px:>2}px | {info}"
             )
 
-    md_report = generate_markdown_report(summaries, args.sizes)
+    triads = evaluate_family_triads(summaries, ref_sz=ref_sz)
+    md_report = generate_markdown_report(summaries, triads, args.sizes)
     md_path = out_dir / "font_eval_report.md"
     md_path.write_text(md_report, encoding="utf-8")
 
@@ -1134,19 +1649,23 @@ def main() -> None:
         writer = csv.writer(cf)
         writer.writerow([
             "label", "font_file", "family_group", "weight_class", "is_italic",
-            "recommendation_tier", "size_floor_raw_px", "size_floor_tuned_px",
+            "intended_role", "role_fit_score", "recommendation_tier",
+            "size_floor_raw_px", "size_floor_tuned_px",
+            f"stem_width_{ref_sz}px", f"ink_pixels_{ref_sz}px",
             f"raw_hq_conf_{ref_sz}px", f"tuned_hq_conf_{ref_sz}px",
             f"raw_stem_2px_{ref_sz}px", f"tuned_stem_2px_{ref_sz}px",
-            f"tuning_burden_{ref_sz}px_pct", "sheet_png"
+            f"tuned_counter_{ref_sz}px", f"tuning_burden_{ref_sz}px_pct", "sheet_png"
         ])
         for s in summaries:
             m = s.by_size.get(ref_sz)
             writer.writerow([
                 s.label, s.font_file, s.family_group, s.weight_class, s.is_italic,
-                s.recommendation_tier, s.size_floor_raw_px, s.size_floor_tuned_px,
+                s.intended_role, s.role_fit_score, s.recommendation_tier,
+                s.size_floor_raw_px, s.size_floor_tuned_px,
+                m.mean_stem_width_tuned_px if m else 0.0, m.tuned_ink_pixels if m else 0,
                 m.raw_hq_conf_pct if m else 0.0, m.tuned_hq_conf_pct if m else 0.0,
                 m.raw_stem_2px_pct if m else 0.0, m.tuned_stem_2px_pct if m else 0.0,
-                m.tuning_burden_pct if m else 0.0, s.sheet_png
+                m.tuned_counter_pct if m else 0.0, m.tuning_burden_pct if m else 0.0, s.sheet_png
             ])
 
     json_path = out_dir / "font_eval_report.json"
@@ -1154,11 +1673,22 @@ def main() -> None:
         json.dumps([asdict(s) for s in summaries], indent=2) + "\n",
         encoding="utf-8",
     )
+    triads_json_path = out_dir / "font_eval_triads.json"
+    triads_json_path.write_text(
+        json.dumps([asdict(t) for t in triads], indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     png_path = out_dir / "font_eval_comparison_sheet.png"
-    written_master_pngs = render_font_eval_comparison_sheet(png_path, summaries, raw_strikes_map, tuned_strikes_map, args.sizes, max_rows_per_page=args.max_rows_per_page)
+    written_master_pngs = render_font_eval_comparison_sheet(
+        png_path, summaries, raw_strikes_map, tuned_strikes_map, args.sizes, max_rows_per_page=args.max_rows_per_page
+    )
+    triad_png_path = out_dir / "font_eval_triad_contrast_sheet.png"
+    render_triad_contrast_sheet(triad_png_path, triads, tuned_strikes_map, args.sizes)
+
     elapsed = time.perf_counter() - t0
     print(f"[+] Wrote {len(summaries)} Per-Font PNG Evaluation Sheets -> {sheets_dir}")
+    print(f"[+] Wrote Tri-Role Visual Contrast Sheet          -> {triad_png_path}")
     print(f"[+] Wrote Font Evaluation Markdown & CSV Reports  -> {md_path}")
     print(f"[+] Wrote {len(written_master_pngs)} Master Pre/Post Visual Scorecard PNG(s) -> {png_path} ({elapsed:.2f}s)")
 

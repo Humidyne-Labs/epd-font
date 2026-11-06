@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ascii_patches.py (v1.0.15)
+humid1_ascii_patches.py (v1.0.16)
 =================================
 Humidyne Labs / Humiditron `epd-font` Full-Canvas 1:1 Spaced Editable ASCII Patch
 Dumper, Parser & JSON Patch Compiler Module.
@@ -20,7 +20,7 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.15"
+TOOL_VERSION = "1.0.16"
 
 # =============================================================================
 # 7. WORKFLOW 2: PATCH (FULL-CANVAS 1:1 SPACED ASCII + UNICODE PREVIEW <-> JSON)

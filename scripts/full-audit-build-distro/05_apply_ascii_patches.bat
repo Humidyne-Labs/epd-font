@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [05] Humidyne Labs - Humiditron epd-font v1.0.15 - Compile Edited ASCII Patches to Root Patch File
+echo [05] Humidyne Labs - Humiditron epd-font v1.0.16 - Compile Edited ASCII Patches to Root Patch File
 echo      Input  : build\audit\ascii_patches\
 echo      Output : font_icon_epd_patches.json
 echo ============================================================================

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.15",
+  "schema_version": "1.0.16",
   "scheme_id": "industrial_scada_plc",
   "project_brand": "Humiditron Industrial PLC / SCADA Diagnostics & Alarm Panel Scheme",
   "description": "High-density Condensed alarm banners + Tabular Mono register dumps + FA7 Solid safety icons.",
@@ -17,13 +17,14 @@
   "raster_config": {
     "raster_mode": "autohint-mono",
     "normal_weight": 500,
-    "bold_weight": 700,
+    "bold_weight": 800,
     "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/ascii_patches",
     "min_stem_px": 2,
     "auto_floor": true,
-    "repair_engine": "hybrid"
+    "repair_engine": "hybrid",
+    "italic_weight": 600
   },
   "output_branding": {
     "symbol_prefix": "humid1_",
@@ -31,7 +32,7 @@
     "compat_header": "epd_fonts.h",
     "default_font": "humid1_font_plex_sans_normal_14",
     "semantic_roles": {
-      "HUMID1_FONT_UI_MICRO": "humid1_font_plex_sans_normal_12",
+      "HUMID1_FONT_UI_MICRO": "humid1_font_terminus_normal_12",
       "HUMID1_FONT_UI_BODY": "humid1_font_plex_sans_normal_14",
       "HUMID1_FONT_UI_SUBTITLE": "humid1_font_plex_sans_bold_14",
       "HUMID1_FONT_UI_TITLE": "humid1_font_plex_sans_bold_16",

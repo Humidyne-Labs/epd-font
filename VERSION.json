@@ -1,10 +1,10 @@
 {
   "repository": "https://github.com/Humidyne-Labs/epd-font",
   "organization": "Humidyne Labs / Humiditron",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "release_archive_tag": "v1.0.9",
   "previous_version": "1.0.15",
-  "release_date": "2026-11-04",
+  "release_date": "2026-11-05",
   "repository_license": "MIT",
   "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
   "root_patch_manifest": "font_icon_epd_patches.json",

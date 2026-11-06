@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.15)
+build_static_ttf_assets.py (v1.0.16)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -8,11 +8,11 @@ Repository : https://github.com/Humidyne-Labs/epd-font
 Author     : Humidyne Labs / Humiditron
 License    : MIT License (Upstream fonts retain SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT)
 
-What's New in v1.0.15:
+What's New in v1.0.16:
 ---------------------
 1. Anisotropic `ExtraBold` (`wght=800`) Synthesis from IBM Plex Variable Masters:
    Upstream IBM Plex Variable TTFs cap `fvar.wght` at `700.0`, which quantizes to the same `2px`
-   stem thickness as `Medium` (`wght=500.0`) at `12px–16px`. In v1.0.15, `instantiate_plex_variable_cut()`
+   stem thickness as `Medium` (`wght=500.0`) at `12px–16px`. In v1.0.16, `instantiate_plex_variable_cut()`
    synthesizes true `ExtraBold` (`wght=800.0`, `IBMPlex*-ExtraBold.ttf` & `IBMPlex*-ExtraBoldItalic.ttf`)
    via anisotropic `gvar` positive-weight delta extrapolation (`1.45x` horizontal stem weight,
    `1.18x` vertical bar weight to keep internal counters open), restoring a distinct 3-tier hierarchy:
@@ -54,7 +54,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.15"
+TOOL_VERSION = "1.0.16"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES
@@ -89,6 +89,7 @@ PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], D
     ("IBMPlexSansCondensed-ExtraBold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 800.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Italic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-MedItal.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
+    ("IBMPlexSansCondensed-SemiBoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 600.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-BoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-ExtraBoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 800.0, "wdth": 85.0}, {}),
     # --- IBM Plex Mono (v1.0.0 Variable, wght=300..800) ---
@@ -101,6 +102,7 @@ PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], D
     ("IBMPlexMono-ExtraBold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 800.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Italic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 400.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-MediumItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 500.0}, MONO_GREEK_ALIASES),
+    ("IBMPlexMono-SemiBoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 600.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-BoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 700.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-ExtraBoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 800.0}, MONO_GREEK_ALIASES),
     # --- IBM Plex Serif (v2.0.0 Variable, wght=300..800) ---
@@ -113,6 +115,7 @@ PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], D
     ("IBMPlexSerif-ExtraBold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 800.0}, {}),
     ("IBMPlexSerif-Italic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 400.0}, {}),
     ("IBMPlexSerif-MediumItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 500.0}, {}),
+    ("IBMPlexSerif-SemiBoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 600.0}, {}),
     ("IBMPlexSerif-BoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 700.0}, {}),
     ("IBMPlexSerif-ExtraBoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 800.0}, {}),
 ]

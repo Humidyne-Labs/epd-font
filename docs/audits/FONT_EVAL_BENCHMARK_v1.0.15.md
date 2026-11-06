@@ -25,7 +25,12 @@ Every candidate font and weight was evaluated across sizes both **Before (`RAW`)
 | **IBM Plex Serif Bold [ExtraBold w800]** | `IBMPlexSerif-ExtraBold.ttf` | `800` | TIER 3: HIGH TUNE BURDEN / LARGE SIZES (>=20px) ONLY | `24px` | **`24px`** | `79.4% -> 79.5%` | `83.3% -> 83.3%` | `2/60 (3.3%)` | `sheets/IBMPlexSerif-ExtraBold_eval.png` |
 | **IBM Plex Math Regular (w400)** | `IBMPlexMath-Regular.ttf` | `400` | TIER 3: HIGH TUNE BURDEN / LARGE SIZES (>=20px) ONLY | `>24px` | `>24px` | `64.4% -> 64.8%` | `3.3% -> 33.3%` | `24/60 (40.0%)` | `sheets/IBMPlexMath-Regular_eval.png` |
 | **Terminus Native Bitmap (w400)** | `Terminus-Normal-16.ttf` | `400` | TIER 1: NATIVE READY (Minimal/Zero Tune Needed) | `12px` | **`12px`** | `100.0% -> 100.0%` | `100.0% -> 100.0%` | `0/60 (0.0%)` | `sheets/Terminus-Normal-16_eval.png` |
-| **Terminus Bold Bitmap (w700)** | `Terminus-Bold-16.ttf` | `700` | TIER 1: NATIVE READY (Minimal/Zero Tune Needed) | `10px` | **`10px`** | `100.0% -> 100.0%` | `100.0% -> 100.0%` | `0/60 (0.0%)` | `sheets/Terminus-Bold-16_eval.png` |
+| **Terminus Bold Bitmap (w700)** | `Terminus-Bold-16.ttf` | `700` | TIER 1: NATIVE READY (Minimal/Zero Tune Needed) | `12px` | **`12px`** | `100.0% -> 100.0%` | `100.0% -> 100.0%` | `0/60 (0.0%)` | `sheets/Terminus-Bold-16_eval.png` |
+| **Inter Regular (w400) [External]** | `Inter-Regular.otf` | `400` | TIER 3: HIGH TUNE BURDEN / LARGE SIZES (>=20px) ONLY | `24px` | **`20px`** | `66.4% -> 71.0%` | `5.0% -> 65.0%` | `43/60 (71.7%)` | `sheets/Inter-Regular_eval.png` |
+| **Inter Medium (w500) [External]** | `Inter-Medium.otf` | `500` | TIER 1: NATIVE READY (Minimal/Zero Tune Needed) | `16px` | **`16px`** | `73.3% -> 74.5%` | `86.7% -> 95.0%` | `7/60 (11.7%)` | `sheets/Inter-Medium_eval.png` |
+| **Inter SemiBold (w600) [External]** | `Inter-SemiBold.otf` | `600` | TIER 1: NATIVE READY (Minimal/Zero Tune Needed) | `14px` | **`12px`** | `81.2% -> 81.1%` | `95.0% -> 96.7%` | `1/60 (1.7%)` | `sheets/Inter-SemiBold_eval.png` |
+| **Inter Bold (w700) [External]** | `Inter-Bold.otf` | `700` | TIER 1: NATIVE READY (Minimal/Zero Tune Needed) | `12px` | **`12px`** | `81.1% -> 81.1%` | `96.7% -> 96.7%` | `0/60 (0.0%)` | `sheets/Inter-Bold_eval.png` |
+| **Inter ExtraBold (w800) [External]** | `Inter-ExtraBold.otf` | `800` | TIER 1: NATIVE READY (Minimal/Zero Tune Needed) | `16px` | **`16px`** | `83.8% -> 83.8%` | `96.7% -> 96.7%` | `0/60 (0.0%)` | `sheets/Inter-ExtraBold_eval.png` |
 
 ## 2. Weight Selection vs. Auto-Tuning: Key Takeaways
 

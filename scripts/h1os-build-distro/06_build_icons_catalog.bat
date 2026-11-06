@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [06] Humidyne Labs - Humiditron epd-font v1.0.15 - Rebuild Icon and Font Metadata Catalogs
+echo [06] Humidyne Labs - Humiditron epd-font v1.0.16 - Rebuild Icon and Font Metadata Catalogs
 echo      Output : build\metadata\
 echo ============================================================================
 python tools\fonts\generate_char_manifests.py

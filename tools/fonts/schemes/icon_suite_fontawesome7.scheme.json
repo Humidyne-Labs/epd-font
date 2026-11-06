@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.15",
+  "schema_version": "1.0.16",
   "scheme_id": "icon_suite_fontawesome7",
   "project_brand": "Humiditron Standalone Font Awesome v7.2.0 Icon Strike Pack",
   "description": "Modular Font Awesome v7.2.0 Solid & Regular icon strikes across 12-36px.",
@@ -17,13 +17,14 @@
   "raster_config": {
     "raster_mode": "autohint-mono",
     "normal_weight": 500,
-    "bold_weight": 700,
+    "bold_weight": 800,
     "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/ascii_patches",
     "min_stem_px": 2,
     "auto_floor": true,
-    "repair_engine": "hybrid"
+    "repair_engine": "hybrid",
+    "italic_weight": 600
   },
   "output_branding": {
     "symbol_prefix": "humid1_",

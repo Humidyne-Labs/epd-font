@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_visual_check.py (v1.0.15)
+humid1_visual_check.py (v1.0.16)
 ================================
 Humidyne Labs / Humiditron `epd-font` Visual Diagnostic Inspection Sheet,
 Single-Character Blueprint & 188 DPI E-Ink Specimen Renderer Module.
@@ -21,7 +21,7 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.15"
+TOOL_VERSION = "1.0.16"
 
 # =============================================================================
 # 8. WORKFLOW 3: CHECK (AUTO-WRAPPED PAGE CHECK PNGS & CHAR-BY-CHAR BLUEPRINTS)
@@ -797,7 +797,7 @@ def render_specimen_sheet(
         return cx
 
     draw.rectangle([0, 0, W, 68], fill=(18, 22, 28))
-    draw_strike_text(28, 16, "HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v1.0.15 (188 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
+    draw_strike_text(28, 16, "HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v1.0.16 (188 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
     draw_strike_text(28, 44, "Engine: FreeType 1-BPP + Terminus Exact-Mono + Full-Canvas ASCII Patch Pipeline  •  200x200 Reference Panel", "humid1_font_plex_mono_normal_14", fg=(180, 195, 210))
 
     panel_x, panel_y = 28, 90
@@ -929,7 +929,7 @@ def render_specimen_sheet(
         ("Sans Bold 20px (7.6pt@188dpi, Section Hero)", "humid1_font_plex_sans_bold_20", "72.4°F    46.8% RH    4.12V"),
         ("Sans Bold 24px (9.2pt@188dpi, Primary Readout)", "humid1_font_plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
         ("Sans Bold 32px (12.2pt@188dpi, Jumbo Metric)", "humid1_font_plex_sans_bold_32", "72.4°F   46.8%"),
-        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", "boot: humid1-os v1.0.15  |  SPI0 40MHz  |  0x0040 @%#08"),
+        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", "boot: humid1-os v1.0.16  |  SPI0 40MHz  |  0x0040 @%#08"),
         ("Terminus Normal 16px (8x16 Native Console)", "humid1_font_terminus_normal_16", "root@humid1:~# dmesg | grep epd -> 200x200 OK"),
         ("Mono Normal 14px (Telemetry Log)", "humid1_font_plex_mono_normal_14", "2026-11-03 20:24:55  |  328K Free  |  @%#08"),
         ("Mono Bold 20px (Tabular Readout)", "humid1_font_plex_mono_bold_20", "72.4°F   46.8% RH   12.6 hPa"),

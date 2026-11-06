@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [08] Humidyne Labs - Humiditron epd-font v1.0.15 - Closed-Loop OpenCV Auto-Repair
+echo [08] Humidyne Labs - Humiditron epd-font v1.0.16 - Closed-Loop OpenCV Auto-Repair
 echo      Workflow : Full 12-40px Master Audit and Distribution Workflow
 echo      Scheme   : scripts\full-audit-build-distro\full_audit_distro.scheme.json
 echo      Output   : build\audit\inspect_repairs\ and build\audit\fonts\

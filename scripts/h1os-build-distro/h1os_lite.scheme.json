@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.15",
+  "schema_version": "1.0.16",
   "scheme_id": "h1os_epd_v1_lite",
   "project_brand": "Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite",
   "description": "Compact H1OS & humid1-os firmware scheme (Sans + Mono + Phosphor/FA7 core).",
@@ -17,13 +17,14 @@
   "raster_config": {
     "raster_mode": "autohint-mono",
     "normal_weight": 500,
-    "bold_weight": 700,
+    "bold_weight": 800,
     "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/h1os/ascii_patches",
     "min_stem_px": 2,
     "auto_floor": true,
-    "repair_engine": "hybrid"
+    "repair_engine": "hybrid",
+    "italic_weight": 600
   },
   "output_branding": {
     "symbol_prefix": "humid1_",
@@ -31,7 +32,7 @@
     "compat_header": "h1os_fonts.h",
     "default_font": "humid1_font_plex_sans_normal_14",
     "semantic_roles": {
-      "HUMID1_FONT_UI_MICRO": "humid1_font_plex_sans_normal_12",
+      "HUMID1_FONT_UI_MICRO": "humid1_font_terminus_normal_12",
       "HUMID1_FONT_UI_BODY": "humid1_font_plex_sans_normal_14",
       "HUMID1_FONT_UI_SUBTITLE": "humid1_font_plex_sans_bold_14",
       "HUMID1_FONT_UI_TITLE": "humid1_font_plex_sans_bold_16",
@@ -44,7 +45,8 @@
       "HUMID1_ICON_FA7_DEFAULT": "humid1_icon_fa7_solid_16",
       "HUMID1_ICON_LUCIDE_DEFAULT": "humid1_icon_lucide_regular_16",
       "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_phosphor_regular_16",
-      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_tabler_regular_16"
+      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_tabler_regular_16",
+      "HUMID1_FONT_UI_EMPHASIS": "humid1_font_plex_sans_italic_14"
     }
   },
   "character_sets": {
@@ -514,6 +516,22 @@
       "fallback": "humid1_font_plex_sans_normal_{size}"
     },
     {
+      "family": "sans",
+      "style": "italic",
+      "sizes": [
+        14,
+        16
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_plex_sans_normal_{size}"
+    },
+    {
       "family": "mono",
       "style": "normal",
       "sizes": [
@@ -607,6 +625,22 @@
       ],
       "kerning": false,
       "fallback": null
+    },
+    {
+      "family": "terminus",
+      "style": "normal",
+      "sizes": [
+        12,
+        16
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_icon_fa7_solid_{size}"
     }
   ]
 }

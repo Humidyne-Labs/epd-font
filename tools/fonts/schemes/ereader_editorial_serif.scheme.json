@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.15",
+  "schema_version": "1.0.16",
   "scheme_id": "ereader_editorial_serif",
   "project_brand": "Humiditron E-Paper Long-Form Editorial & Field Manual Scheme",
   "description": "High-legibility IBM Plex Serif (Regular, Italic, Bold 16-32px) paired with Sans UI headers.",
@@ -17,13 +17,14 @@
   "raster_config": {
     "raster_mode": "autohint-mono",
     "normal_weight": 500,
-    "bold_weight": 700,
+    "bold_weight": 800,
     "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/ascii_patches",
     "min_stem_px": 2,
     "auto_floor": true,
-    "repair_engine": "hybrid"
+    "repair_engine": "hybrid",
+    "italic_weight": 600
   },
   "output_branding": {
     "symbol_prefix": "humid1_",

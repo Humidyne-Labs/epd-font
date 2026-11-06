@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ft_raster.py (v1.0.15)
+humid1_ft_raster.py (v1.0.16)
 =============================
 Humidyne Labs / Humiditron `epd-font` FreeType 2 Ctypes Binding, Semantic Glyph Registry,
 Kerning Extractor & 1-BPP Scanline Rasterizer Module.
@@ -31,7 +31,7 @@ logging.getLogger("fontTools").setLevel(logging.ERROR)
 def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = False) -> TTFont:
     """
     Safely open a `.ttf`, `.otf`, or `.ttc`/`.otc` TrueType Collection file via fontTools.
-    Fixes the v1.0.15 crash (`TTLibFileIsCollectionError: specify a font number between 0 and N`)
+    Fixes the v1.0.16 crash (`TTLibFileIsCollectionError: specify a font number between 0 and N`)
     when scanning or rasterizing `.ttc` font collections (such as `IosevkaAile-Bold.ttc`).
     """
     fp_str = str(font_path)
@@ -41,14 +41,14 @@ def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = F
     except TTLibFileIsCollectionError:
         return TTFont(fp_str, fontNumber=font_number, lazy=lazy)
 
-TOOL_VERSION = "1.0.15"
+TOOL_VERSION = "1.0.16"
 
 FT_LOAD_NO_HINTING = 1 << 1
 
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.15 `humid1_` symbol naming convention:
+    Canonical v1.0.16 `humid1_` symbol naming convention:
       - IBM Plex families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Terminus family (terminus)                        -> humid1_font_terminus_<role>_<size>
       - Modular Icon families (icon_fa7, icon_lucide...)  -> humid1_<family>_<role>_<size>
@@ -476,7 +476,7 @@ def compute_dynamic_threshold(
     codepoint: int = 0,
 ) -> int:
     """
-    Compute a Weight-, Size-, and Histogram/Topology-Adaptive Binarization Threshold T* in [88..164] (v1.0.15):
+    Compute a Weight-, Size-, and Histogram/Topology-Adaptive Binarization Threshold T* in [88..164] (v1.0.16):
       - Why fixed 128 is suboptimal:
         * On light/medium weights (w300..w500) or small sizes (10..14px), 1.5px stems split across adjacent
           columns at ~42%..48% coverage (val 107..122) and drop to 1px under a fixed 128 threshold.

@@ -64,25 +64,18 @@ MONO_GREEK_ALIASES = {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}
 
 PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], Dict[int, str]]] = [
     # --- IBM Plex Sans (wdth=100, v0.2.0 Variable, wght=100..800) ---
-    ("IBMPlexSans-Thin.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 100.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-ExtraLight.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 200.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Light.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 300.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-Regular.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 400.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Text.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 450.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-Medium.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-SemiBold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-Bold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-ExtraBold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 800.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-Italic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-TextItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 450.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-MediumItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-SemiBoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-BoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
     ("IBMPlexSans-ExtraBoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 800.0, "wdth": 100.0}, {}),
     # --- IBM Plex Sans Condensed (wdth=85 extracted from Sans Variable, wght=300..800) ---
-    ("IBMPlexSansCondensed-Light.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 300.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Regular.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Text.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 450.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Medium.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-SemiBold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-Bold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
@@ -93,9 +86,7 @@ PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], D
     ("IBMPlexSansCondensed-BoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
     ("IBMPlexSansCondensed-ExtraBoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 800.0, "wdth": 85.0}, {}),
     # --- IBM Plex Mono (v1.0.0 Variable, wght=300..800) ---
-    ("IBMPlexMono-Light.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 300.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Regular.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 400.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-Text.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 450.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Medium.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 500.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-SemiBold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 600.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-Bold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 700.0}, MONO_GREEK_ALIASES),
@@ -106,9 +97,7 @@ PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], D
     ("IBMPlexMono-BoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 700.0}, MONO_GREEK_ALIASES),
     ("IBMPlexMono-ExtraBoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 800.0}, MONO_GREEK_ALIASES),
     # --- IBM Plex Serif (v2.0.0 Variable, wght=300..800) ---
-    ("IBMPlexSerif-Light.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 300.0}, {}),
     ("IBMPlexSerif-Regular.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 400.0}, {}),
-    ("IBMPlexSerif-Text.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 450.0}, {}),
     ("IBMPlexSerif-Medium.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 500.0}, {}),
     ("IBMPlexSerif-SemiBold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 600.0}, {}),
     ("IBMPlexSerif-Bold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 700.0}, {}),
@@ -183,8 +172,6 @@ ICON_CONVERSION_TABLE: List[Tuple[str, str, str, str]] = [
     ("Phosphor-Regular.ttf", "phosphor", "Phosphor.ttf", "clean_ttf"),
     ("Phosphor-Bold.ttf", "phosphor", "Phosphor-Bold.ttf", "clean_ttf"),
     ("Phosphor-Fill.ttf", "phosphor", "Phosphor-Fill.ttf", "clean_ttf"),
-    ("Phosphor-Light.ttf", "phosphor", "Phosphor-Light.ttf", "clean_ttf"),
-    ("Phosphor-Thin.ttf", "phosphor", "Phosphor-Thin.ttf", "clean_ttf"),
     ("Tabler-Regular.ttf", "tabler", "tabler-icons.ttf", "clean_ttf"),
     ("Tabler-Light300.ttf", "tabler", "tabler-icons-300.ttf", "clean_ttf"),
     ("Tabler-Thin200.ttf", "tabler", "tabler-icons-200.ttf", "clean_ttf"),
@@ -850,13 +837,13 @@ def build_all_static_assets(
         if dst_path.is_file() and not force:
             built_files.append(dst_path)
             continue
-        # Prefer official Hinted static IBM Plex cut from assets/font_assets/ibm-plex-font/hinted_static/ when present
-        hinted_cand = file_index.get(f"hinted_static/{target_name}") or file_index.get(target_name)
-        if hinted_cand and "hinted_static" in hinted_cand.as_posix() and float(coords.get("wght", 400.0)) <= 700.0:
+        # Prefer pre-built Hinted static IBM Plex cut from assets/font_assets/ibm-plex-font/ when present
+        static_cand = file_index.get(f"ibm-plex-font/{target_name}") or file_index.get(f"hinted_static/{target_name}") or file_index.get(target_name)
+        if static_cand and static_cand.is_file() and static_cand.resolve() != dst_path.resolve():
             tasks.append({
                 "kind": "copy_ttf",
                 "target_name": target_name,
-                "src_path": str(hinted_cand),
+                "src_path": str(static_cand),
                 "dst_path": str(dst_path),
             })
             continue

@@ -626,7 +626,7 @@ def rasterize_font_strike(
     font_path: Path,
     size_px: int,
     codepoints: Sequence[int],
-    raster_mode: str = "raw-hinted",
+    pipeline: str = "raw-hinted",
     threshold: int = 128,
     gamma: float = 1.0,
     fa_path: Optional[Path] = None,
@@ -670,7 +670,7 @@ def rasterize_font_strike(
     underline_pos = int(round(post_upos * size_px / float(upem)))
     underline_thick = max(1, int(round(post_uthk * size_px / float(upem))))
 
-    norm_pipe = normalize_pipeline_name(raster_mode)
+    norm_pipe = normalize_pipeline_name(pipeline)
     eff_thresh = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
 
     effective_patches: Dict[str, dict] = {}
@@ -709,8 +709,6 @@ def rasterize_font_strike(
         bw_arr, b_left, b_top, _ = render_glyph_via_pipeline(
             ft=ft,
             face_ptr=f_ptr,
-            font_path=f_path,
-            ft_lib=ft_lib,
             codepoint=code,
             gidx=gidx,
             size_px=size_px,

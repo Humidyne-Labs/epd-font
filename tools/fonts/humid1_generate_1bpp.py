@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import os
 import re
 import sys
 import time
@@ -40,6 +41,41 @@ from typing import Dict, List, Optional, Sequence, Tuple
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+
+# Early CLI and scheme scan to set EPD_FONT_ACCEL and disable OpenCV OpenCL before any math backends load
+def _early_accel_scan() -> None:
+    import os
+    accel = os.environ.get("EPD_FONT_ACCEL", "").strip().lower()
+    if not accel:
+        for idx, arg in enumerate(sys.argv):
+            if arg == "--accel" and idx + 1 < len(sys.argv):
+                accel = sys.argv[idx + 1].strip().lower()
+                break
+            elif arg.startswith("--accel="):
+                accel = arg.split("=", 1)[1].strip().lower()
+                break
+            elif arg in ("-S", "--scheme") and idx + 1 < len(sys.argv):
+                s_path = Path(sys.argv[idx + 1])
+                if s_path.is_file():
+                    try:
+                        data = json.loads(s_path.read_text(encoding="utf-8"))
+                        rc = data.get("raster_config", {})
+                        if "math_backend" in rc:
+                            accel = str(rc["math_backend"]).strip().lower()
+                    except Exception:
+                        pass
+                break
+    if accel == "cpu":
+        os.environ["EPD_FONT_ACCEL"] = "cpu"
+        os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+        try:
+            import cv2
+            if hasattr(cv2, "ocl"):
+                cv2.ocl.setUseOpenCL(False)
+        except Exception:
+            pass
+
+_early_accel_scan()
 
 from humid1_ascii_patches import (
     build_patches_json_from_ascii_root,
@@ -409,7 +445,7 @@ def export_strike_vault(vault_path: Path, vault_data: dict) -> int:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     epilog_text = """
-Nine Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
+Nine Bilevel Resolution-Reduction Pipelines (--pipeline):
 -------------------------------------------------------------------------
   1. raw-unhinted    : Direct FreeType unhinted rendering -> sRGB-to-Linear Gray -> gamma -> threshold
   2. raw-hinted      : Grid-fitted hinted FreeType rendering -> sRGB-to-Linear Gray -> gamma -> threshold
@@ -490,7 +526,7 @@ Nine Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
         help="Directory for Full-Canvas 1:1 Spaced ASCII .txt glyph folders (e.g. build/h1os/ascii_patches)",
     )
     parser.add_argument(
-        "--pipeline", "--raster-mode",
+        "--pipeline",
         dest="pipeline",
         choices=[
             "raw-unhinted", "raw-hinted", "svg-potrace", "svg-potrace-jfa", "jfa-marching", "mdf",
@@ -500,12 +536,6 @@ Nine Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
         ],
         default=None,
         help="Select bilevel conversion pipeline: raw-unhinted, raw-hinted, svg-potrace, svg-potrace-jfa (or jfa-marching), mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive, all, or all-debug",
-    )
-    parser.add_argument(
-        "--potrace-submode",
-        choices=["potrace", "jfa-marching"],
-        default=None,
-        help="Optional sub-mode when using svg-potrace: 'potrace' (standard RETR_TREE B-Spline) or 'jfa-marching' (Jump Flooding Algorithm 1+JFA + 2x2 Marching Squares sub-pixel zero-crossing)",
     )
     parser.add_argument(
         "--threshold",
@@ -727,7 +757,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
     role = task["role"]
     sz = task["sz"]
     ttf_path = Path(task["ttf_path"])
-    effective_raster_m = task["effective_raster_m"]
+    effective_pipeline = task.get("pipeline") or task.get("effective_raster_m") or "raw-hinted"
     gamma = float(task.get("gamma", 1.0))
     strike_ascii_dir = Path(task["strike_ascii_dir"]) if task["strike_ascii_dir"] else None
     debug_stages_dir = Path(task["debug_stages_dir"]) if task.get("debug_stages_dir") else None
@@ -741,7 +771,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
         font_path=ttf_path,
         size_px=sz,
         codepoints=task["codepoints"],
-        raster_mode=effective_raster_m,
+        pipeline=effective_pipeline,
         threshold=task["threshold"],
         gamma=gamma,
         fa_path=None,
@@ -769,7 +799,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
             size_px=sz,
             family=family,
             role=role,
-            raster_mode=effective_raster_m,
+            pipeline=effective_pipeline,
             glyphs=glyphs,
             line_height=line_h,
             base_line=base_l,
@@ -806,7 +836,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
             family=family,
             role=role,
             size_px=sz,
-            raster_mode=effective_raster_m,
+            pipeline=effective_pipeline,
             line_height=line_h,
             base_line=base_l,
             glyphs=glyphs,
@@ -823,7 +853,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
             family=family,
             role=role,
             size_px=sz,
-            raster_mode=effective_raster_m,
+            pipeline=effective_pipeline,
             line_height=line_h,
             base_line=base_l,
             glyphs=glyphs,
@@ -837,7 +867,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
         method_strikes_for_sheet: Dict[str, Tuple[Sequence[GlyphStrike], int, int]] = {}
         eval_cps = task["codepoints"]
         for p_method in CANONICAL_PIPELINES:
-            if p_method == effective_raster_m:
+            if p_method == effective_pipeline:
                 p_glyphs, p_lh, p_bl = glyphs, line_h, base_l
             else:
                 p_glyphs, p_lh, p_bl, _, _, _ = rasterize_font_strike(
@@ -846,7 +876,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
                     font_path=ttf_path,
                     size_px=sz,
                     codepoints=eval_cps,
-                    raster_mode=p_method,
+                    pipeline=p_method,
                     threshold=task["threshold"],
                     gamma=gamma,
                     patch_dict=task["strike_patches"],
@@ -866,7 +896,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
                     family=family,
                     role=role,
                     size_px=sz,
-                    raster_mode=p_method,
+                    pipeline=p_method,
                     line_height=p_lh,
                     base_line=p_bl,
                     glyphs=p_glyphs,
@@ -883,7 +913,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
                     family=family,
                     role=role,
                     size_px=sz,
-                    raster_mode=p_method,
+                    pipeline=p_method,
                     line_height=p_lh,
                     base_line=p_bl,
                     glyphs=p_glyphs,
@@ -919,7 +949,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
         "style": role,
         "size_px": sz,
         "source_ttf": task["ttf_name"],
-        "pipeline": effective_raster_m,
+        "pipeline": effective_pipeline,
         "threshold": task["threshold"],
         "gamma": gamma,
         "line_height": line_h,
@@ -953,7 +983,7 @@ def _execute_strike_worker_task(task: dict) -> dict:
     patched_cnt = sum(1 for g in glyphs if g.patched)
     patch_tag = f" [+{patched_cnt} patches]" if patched_cnt else ""
     fb_tag = f" fb->{task['fb_sym']}" if (task.get("verbose") and task.get("fb_sym")) else ""
-    mode_disp = "all(8-methods)" if task.get("dump_each_method_outputs") else effective_raster_m
+    mode_disp = "all(8-methods)" if task.get("dump_each_method_outputs") else effective_pipeline
     log_line = (
         f"    [+] {sym_name:<36} | {len(glyphs):>4} glyphs | {len(kern_pairs):>4} kern | "
         f"em={sz:>2}px ({pt96:>4.1f}pt) lh={line_h:>2}px | {mode_disp:<14} (T={task['threshold']}, g={gamma:.2f}) | ~{rom_b:>7,} B ({rom_b/1024:.2f} KB){patch_tag}{fb_tag}"
@@ -992,6 +1022,27 @@ def main() -> None:
         )
 
     args = parser.parse_args()
+    cli_accel = getattr(args, "accel", None)
+    scheme_accel = None
+    if getattr(args, "scheme", None) and Path(args.scheme).is_file():
+        try:
+            s_data = json.loads(Path(args.scheme).read_text(encoding="utf-8"))
+            scheme_accel = s_data.get("raster_config", {}).get("math_backend")
+        except Exception:
+            pass
+    env_accel = os.environ.get("EPD_FONT_ACCEL", "").strip().lower()
+    early_accel = (cli_accel or env_accel or scheme_accel or "auto").strip().lower()
+    if early_accel == "cpu":
+        import os as _os
+        _os.environ["EPD_FONT_ACCEL"] = "cpu"
+        _os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+        try:
+            import cv2
+            if hasattr(cv2, "ocl"):
+                cv2.ocl.setUseOpenCL(False)
+        except Exception:
+            pass
+
     hw_info = detect_host_hardware(args.jobs)
     if args.verbose:
         print(
@@ -1076,10 +1127,7 @@ def main() -> None:
     else:
         default_ascii_dir = (root_out / "ascii_patches").resolve()
 
-    raw_pipe_arg = (args.pipeline or rcfg.get("pipeline") or rcfg.get("raster_mode") or "raw-hinted").strip().lower()
-    potrace_submode = (getattr(args, "potrace_submode", None) or rcfg.get("potrace_submode") or "").strip().lower()
-    if potrace_submode == "jfa-marching" and raw_pipe_arg in ("svg-potrace", "potrace", "svg"):
-        raw_pipe_arg = "svg-potrace-jfa"
+    raw_pipe_arg = (args.pipeline or rcfg.get("pipeline") or "raw-hinted").strip().lower()
     is_all_debug = (raw_pipe_arg == "all-debug")
     dump_each_method_outputs = raw_pipe_arg in ("all", "all-debug")
     run_all_methods = dump_each_method_outputs or (args.workflow == "audit")
@@ -1147,10 +1195,27 @@ def main() -> None:
     if not (0.20 <= eff_gamma <= 3.00):
         fail_gracefully(f"Invalid `--gamma {eff_gamma}`. Must be in [0.20..3.00] (default: 1.0).")
 
+    env_accel = os.environ.get("EPD_FONT_ACCEL", "").strip().lower()
+    eff_accel = (getattr(args, "accel", None) or env_accel or rcfg.get("math_backend") or "auto").strip().lower()
+    import os as _os
+    _os.environ["EPD_FONT_ACCEL"] = eff_accel
+    if eff_accel == "cpu":
+        _os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+        try:
+            import cv2
+            if hasattr(cv2, "ocl"):
+                cv2.ocl.setUseOpenCL(False)
+        except Exception:
+            pass
+    eff_shared_ram = getattr(args, "shared_ram_mb", None) or rcfg.get("shared_ram_mb")
+    if eff_shared_ram:
+        _os.environ["EPD_FONT_SHARED_RAM_MB"] = str(eff_shared_ram)
+    select_math_backend(eff_accel)
+
     print(
         f"[+] Loaded declarative font scheme: {scheme_path.name} "
         f"(hw_scheme={hw_spec.hw_scheme_id}, chip={hw_spec.chip_name}, partition_1={hw_spec.partition_1}, "
-        f"pipeline={raw_pipe_arg}, threshold={eff_threshold}, gamma={eff_gamma:.2f}, "
+        f"pipeline={raw_pipe_arg}, math_backend={eff_accel}, threshold={eff_threshold}, gamma={eff_gamma:.2f}, "
         f"sheet_debug={eff_sheet_debug}, char_debug={eff_char_debug})"
     )
 
@@ -1262,7 +1327,7 @@ def main() -> None:
                 or {}
             )
             strike_ascii_dir = (ascii_ingest_root / sym_name) if ascii_ingest_root else None
-            effective_raster_m = "exact-mono" if family in ("terminus", "unifont") else raster_m
+            effective_pipeline = "exact-mono" if family in ("terminus", "unifont") else raster_m
 
             strike_tasks.append({
                 "sym_name": sym_name,
@@ -1273,7 +1338,8 @@ def main() -> None:
                 "ttf_path": str(ttf_path),
                 "font_dir": str(font_dir),
                 "codepoints": codepoints,
-                "effective_raster_m": effective_raster_m,
+                "pipeline": effective_pipeline,
+                "effective_raster_m": effective_pipeline,
                 "threshold": eff_threshold,
                 "gamma": eff_gamma,
                 "strike_patches": strike_patches,
@@ -1302,14 +1368,6 @@ def main() -> None:
                 "verbose": args.verbose,
             })
 
-    if getattr(args, "shared_ram_mb", None):
-        import os as _os
-        _os.environ["EPD_FONT_SHARED_RAM_MB"] = str(args.shared_ram_mb)
-    if getattr(args, "accel", None):
-        import os as _os
-        _os.environ["EPD_FONT_ACCEL"] = str(args.accel)
-        select_math_backend(args.accel)
-
     t_start = time.perf_counter()
     max_workers = hw_info.recommended_workers
     print(f"[*] {describe_hybrid_dispatch_plan(len(strike_tasks), max_workers)}")
@@ -1322,7 +1380,7 @@ def main() -> None:
     all_method_rows: List[Tuple[str, int, Dict[str, dict]]] = []
     vault_data: dict = {
         "vault_version": TOOL_VERSION,
-        "raster_mode": raw_pipe_arg,
+        "pipeline": raw_pipe_arg,
         "threshold": eff_threshold,
         "gamma": eff_gamma,
         "normal_weight": normal_w,

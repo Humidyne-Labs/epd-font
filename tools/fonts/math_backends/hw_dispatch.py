@@ -44,11 +44,10 @@ from .cpu_math import (
     eval_srgb_to_linear_grayscale_cpu,
 )
 from .opencl_kernels import (
-    HAS_PYOPENCL,
     SHARED_RAM_CAP_RATIO,
     OpenCLMathAccelerator,
-    cl,
     detect_shared_gpu_memory_mb,
+    ensure_pyopencl,
     release_all_opencl_resources,
     validate_sdf_gradient,
 )
@@ -106,7 +105,12 @@ _ACTIVE_STATUS: Optional[MathBackendStatus] = None
 def enumerate_opencl_devices() -> List[OpenCLDeviceDescriptor]:
     """Enumerate all OpenCL platforms and devices installed on the host."""
     out: List[OpenCLDeviceDescriptor] = []
-    if not HAS_PYOPENCL or cl is None:
+    eff = os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower()
+    role = os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower()
+    if eff == "cpu" or role == "cpu":
+        return out
+    from .opencl_kernels import ensure_pyopencl, cl
+    if not ensure_pyopencl() or cl is None:
         return out
     try:
         platforms = cl.get_platforms()
@@ -204,94 +208,104 @@ def _probe_and_init_backend(preferred: Optional[str] = None) -> MathBackendStatu
     total_shared_mb, usable_75pct_mb = detect_shared_gpu_memory_mb()
     cap_75pct_mb = int(round(total_shared_mb * SHARED_RAM_CAP_RATIO))
 
-    if worker_role == "cpu":
+    if worker_role == "cpu" or pref == "cpu":
         pref = "cpu"
-
-    discovered = enumerate_opencl_devices() if (pref != "cpu" and HAS_PYOPENCL and cl is not None) else []
-
-    if pref != "cpu" and HAS_PYOPENCL and cl is not None:
         try:
-            platforms = cl.get_platforms()
-            gpu_dev = None
-            gpu_plat = None
-            cpu_ocl_dev = None
-            cpu_ocl_plat = None
-            accel_dev = None
-            accel_plat = None
-
-            for plat in platforms:
-                try:
-                    devs = plat.get_devices()
-                except Exception:
-                    devs = []
-                for d in devs:
-                    if not (getattr(d, "available", 1) and getattr(d, "compiler_available", 1)):
-                        continue
-                    dtype = int(getattr(d, "type", 0))
-                    if (dtype & getattr(cl.device_type, "GPU", 4)) and gpu_dev is None:
-                        gpu_dev = d
-                        gpu_plat = plat
-                    elif (dtype & getattr(cl.device_type, "CPU", 2)) and cpu_ocl_dev is None:
-                        cpu_ocl_dev = d
-                        cpu_ocl_plat = plat
-                    elif (dtype & getattr(cl.device_type, "ACCELERATOR", 8)) and accel_dev is None:
-                        accel_dev = d
-                        accel_plat = plat
-
-            chosen_dev = None
-            chosen_plat = None
-            chosen_type_str = "GPU"
-
-            if worker_role == "opencl_cpu" or pref == "opencl-cpu":
-                if cpu_ocl_dev is not None:
-                    chosen_dev, chosen_plat, chosen_type_str = cpu_ocl_dev, cpu_ocl_plat, "OPENCL_CPU"
-            else:
-                if gpu_dev is not None:
-                    chosen_dev, chosen_plat, chosen_type_str = gpu_dev, gpu_plat, "GPU"
-                elif accel_dev is not None:
-                    chosen_dev, chosen_plat, chosen_type_str = accel_dev, accel_plat, "ACCELERATOR"
-                elif cpu_ocl_dev is not None and pref in ("opencl", "auto", "hybrid"):
-                    chosen_dev, chosen_plat, chosen_type_str = cpu_ocl_dev, cpu_ocl_plat, "OPENCL_CPU"
-
-            if chosen_dev is not None:
-                n_queues = 4 if chosen_type_str == "GPU" else 2
-                ctx = cl.Context([chosen_dev])
-                accel = OpenCLMathAccelerator(ctx, chosen_dev, num_queues=n_queues)
-                test_in = np.array([[0, 64, 128, 192, 255]], dtype=np.uint8)
-                gpu_out = accel.eval_srgb_to_linear_grayscale(test_in, gamma=1.0)
-                cpu_out = eval_srgb_to_linear_grayscale_cpu(test_in, gamma=1.0)
-                if np.max(np.abs(gpu_out.astype(np.int32) - cpu_out.astype(np.int32))) <= 1:
-                    _ACTIVE_ACCEL = accel
-                    sec_cpu_name = str(getattr(cpu_ocl_dev, "name", "")).strip() if (cpu_ocl_dev is not None and chosen_dev != cpu_ocl_dev) else None
-                    sec_cpu_cus = int(getattr(cpu_ocl_dev, "max_compute_units", 0)) if (cpu_ocl_dev is not None and chosen_dev != cpu_ocl_dev) else 0
-                    _ACTIVE_STATUS = MathBackendStatus(
-                        backend_id="opencl",
-                        device_name=accel.device_name,
-                        vendor=accel.vendor,
-                        device_type=chosen_type_str,
-                        compute_units=accel.compute_units,
-                        max_work_group_size=accel.max_wg_size,
-                        opencl_version=str(getattr(chosen_dev, "version", chosen_plat.version if chosen_plat else "OpenCL")).strip(),
-                        zero_copy_host_ptr=True,
-                        sdf_gradient_verified=grad_ok,
-                        mean_sdf_gradient=round(mean_grad, 4),
-                        work_item_dimensions=3,
-                        num_command_queues=len(accel.queues),
-                        shared_gpu_ram_mb=total_shared_mb,
-                        shared_gpu_ram_cap_75pct_mb=cap_75pct_mb,
-                        secondary_cpu_opencl_device=sec_cpu_name,
-                        secondary_cpu_opencl_cus=sec_cpu_cus,
-                        discovered_devices=discovered,
-                    )
-                    return _ACTIVE_STATUS
-                else:
-                    accel.release()
+            import cv2
+            if hasattr(cv2, "ocl"):
+                cv2.ocl.setUseOpenCL(False)
         except Exception:
-            if _ACTIVE_ACCEL is not None:
-                try:
-                    _ACTIVE_ACCEL.release()
-                except Exception:
-                    pass
+            pass
+
+    from .opencl_kernels import ensure_pyopencl
+    has_ocl = (pref != "cpu" and ensure_pyopencl())
+    discovered = enumerate_opencl_devices() if has_ocl else []
+
+    if has_ocl:
+        from .opencl_kernels import cl
+        if cl is not None:
+            try:
+                platforms = cl.get_platforms()
+                gpu_dev = None
+                gpu_plat = None
+                cpu_ocl_dev = None
+                cpu_ocl_plat = None
+                accel_dev = None
+                accel_plat = None
+
+                for plat in platforms:
+                    try:
+                        devs = plat.get_devices()
+                    except Exception:
+                        devs = []
+                    for d in devs:
+                        if not (getattr(d, "available", 1) and getattr(d, "compiler_available", 1)):
+                            continue
+                        dtype = int(getattr(d, "type", 0))
+                        if (dtype & getattr(cl.device_type, "GPU", 4)) and gpu_dev is None:
+                            gpu_dev = d
+                            gpu_plat = plat
+                        elif (dtype & getattr(cl.device_type, "CPU", 2)) and cpu_ocl_dev is None:
+                            cpu_ocl_dev = d
+                            cpu_ocl_plat = plat
+                        elif (dtype & getattr(cl.device_type, "ACCELERATOR", 8)) and accel_dev is None:
+                            accel_dev = d
+                            accel_plat = plat
+
+                chosen_dev = None
+                chosen_plat = None
+                chosen_type_str = "GPU"
+
+                if worker_role == "opencl_cpu" or pref == "opencl-cpu":
+                    if cpu_ocl_dev is not None:
+                        chosen_dev, chosen_plat, chosen_type_str = cpu_ocl_dev, cpu_ocl_plat, "OPENCL_CPU"
+                else:
+                    if gpu_dev is not None:
+                        chosen_dev, chosen_plat, chosen_type_str = gpu_dev, gpu_plat, "GPU"
+                    elif accel_dev is not None:
+                        chosen_dev, chosen_plat, chosen_type_str = accel_dev, accel_plat, "ACCELERATOR"
+                    elif cpu_ocl_dev is not None and pref in ("opencl", "auto", "hybrid"):
+                        chosen_dev, chosen_plat, chosen_type_str = cpu_ocl_dev, cpu_ocl_plat, "OPENCL_CPU"
+
+                if chosen_dev is not None:
+                    n_queues = 4 if chosen_type_str == "GPU" else 2
+                    ctx = cl.Context([chosen_dev])
+                    accel = OpenCLMathAccelerator(ctx, chosen_dev, num_queues=n_queues)
+                    test_in = np.array([[0, 64, 128, 192, 255]], dtype=np.uint8)
+                    gpu_out = accel.eval_srgb_to_linear_grayscale(test_in, gamma=1.0)
+                    cpu_out = eval_srgb_to_linear_grayscale_cpu(test_in, gamma=1.0)
+                    if np.max(np.abs(gpu_out.astype(np.int32) - cpu_out.astype(np.int32))) <= 1:
+                        _ACTIVE_ACCEL = accel
+                        sec_cpu_name = str(getattr(cpu_ocl_dev, "name", "")).strip() if (cpu_ocl_dev is not None and chosen_dev != cpu_ocl_dev) else None
+                        sec_cpu_cus = int(getattr(cpu_ocl_dev, "max_compute_units", 0)) if (cpu_ocl_dev is not None and chosen_dev != cpu_ocl_dev) else 0
+                        _ACTIVE_STATUS = MathBackendStatus(
+                            backend_id="opencl",
+                            device_name=accel.device_name,
+                            vendor=accel.vendor,
+                            device_type=chosen_type_str,
+                            compute_units=accel.compute_units,
+                            max_work_group_size=accel.max_wg_size,
+                            opencl_version=str(getattr(chosen_dev, "version", chosen_plat.version if chosen_plat else "OpenCL")).strip(),
+                            zero_copy_host_ptr=True,
+                            sdf_gradient_verified=grad_ok,
+                            mean_sdf_gradient=round(mean_grad, 4),
+                            work_item_dimensions=3,
+                            num_command_queues=len(accel.queues),
+                            shared_gpu_ram_mb=total_shared_mb,
+                            shared_gpu_ram_cap_75pct_mb=cap_75pct_mb,
+                            secondary_cpu_opencl_device=sec_cpu_name,
+                            secondary_cpu_opencl_cus=sec_cpu_cus,
+                            discovered_devices=discovered,
+                        )
+                        return _ACTIVE_STATUS
+                    else:
+                        accel.release()
+            except Exception:
+                if _ACTIVE_ACCEL is not None:
+                    try:
+                        _ACTIVE_ACCEL.release()
+                    except Exception:
+                        pass
                 _ACTIVE_ACCEL = None
 
     if pref in ("auto", "umat", "gpu") and worker_role != "cpu" and is_opencv_umat_opencl_active():

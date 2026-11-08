@@ -6,10 +6,8 @@
   "spdx_license": "MIT AND OFL-1.1",
   "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
-    "raster_mode": "raw-hinted",
     "normal_weight": 500,
     "bold_weight": 800,
-    "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/audit/ascii_patches",
     "italic_weight": 600,

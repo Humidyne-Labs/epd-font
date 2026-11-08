@@ -47,10 +47,36 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+# Early CLI scan to set EPD_FONT_ACCEL and disable OpenCV OpenCL before any math backends load
+def _early_accel_scan() -> None:
+    accel = os.environ.get("EPD_FONT_ACCEL", "").strip().lower()
+    if not accel:
+        for idx, arg in enumerate(sys.argv):
+            if arg == "--accel" and idx + 1 < len(sys.argv):
+                accel = sys.argv[idx + 1].strip().lower()
+                break
+            elif arg.startswith("--accel="):
+                accel = arg.split("=", 1)[1].strip().lower()
+                break
+    if accel == "cpu":
+        os.environ["EPD_FONT_ACCEL"] = "cpu"
+        os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+        try:
+            import cv2
+            if hasattr(cv2, "ocl"):
+                cv2.ocl.setUseOpenCL(False)
+        except Exception:
+            pass
+
+_early_accel_scan()
+
 from math_backends import describe_math_backend, select_math_backend
 from humid1_bilevel_pipelines import (
     CANONICAL_MIN_HOLES,
     CANONICAL_PIPELINES,
+    FT_LOAD_NO_HINTING,
+    FT_LOAD_RENDER,
+    FT_LOAD_TARGET_NORMAL,
     compute_betti_numbers,
     compute_upscaled_hq_metrics,
     measure_stem_metrics,
@@ -58,9 +84,6 @@ from humid1_bilevel_pipelines import (
 )
 from humid1_ft_raster import (
     FT_FaceRec,
-    FT_LOAD_NO_HINTING,
-    FT_LOAD_RENDER,
-    FT_LOAD_TARGET_NORMAL,
     GlyphStrike,
     load_freetype,
     open_ttfont_safe,
@@ -72,6 +95,7 @@ from humid1_runtime import (
     detect_host_hardware,
     fail_gracefully,
     install_clean_signal_handlers,
+    load_and_validate_hardware_scheme,
     require_valid_path,
     run_parallel_tasks,
 )
@@ -297,7 +321,7 @@ def _worker_evaluate_font(task: dict) -> FontEvalSummary:
                 font_path=font_path,
                 size_px=sz,
                 codepoints=bench_cps,
-                raster_mode=p_name,
+                pipeline=p_name,
                 threshold=threshold,
                 gamma=gamma,
                 enable_kerning=False,
@@ -516,7 +540,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sizes", type=int, nargs="+", default=[10, 12, 14, 16, 20, 24], help="Pixel sizes to benchmark (default: 10 12 14 16 20 24)")
     parser.add_argument("--threshold", type=int, default=128, help="Binarization threshold 1..254 (default: 128)")
     parser.add_argument("--gamma", type=float, default=1.0, help="Linear grayscale gamma factor in [0.1..5.0] (default: 1.0)")
-    parser.add_argument("--accel", choices=["auto", "opencl", "umat", "cpu"], default="auto", help="Hardware math acceleration backend (default: auto)")
+    parser.add_argument("-H", "--hw-scheme", type=str, default=None, help="Optional hardware scheme JSON file (e.g. esp32s3-N8R8-hw_scheme.json or generic_hw.json)")
+    parser.add_argument("--accel", choices=["auto", "opencl", "umat", "cpu"], default=None, help="Hardware math acceleration backend (default: auto or from EPD_FONT_ACCEL)")
     parser.add_argument("-j", "--jobs", type=int, default=None, help="Number of parallel CPU worker processes")
     return parser
 
@@ -549,7 +574,26 @@ def main() -> None:
     if not candidates:
         fail_gracefully(f"No evaluable Latin .ttf/.otf/.ttc/.bdf fonts found in `{src_dir}`.")
 
-    select_math_backend(args.accel)
+    if args.hw_scheme:
+        hw_spec = load_and_validate_hardware_scheme(
+            scheme_cfg={},
+            hw_scheme_cli=args.hw_scheme,
+            repo_root=repo_root,
+            scheme_path=None,
+        )
+        print(f"[+] Loaded hardware scheme: {hw_spec.hw_scheme_id} ({hw_spec.chip_name}, {hw_spec.partition_1} partition)")
+
+    eff_accel = getattr(args, "accel", None) or os.environ.get("EPD_FONT_ACCEL") or "auto"
+    os.environ["EPD_FONT_ACCEL"] = eff_accel
+    if eff_accel == "cpu":
+        os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+        try:
+            import cv2
+            if hasattr(cv2, "ocl"):
+                cv2.ocl.setUseOpenCL(False)
+        except Exception:
+            pass
+    select_math_backend(eff_accel)
     hw_info = detect_host_hardware(args.jobs)
     print(f"[*] Active Mathematical Backend: {describe_math_backend()}")
     max_workers = hw_info.recommended_workers

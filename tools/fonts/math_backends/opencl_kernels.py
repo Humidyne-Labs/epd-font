@@ -46,12 +46,30 @@ import numpy as np
 TOOL_VERSION = "1.0.21"
 SHARED_RAM_CAP_RATIO = 0.75  # 75% cap on total WDDM Shared GPU Memory
 
-try:
-    import pyopencl as cl  # type: ignore
-    HAS_PYOPENCL = True
-except Exception:
-    cl = None  # type: ignore
-    HAS_PYOPENCL = False
+cl = None  # type: ignore
+HAS_PYOPENCL = False
+
+
+def ensure_pyopencl() -> bool:
+    """Dynamically probe and load PyOpenCL only when hardware acceleration is permitted."""
+    global cl, HAS_PYOPENCL
+    eff = os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower()
+    role = os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower()
+    if eff == "cpu" or role == "cpu":
+        cl = None
+        HAS_PYOPENCL = False
+        return False
+    if cl is not None and HAS_PYOPENCL:
+        return True
+    try:
+        import pyopencl as _cl  # type: ignore
+        cl = _cl
+        HAS_PYOPENCL = True
+        return True
+    except Exception:
+        cl = None
+        HAS_PYOPENCL = False
+        return False
 
 
 # ---------------------------------------------------------------------------

@@ -421,17 +421,19 @@ def detect_host_hardware(requested_jobs: Optional[int] = None) -> HostHardwareIn
 
     gpu_backend = "CPU-SIMD (NumPy/OpenCV)"
     gpu_enabled = False
-    try:
-        from math_backends import enumerate_opencl_devices
-        devs = enumerate_opencl_devices()
-        if devs:
-            dev_summaries = [f"{d.device_name} ({d.compute_units} CUs)" for d in devs]
-            gpu_backend = f"PyOpenCL 3D NDRange [{' + '.join(dev_summaries)}]"
-            gpu_enabled = True
-    except Exception:
-        pass
+    pref = os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower()
+    if pref != "cpu":
+        try:
+            from math_backends import enumerate_opencl_devices
+            devs = enumerate_opencl_devices()
+            if devs:
+                dev_summaries = [f"{d.device_name} ({d.compute_units} CUs)" for d in devs]
+                gpu_backend = f"PyOpenCL 3D NDRange [{' + '.join(dev_summaries)}]"
+                gpu_enabled = True
+        except Exception:
+            pass
 
-    if not gpu_enabled:
+    if not gpu_enabled and pref != "cpu":
         try:
             import cv2
             if hasattr(cv2, "cuda") and cv2.cuda.getCudaEnabledDeviceCount() > 0:
@@ -497,8 +499,17 @@ def _worker_process_init_cpu() -> None:
     except Exception:
         pass
     os.environ["EPD_FONT_WORKER_ROLE"] = "cpu"
+    os.environ["EPD_FONT_ACCEL"] = "cpu"
+    os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
     try:
-        from math_backends import teardown_math_backends
+        import cv2
+        if hasattr(cv2, "ocl"):
+            cv2.ocl.setUseOpenCL(False)
+    except Exception:
+        pass
+    try:
+        from math_backends import select_math_backend, teardown_math_backends
+        select_math_backend("cpu")
         atexit.register(teardown_math_backends)
     except Exception:
         pass

@@ -524,6 +524,16 @@ def instantiate_plex_variable_cut(
     return dst_ttf.stat().st_size
 
 
+def _worker_process_init_static_ttfs() -> None:
+    try:
+        import signal
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except Exception:
+        pass
+    os.environ["EPD_FONT_WORKER_ROLE"] = "cpu"
+    os.environ["EPD_FONT_ACCEL"] = "cpu"
+
+
 def _worker_build_task(task: dict) -> Tuple[str, str, int, str]:
     """ProcessPoolExecutor worker function for parallel static TTF synthesis."""
     kind = task["kind"]
@@ -945,8 +955,8 @@ def build_all_static_assets(
 
     if tasks:
         print(f"[*] Executing {len(tasks)} font conversion tasks across {max_workers} CPU worker processes...")
-        from humid1_runtime import _worker_process_init_cpu, _terminate_executor_processes
-        pool = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers, initializer=_worker_process_init_cpu)
+        from humid1_runtime import _terminate_executor_processes
+        pool = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers, initializer=_worker_process_init_static_ttfs)
         try:
             for target_name, dst_str, sz, desc in pool.map(_worker_build_task, tasks):
                 built_files.append(Path(dst_str))
@@ -1023,13 +1033,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force", action="store_true", help="Overwrite and regenerate all static .ttf files")
     parser.add_argument("--verify", action="store_true", help="Verify every generated .ttf file and print audit table")
     parser.add_argument("--verify-only", action="store_true", help="Only run diagnostic verification on --out-dir")
-    parser.add_argument("--plex-src", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--icons-src", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--raw-root", type=str, nargs="+", default=None, help=argparse.SUPPRESS)
     return parser
 
 
 def main() -> None:
+    os.environ["EPD_FONT_ACCEL"] = "cpu"
+    os.environ["EPD_FONT_WORKER_ROLE"] = "cpu"
     from humid1_runtime import install_clean_signal_handlers
     install_clean_signal_handlers()
     script_dir = Path(__file__).resolve().parent
@@ -1041,15 +1050,6 @@ def main() -> None:
     meta_out_dir = Path(args.meta_out_dir).resolve() if args.meta_out_dir else (repo_root / "build" / "metadata").resolve()
     src_dir = Path(args.src_dir).resolve() if args.src_dir else (repo_root / "assets").resolve()
 
-    extra_roots: List[Path] = []
-    if args.plex_src:
-        extra_roots.append(Path(args.plex_src).resolve())
-    if args.icons_src:
-        extra_roots.append(Path(args.icons_src).resolve())
-    if args.raw_root:
-        for r in args.raw_root:
-            extra_roots.append(Path(r).resolve())
-
     if not args.verify_only:
         build_all_static_assets(
             src_dir=src_dir,
@@ -1058,7 +1058,6 @@ def main() -> None:
             families_filter=args.families,
             cu2qu_max_err=args.cu2qu_max_err,
             force=args.force,
-            extra_roots=extra_roots,
             jobs=args.jobs,
         )
 

@@ -135,7 +135,7 @@ def emit_lvgl_c_file(
     size_px: int,
     family: str,
     role: str,
-    raster_mode: str,
+    pipeline: str,
     glyphs: Sequence[GlyphStrike],
     line_height: int,
     base_line: int,
@@ -156,7 +156,7 @@ def emit_lvgl_c_file(
         f" * Font: {font_symbol_name} ({family} {role})",
         f" * Size: {size_px} px @ 188.15 DPI (1-bit Monochrome Embedded Display)",
         " * Bpp: 1 (Uncompressed Bilevel Monochrome)",
-        f" * Conversion Pipeline: {raster_mode} (epd-font v{TOOL_VERSION})",
+        f" * Conversion Pipeline: {pipeline} (epd-font v{TOOL_VERSION})",
         f" * LVGL Fallback Pointer: {'&' + valid_fb if valid_fb else 'NULL'} (LVGL >= 9.6.0 Ready)",
         " * License: MIT AND OFL-1.1",
         " ******************************************************************************/",
@@ -816,7 +816,7 @@ def write_total_disk_size_report(
     vault_b = vault_path.stat().st_size if (vault_path and vault_path.is_file()) else 0
 
     part_bytes = hw_spec.partition_1_bytes
-    eff_dpi = hw_spec.dpi
+    eff_dpi = dpi if dpi is not None else hw_spec.dpi
     rem_bytes = part_bytes - total_rom_b
     util_pct = (total_rom_b * 100.0) / float(part_bytes)
     status_str = "FITS" if rem_bytes >= 0 else "EXCEEDS BUDGET"

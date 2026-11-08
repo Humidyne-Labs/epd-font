@@ -100,7 +100,7 @@ PINCH_FORBIDDEN_CHARS = set("CEFGHIJKLMNSTUVWXYZcfhijlmnrstuvwxyz!()[]{}/\\|<>+-
 
 
 def normalize_pipeline_name(mode: str) -> str:
-    """Normalize CLI or scheme raster_mode / pipeline name to one of the 8 canonical pipelines (or exact-mono)."""
+    """Normalize CLI or scheme pipeline name to one of the 8 canonical pipelines (or exact-mono)."""
     m = (mode or "raw-hinted").lower().strip().replace("_", "-")
     if m in ("exact-mono", "terminus-mono", "bitmap"):
         return "exact-mono"
@@ -653,8 +653,6 @@ def compute_otsu_linear_threshold(linear_gray: np.ndarray, base_threshold: int =
 def render_glyph_via_pipeline(
     ft: ctypes.CDLL,
     face_ptr: ctypes.c_void_p,
-    font_path: Path,
-    ft_lib: ctypes.c_void_p,
     codepoint: int,
     gidx: int,
     size_px: int,
@@ -877,8 +875,6 @@ def save_debug_stage_artifacts(
     glyph_name: str,
     ft: ctypes.CDLL,
     face_ptr: ctypes.c_void_p,
-    font_path: Path,
-    ft_lib: ctypes.c_void_p,
     gidx: int,
     size_px: int,
     threshold: int = 128,
@@ -897,8 +893,6 @@ def save_debug_stage_artifacts(
         bw, _, _, dbg = render_glyph_via_pipeline(
             ft=ft,
             face_ptr=face_ptr,
-            font_path=font_path,
-            ft_lib=ft_lib,
             codepoint=codepoint,
             gidx=gidx,
             size_px=size_px,

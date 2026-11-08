@@ -47,7 +47,6 @@ from math_backends import (
     select_math_backend,
     teardown_math_backends,
 )
-from math_backends.opencl_kernels import cl
 
 TOOL_VERSION = "1.0.21"
 
@@ -72,10 +71,20 @@ def get_devices() -> Tuple[Optional[Any], Optional[Any], List[OpenCLDeviceDescri
     and the secondary OpenCL CPU runtime device (e.g., `AMD Ryzen 5 5600G - 12 CUs`).
     Returns `(gpu_dev, cpu_dev, all_descriptors)`.
     """
-    descriptors = enumerate_opencl_devices()
-    if not HAS_PYOPENCL or cl is None:
-        return None, None, descriptors
+    eff = os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower()
+    role = os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower()
+    if eff == "cpu" or role == "cpu":
+        return None, None, []
 
+    from math_backends.opencl_kernels import ensure_pyopencl
+    if not ensure_pyopencl():
+        return None, None, []
+
+    from math_backends.opencl_kernels import cl
+    if cl is None:
+        return None, None, []
+
+    descriptors = enumerate_opencl_devices()
     gpu_dev = None
     cpu_dev = None
     try:
@@ -191,12 +200,28 @@ def init_worker_environment(role: str = "cpu") -> None:
     if role == "gpu":
         select_math_backend("opencl")
     else:
+        os.environ["EPD_FONT_ACCEL"] = "cpu"
+        os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+        try:
+            import cv2
+            if hasattr(cv2, "ocl"):
+                cv2.ocl.setUseOpenCL(False)
+        except Exception:
+            pass
         select_math_backend("cpu")
     atexit.register(teardown_math_backends)
 
 
 def describe_hybrid_dispatch_plan(total_tasks: int, max_workers: int) -> str:
+    pref = os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower()
     gpu_dev, cpu_dev, _ = get_devices()
+    if pref == "cpu" or (gpu_dev is None and cpu_dev is None):
+        threads = os.cpu_count() or max_workers
+        return (
+            f"Pure CPU Compute Dispatch ({total_tasks} tasks): "
+            f"CPU=[Host CPU SIMD ({threads} threads), {max_workers} workers] | "
+            f"Math Backend=CPU (NumPy/OpenCV Engine)"
+        )
     total_shared_mb, avail_shared_mb = detect_shared_gpu_memory_mb()
     gpu_str = (
         f"{gpu_dev.name.strip()} ({gpu_dev.max_compute_units} CUs, 3D NDRange, 4 Queues)"

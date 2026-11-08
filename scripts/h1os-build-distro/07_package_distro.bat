@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [07] Humidyne Labs - Humiditron epd-font v1.0.21 - Package & Zip Distribution Bundle
+echo [07] Humidyne Labs - Humiditron epd-font v1.0.21 - Package and Zip Distribution Bundle
 echo      Workflow    : H1OS and humid1-os Firmware Distribution Workflow (ESP32-S3-N8R8)
 echo      HW Config   : esp32s3-N8R8-hw_scheme.json
 echo      Build Input : build\h1os\

@@ -215,7 +215,6 @@ def build_char_manifest_for_spec(
     repo_root: Path,
     spec: dict,
     existing_unified_icons: Optional[dict] = None,
-    clean_legacy_metadata_dirs: bool = False,
 ) -> Tuple[Path, dict]:
     folder = repo_root / spec["rel_dir"]
     out_dir = repo_root / "build" / "metadata" / "char_manifests"
@@ -335,7 +334,7 @@ def build_char_manifest_for_spec(
     return manifest_path, manifest_payload
 
 
-def generate_all_char_manifests(repo_root: Path, clean_legacy: bool = False) -> List[Path]:
+def generate_all_char_manifests(repo_root: Path) -> List[Path]:
     uni_path = repo_root / "build" / "metadata" / "unified_icon_names.json"
     existing_uni = json.loads(uni_path.read_text(encoding="utf-8")) if uni_path.is_file() else None
 
@@ -345,7 +344,7 @@ def generate_all_char_manifests(repo_root: Path, clean_legacy: bool = False) -> 
     print("=" * 102)
     for spec in MASTER_FAMILIES_SPEC:
         m_path, m_data = build_char_manifest_for_spec(
-            repo_root, spec, existing_unified_icons=existing_uni, clean_legacy_metadata_dirs=clean_legacy
+            repo_root, spec, existing_unified_icons=existing_uni
         )
         out_paths.append(m_path)
         sz_kb = m_path.stat().st_size / 1024.0
@@ -362,15 +361,10 @@ def main() -> None:
         prog="generate_char_manifests.py",
         description="Generate version-specific minimal Character Manifest JSONs per master font family.",
     )
-    parser.add_argument(
-        "--clean-stock-metadata",
-        action="store_true",
-        help="Remove bloated upstream stock metadata/ folders after generating the minimal char_manifest_*.json",
-    )
     args = parser.parse_args()
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent
-    generate_all_char_manifests(repo_root, clean_legacy=args.clean_stock_metadata)
+    generate_all_char_manifests(repo_root)
 
 
 if __name__ == "__main__":

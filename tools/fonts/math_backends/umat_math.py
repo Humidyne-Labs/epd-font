@@ -25,7 +25,9 @@ TOOL_VERSION = "1.0.21"
 
 
 def is_opencv_umat_opencl_active() -> bool:
-    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
+    role = os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower()
+    accel = os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower()
+    if role == "cpu" or accel == "cpu":
         try:
             if hasattr(cv2, "ocl"):
                 cv2.ocl.setUseOpenCL(False)

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-humid1_font_eval.py (v1.0.20)
+humid1_font_eval.py (v1.0.21)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Multi-Core 8-Pipeline Font & Weight Evaluation Suite (v1.0.20):
+Multi-Core 9-Pipeline Font & Wnine Evaluation Suite (v1.0.21):
   - Evaluates ALL EIGHT bilevel resolution-reduction pipelines per font and per pixel size:
       1. `raw-unhinted`    : Raw Threshold Pipeline without Hinting (Linear Grayscale + Gamma)
       2. `raw-hinted`      : Raw Threshold Pipeline with Hinting (Linear Grayscale + Gamma)
@@ -21,7 +21,7 @@ Multi-Core 8-Pipeline Font & Weight Evaluation Suite (v1.0.20):
   - Computes per-pipeline and per-size optical metrics (`8x` HQ IoU Confidence, `>=2px` Stem
     Survival, Enclosed Counter Topology Survival via Betti number B1, Mean Stem Width, Ink Mass,
     and Viable Pixel Size Floor).
-  - Generates per-font 8-pipeline visual comparison sheets (`<out_dir>/sheets/<font>_eval.png`),
+  - Generates per-font 9-pipeline visual comparison sheets (`<out_dir>/sheets/<font>_eval.png`),
     paginated master comparison sheets (`<out_dir>/font_eval_comparison_sheet.png`), and
     structured Markdown, CSV, and JSON evaluation reports inside `<out_dir>/` (under `build/`).
 """
@@ -78,7 +78,7 @@ from humid1_runtime import (
 
 EVAL_BENCHMARK_CHARS = "0124689ABCDHIJMNOPQRWabcefghijlmnoqrstvwxyz$%&()[]{}/\\|!<>+="
 EVAL_COUNTER_CHARS = set("04689ABDOPQRabdegopq$%&")
-EVAL_SPECIMEN_STRING = "H1OS v1.0.20 (08B$) [aeg] {WwMm} <=>"
+EVAL_SPECIMEN_STRING = "H1OS v1.0.21 (08B$) [aeg] {WwMm} <=>"
 EVAL_ZOOM_STRIP_CHARS = "WwMmABCfgrs$()[]08"
 
 
@@ -404,7 +404,7 @@ def render_master_comparison_sheet(
     summaries: Sequence[FontEvalSummary],
     sizes: Sequence[int],
 ) -> Path:
-    """Render the master 8-pipeline comparison scorecard PNG."""
+    """Render the master 9-pipeline comparison scorecard PNG."""
     ref_sz = 16 if 16 in sizes else sizes[len(sizes) // 2]
     row_h = 34
     W = 1920
@@ -453,7 +453,7 @@ def generate_markdown_report(summaries: Sequence[FontEvalSummary], sizes: Sequen
     pipe_headers = " | ".join(f"`{p}` (`Score` / `Floor` / `Cnt%`)" for p in CANONICAL_PIPELINES)
     pipe_align = " | ".join(":---" for _ in CANONICAL_PIPELINES)
     lines = [
-        f"# `epd-font` v{TOOL_VERSION} — 8-Pipeline Multi-Font & Multi-Size Evaluation Report",
+        f"# `epd-font` v{TOOL_VERSION} — 9-Pipeline Multi-Font & Multi-Size Evaluation Report",
         "",
         f"- **Project**: {PROJECT_TAGLINE}",
         f"- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v{TOOL_VERSION}`)",
@@ -462,9 +462,9 @@ def generate_markdown_report(summaries: Sequence[FontEvalSummary], sizes: Sequen
         f"- **Binarization Threshold & Gamma**: `threshold={threshold}`, `gamma={gamma:.2f}` (Linear Grayscale)",
         f"- **Evaluated Resolution-Reduction Pipelines**: `{', '.join(CANONICAL_PIPELINES)}`",
         "",
-        f"## 1. Master 8-Pipeline Scorecard Summary (`@ {ref_sz} px` & Viable Size Floors)",
+        f"## 1. Master 9-Pipeline Scorecard Summary (`@ {ref_sz} px` & Viable Size Floors)",
         "",
-        f"| Rank | Font Cut (`File Type`) | Weight | Best Pipeline (`@ {ref_sz}px`) | {pipe_headers} |",
+        f"| Rank | Font Cut (`File Type`) | Wnine | Best Pipeline (`@ {ref_sz}px`) | {pipe_headers} |",
         f"| ---: | :--- | ---: | :--- | {pipe_align} |",
     ]
 
@@ -480,7 +480,7 @@ def generate_markdown_report(summaries: Sequence[FontEvalSummary], sizes: Sequen
 
     lines.extend([
         "",
-        "## 2. Per-Font, Per-Size Detailed 8-Pipeline Breakdown",
+        "## 2. Per-Font, Per-Size Detailed 9-Pipeline Breakdown",
         "",
         "| Font Cut | Size (`px`) | Pipeline | Composite Score | 8x HQ IoU (`%`) | `>=2px` Stems (`%`) | Mean Stem (`px`) | Open Counters (`%`) | Ink Pixels | Floor Status |",
         "| :--- | ---: | :--- | ---: | ---: | ---: | ---: | ---: | ---: | :--- |",
@@ -504,7 +504,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="humid1_font_eval.py",
         description=(
-            f"Humidyne Labs / Humiditron `epd-font` v{TOOL_VERSION} — 8-Pipeline Multi-Font & Multi-Size Evaluator.\n"
+            f"Humidyne Labs / Humiditron `epd-font` v{TOOL_VERSION} — 9-Pipeline Multi-Font & Multi-Size Evaluator.\n"
             f"Evaluates all 8 bilevel conversion methods ({', '.join(CANONICAL_PIPELINES)})\n"
             "per font and per pixel size."
         ),
@@ -613,8 +613,8 @@ def main() -> None:
     render_master_comparison_sheet(comp_png, summaries, args.sizes)
 
     elapsed = time.perf_counter() - t0
-    print(f"[+] Wrote {len(summaries)} Per-Font 8-Pipeline PNG Sheets -> {sheets_dir}")
-    print(f"[+] Wrote Master 8-Pipeline Scorecard PNG         -> {comp_png}")
+    print(f"[+] Wrote {len(summaries)} Per-Font 9-Pipeline PNG Sheets -> {sheets_dir}")
+    print(f"[+] Wrote Master 9-Pipeline Scorecard PNG         -> {comp_png}")
     print(f"[+] Wrote Evaluation Markdown, CSV & JSON Reports -> {md_path} ({elapsed:.2f}s)")
 
 

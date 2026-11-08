@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-opencl_kernels.py (v1.0.20)
+opencl_kernels.py (v1.0.21)
 ==========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -9,7 +9,7 @@ License    : MIT License
 
 OpenCL 1.2 / 2.0 / 3.0 GPU & Multi-Device Compute Kernels, 3D NDRange Batch Dispatcher,
 75% Dynamic Host/GPU Shared Memory Arena (`CL_MEM_ALLOC_HOST_PTR` + `clEnqueueMapBuffer`),
-Jump Flooding Algorithm (`1+JFA`) + Marching Squares Kernels, and Deterministic Teardown (`v1.0.20`):
+Jump Flooding Algorithm (`1+JFA`) + Marching Squares Kernels, and Deterministic Teardown (`v1.0.21`):
   - Full 3-Dimensional (`work_dim = 3`, `[dim_x, dim_y, dim_z]`) NDRange execution across all kernels
     with 3D local work-groups `(8, 8, 4) = 256` work-items (4 wavefronts of 64 threads on AMD GCN/Polaris
     `Ellesmere` 32 CUs, or 256 work-items on CPU OpenCL runtimes) so all 3 Work-Item Dimensions and all
@@ -43,7 +43,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 SHARED_RAM_CAP_RATIO = 0.75  # 75% cap on total WDDM Shared GPU Memory
 
 try:
@@ -911,7 +911,7 @@ atexit.register(release_all_opencl_resources)
 
 
 # ---------------------------------------------------------------------------
-# OpenCL 3D NDRange Multi-Queue Mathematical Accelerator (`v1.0.20`)
+# OpenCL 3D NDRange Multi-Queue Mathematical Accelerator (`v1.0.21`)
 # ---------------------------------------------------------------------------
 class OpenCLMathAccelerator:
     """
@@ -962,10 +962,13 @@ class OpenCLMathAccelerator:
         self._lock = threading.Lock()
         self._released = False
 
-        # Compile 3D NDRange OpenCL C program once with fast-relaxed-math
-        self.program: Optional["cl.Program"] = cl.Program(ctx, OPENCL_MATH_KERNELS_SOURCE).build(
-            options=["-cl-fast-relaxed-math", "-cl-mad-enable"]
-        )
+        # Compile 3D NDRange OpenCL C program once with fast-relaxed-math (suppress Intel OpenCL CompilerWarning)
+        with warnings.catch_warnings():
+            if hasattr(cl, "CompilerWarning"):
+                warnings.filterwarnings("ignore", category=cl.CompilerWarning)
+            self.program: Optional["cl.Program"] = cl.Program(ctx, OPENCL_MATH_KERNELS_SOURCE).build(
+                options=["-cl-fast-relaxed-math", "-cl-mad-enable"]
+            )
         # Cache kernel handles once so repeated attribute access on `self.program.<kernel>` never leaks
         self._k_srgb_3d = cl.Kernel(self.program, "srgb_to_linear_gamma_3d_kernel")
         self._k_bezier_yuksel_3d = cl.Kernel(self.program, "render_bezier_sdf_yuksel_3d_kernel")

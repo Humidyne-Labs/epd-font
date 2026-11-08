@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/check_PyOpenCL.py (v1.0.20)
+scripts/check_PyOpenCL.py (v1.0.21)
 ==================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -53,7 +53,7 @@ def inspect_pyopencl() -> int:
     total_shared_mb, usable_shared_mb = detect_shared_gpu_memory_mb()
     cap_75_mb = int(round(total_shared_mb * SHARED_RAM_CAP_RATIO))
     print("============================================================================")
-    print("Humidyne Labs - epd-font v1.0.20 - PyOpenCL 3D NDRange & Shared-RAM Inspector")
+    print("Humidyne Labs - epd-font v1.0.21 - PyOpenCL 3D NDRange & Shared-RAM Inspector")
     print(
         f"Host Shared GPU Memory (CL_MEM_ALLOC_HOST_PTR): {total_shared_mb:,} MB total "
         f"({total_shared_mb / 1024.0:.2f} GB) | 75% Arena Cap: {cap_75_mb:,} MB "

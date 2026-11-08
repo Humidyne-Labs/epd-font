@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_runtime.py (v1.0.20)
+humid1_runtime.py (v1.0.21)
 ==========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -8,10 +8,10 @@ Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Par
 License    : MIT License
 
 Host Hardware Detection (Multi-Device OpenCL GPU/CPU + Shared GPU RAM + Multi-Core CPU),
-Target Embedded Hardware Scheme Validator (`esp32s3-N8R8-hw_scheme.json` & `genaric_hw.json`),
+Target Embedded Hardware Scheme Validator (`esp32s3-N8R8-hw_scheme.json` & `generic_hw.json`),
 Single-Owner GPU + Multi-Core CPU Work-Stealing Dispatcher (`run_parallel_tasks`),
 Clean Signal/Ctrl-C Interruption Handler (Zero Worker Traceback Noise + Deterministic Teardown),
-Recursive Asset/License Discovery, and Strict Zero-Default Argument/Path Validation Module (`v1.0.20`).
+Recursive Asset/License Discovery, and Strict Zero-Default Argument/Path Validation Module (`v1.0.21`).
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 REPO_NAME = "epd-font"
 PROJECT_TAGLINE = "A 1-bit EPD font generator and asset pipeline for embedded displays"
 PUBLIC_REPO_URL = "https://github.com/Humidyne-Labs/epd-font"
@@ -213,7 +213,7 @@ def load_and_validate_hardware_scheme(
 ) -> TargetHardwareSpec:
     """
     Strictly validate target hardware and partition attributes with ZERO hardcoded defaults.
-    Loads the referenced hardware scheme JSON (`esp32s3-N8R8-hw_scheme.json` or `genaric_hw.json` / `generic_hw.json`)
+    Loads the referenced hardware scheme JSON (`esp32s3-N8R8-hw_scheme.json` or `generic_hw.json` / `generic_hw.json`)
     and validates `target_display` in `.scheme.json`.
     If the partition constraint (`partition_1` / `partition_1_bytes` / `target_partition_bytes`) or any required
     hardware/display attribute is removed or missing, fails immediately via `fail_gracefully()`.
@@ -226,10 +226,12 @@ def load_and_validate_hardware_scheme(
     if not isinstance(scheme_cfg, dict):
         fail_gracefully(
             f"Missing or invalid scheme configuration object in `{s_name}`.",
-            "Pass a valid `.scheme.json` file and hardware scheme (`esp32s3-N8R8-hw_scheme.json` or `genaric_hw.json`).",
+            "Pass a valid `.scheme.json` file and hardware scheme (`esp32s3-N8R8-hw_scheme.json` or `generic_hw.json`).",
         )
 
     hw_ref = hw_scheme_cli or scheme_cfg.get("hardware_scheme")
+    if isinstance(hw_ref, str) and hw_ref.strip().lower() == "genaric_hw.json":
+        hw_ref = "generic_hw.json"
     hw_data: dict = {}
     resolved_hw_path: Optional[Path] = None
 
@@ -238,11 +240,9 @@ def load_and_validate_hardware_scheme(
         if not cand_paths[0].is_absolute():
             if scheme_path:
                 cand_paths.append(scheme_path.parent / str(hw_ref))
+                cand_paths.append(scheme_path.parent.parent / str(hw_ref))
             cand_paths.append(repo_root / str(hw_ref))
-            if str(hw_ref) == "generic_hw.json":
-                cand_paths.append(repo_root / "genaric_hw.json")
-            elif str(hw_ref) == "genaric_hw.json":
-                cand_paths.append(repo_root / "generic_hw.json")
+            cand_paths.append(repo_root / "schemes" / str(hw_ref))
         for cp in cand_paths:
             if cp.is_file():
                 resolved_hw_path = cp.resolve()
@@ -250,7 +250,7 @@ def load_and_validate_hardware_scheme(
         if resolved_hw_path is None:
             fail_gracefully(
                 f"Hardware scheme file `{hw_ref}` referenced by `{s_name}` does not exist.",
-                "Ensure `esp32s3-N8R8-hw_scheme.json` or `genaric_hw.json` exists in the repository root or pass `--hw-scheme <path>`.",
+                "Ensure `esp32s3-N8R8-hw_scheme.json` or `generic_hw.json` exists in the repository root or pass `--hw-scheme <path>`.",
             )
         try:
             hw_data = json.loads(resolved_hw_path.read_text(encoding="utf-8"))
@@ -260,25 +260,9 @@ def load_and_validate_hardware_scheme(
     tdisp = scheme_cfg.get("target_display")
     if not hw_data and not isinstance(tdisp, dict):
         fail_gracefully(
-            f"Missing both `hardware_scheme` and `target_display` in `{s_name}`.",
-            "Add `\"hardware_scheme\": \"esp32s3-N8R8-hw_scheme.json\"` (or `\"genaric_hw.json\"`) and `target_display` with `target_partition_bytes = 3145728`.",
+            f"Missing `hardware_scheme` reference in `{s_name}`.",
+            "Add `\"hardware_scheme\": \"esp32s3-N8R8-hw_scheme.json\"` (or `\"generic_hw.json\"`) to `.scheme.json` or pass `--hw-scheme <path>`.",
         )
-
-    if isinstance(tdisp, dict) and hw_scheme_cli is None:
-        has_scheme_part = any(
-            k in tdisp and tdisp[k] is not None
-            for k in ("partition_1", "partition_1_bytes", "target_partition_bytes")
-        )
-        if not has_scheme_part:
-            fail_gracefully(
-                f"Missing required 3 MByte partition constraint in `target_display` of `{s_name}` (hard defaults are disabled).",
-                "Define `\"partition_1\": \"3 MBytes\"` and `\"target_partition_bytes\": 3145728` in `target_display` (or pass `--hw-scheme esp32s3-N8R8-hw_scheme.json`).",
-            )
-        if "target_partition_bits" in tdisp and "target_partition_bytes" not in tdisp and "partition_1" not in tdisp and "partition_1_bytes" not in tdisp:
-            fail_gracefully(
-                f"Legacy megabit constraint `target_partition_bits` in `{s_name}` is no longer sufficient without a 3 MByte byte specification.",
-                "Specify `\"partition_1\": \"3 MBytes\"` and `\"target_partition_bytes\": 3145728`.",
-            )
 
     part_bytes: Optional[int] = None
     part_label_str = "3 MBytes"
@@ -296,8 +280,7 @@ def load_and_validate_hardware_scheme(
         if "partition_1_bytes" in hw_data:
             b_chk = parse_partition_size_string(hw_data["partition_1_bytes"], hw_src)
             part_bytes = b_chk
-
-    if isinstance(tdisp, dict):
+    elif isinstance(tdisp, dict):
         td_src = f"`target_display` in `{s_name}`"
         if "partition_1" in tdisp and tdisp["partition_1"] is not None:
             part_bytes = parse_partition_size_string(tdisp["partition_1"], td_src)
@@ -317,16 +300,17 @@ def load_and_validate_hardware_scheme(
     tdisp_dict = tdisp if isinstance(tdisp, dict) else {}
 
     def _req_field(keys: Sequence[str], field_desc: str) -> Any:
+        # Authoritative root hardware scheme (`hw_data` & `disp_block`) takes strict precedence
         for k in keys:
-            if k in tdisp_dict and tdisp_dict[k] is not None and str(tdisp_dict[k]).strip() != "":
-                return tdisp_dict[k]
             if k in disp_block and disp_block[k] is not None and str(disp_block[k]).strip() != "":
                 return disp_block[k]
             if k in hw_data and hw_data[k] is not None and str(hw_data[k]).strip() != "":
                 return hw_data[k]
+            if k in tdisp_dict and tdisp_dict[k] is not None and str(tdisp_dict[k]).strip() != "":
+                return tdisp_dict[k]
         fail_gracefully(
             f"Missing required hardware/display attribute `{keys[0]}` ({field_desc}) in `{s_name}`.",
-            "Provide full target hardware attributes via `esp32s3-N8R8-hw_scheme.json`, `genaric_hw.json`, or `target_display`.",
+            "Provide full target hardware attributes via `esp32s3-N8R8-hw_scheme.json` or `generic_hw.json`.",
         )
 
     chip_name = str(_req_field(["chip_name", "target_soc"], "target microcontroller/chip name"))

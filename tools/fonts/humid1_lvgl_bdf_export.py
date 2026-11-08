@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_lvgl_bdf_export.py (v1.0.20)
+humid1_lvgl_bdf_export.py (v1.0.21)
 ===================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -9,7 +9,7 @@ License    : MIT License
 
 Adobe BDF 2.1 Exporter, LVGL >= 9.6.0 C/H Source Generator with Validated Fallback Pointers,
 Metric CSV Exporter, Screen Width Auditor, and Strict Single-Partition (3 MByte) ROM Space Estimator
-backed by `esp32s3-N8R8-hw_scheme.json` and `genaric_hw.json` (zero hardcoded defaults).
+backed by `esp32s3-N8R8-hw_scheme.json` and `generic_hw.json` (zero hardcoded defaults).
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from humid1_runtime import (
     load_and_validate_hardware_scheme,
 )
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 
 def export_bdf_strike(
@@ -796,7 +796,7 @@ def write_total_disk_size_report(
     """
     Generate `total_disk_size.txt` and `rom_space_estimate.txt` alongside the generated `.c`/`.h`
     font assets using strictly validated hardware scheme attributes (`esp32s3-N8R8-hw_scheme.json`
-    or `genaric_hw.json`) with ZERO hardcoded partition defaults and a single `3 MByte` (`3,145,728` bytes)
+    or `generic_hw.json`) with ZERO hardcoded partition defaults and a single `3 MByte` (`3,145,728` bytes)
     supported partition target.
     """
     if hw_spec is None:

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-opencl_dispatcher.py (v1.0.20)
+opencl_dispatcher.py (v1.0.21)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Heterogeneous Multi-Device OpenCL & CPU Workload Coordinator (`v1.0.20`):
+Heterogeneous Multi-Device OpenCL & CPU Workload Coordinator (`v1.0.21`):
   - Discovers discrete GPU OpenCL devices (e.g., `[0] Platform 0, Device 0: Ellesmere (ALL | GPU) - 32 CUs`)
     and host CPU OpenCL runtimes (e.g., `[1] Platform 1, Device 0: AMD Ryzen 5 5600G (ALL | CPU) - 12 CUs`
     installed via Intel CPU Runtime for OpenCL Applications).
@@ -29,12 +29,11 @@ Heterogeneous Multi-Device OpenCL & CPU Workload Coordinator (`v1.0.20`):
 from __future__ import annotations
 
 import atexit
-import gc
 import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -50,7 +49,7 @@ from math_backends import (
 )
 from math_backends.opencl_kernels import cl
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 HEAVY_ICON_FAMILIES = {"icon_tabler", "icon_phosphor", "icon_lucide", "icon_fa7"}
 DISTANCE_FIELD_PIPELINES = {

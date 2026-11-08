@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.0.20",
+  "schema_version": "1.0.21",
   "hw_scheme_id": "generic_hw",
   "description": "Generic target hardware specification scheme useful for ROM size approximations, evaluation benchmarks, and archival builds with a single 3 MByte (3,145,728 bytes) partition.",
-  "chip_name": "misc",
+  "chip_name": "Generic-32bit-MCU",
   "soc_vendor": "Generic Embedded Target",
   "cpu_architecture": "Generic 32-bit Microcontroller",
   "cpu_freq_mhz": 160,
@@ -16,8 +16,8 @@
   "partition_1_bytes": 3145728,
   "partition_1_label": "Generic 3 MByte Archival & Approximation Partition",
   "display": {
-    "panel": "Generic Monochrome 1-BPP Display",
-    "controller": "Generic 1-BPP Display Controller",
+    "panel": "Waveshare 1.54in V2 Monochrome EPD (SSD1681)",
+    "controller": "Solomon Systech SSD1681",
     "width_px": 200,
     "height_px": 200,
     "dpi": 188.15,

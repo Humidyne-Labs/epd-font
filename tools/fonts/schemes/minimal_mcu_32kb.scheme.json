@@ -1,23 +1,10 @@
 {
-  "schema_version": "1.0.20",
+  "schema_version": "1.0.21",
   "scheme_id": "minimal_mcu_32kb",
   "project_brand": "Humiditron Ultra-Compact MCU Scheme (< 32 KB Flash)",
   "description": "Minimal Flash footprint for constrained Cortex-M0+/M4 or ESP32-C3 targets.",
   "spdx_license": "MIT AND OFL-1.1",
-  "target_display": {
-    "panel": "128x64 OLED / Compact EPD",
-    "width_px": 128,
-    "height_px": 64,
-    "dpi": 188.15,
-    "safe_margin_px": 2,
-    "usable_width_px": 124,
-    "color_depth_bpp": 1,
-    "lvgl_color_format": "LV_COLOR_FORMAT_I1",
-    "target_partition_bytes": 3145728,
-    "target_soc": "ESP32-S3-N8R8",
-    "chip_name": "ESP32-S3-N8R8",
-    "partition_1": "3 MBytes"
-  },
+  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
     "raster_mode": "raw-hinted",
     "normal_weight": 500,
@@ -534,6 +521,5 @@
       "kerning": false,
       "fallback": null
     }
-  ],
-  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json"
+  ]
 }

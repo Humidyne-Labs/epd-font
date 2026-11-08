@@ -35,16 +35,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
-import shutil
-import sys
-import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from fontTools.ttLib import TTFont
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 MASTER_FAMILIES_SPEC = [
     {
@@ -314,7 +310,7 @@ def build_char_manifest_for_spec(
     by_name = {name: hex_cp for hex_cp, name in sorted(by_codepoint.items(), key=lambda x: x[1])}
 
     manifest_payload = {
-        "manifest_schema": "epd-font-char-manifest-v1.0.20",
+        "manifest_schema": "epd-font-char-manifest-v1.0.21",
         "generator": f"tools/fonts/generate_char_manifests.py (v{TOOL_VERSION})",
         "family_id": fam_id,
         "upstream_name": spec["upstream_name"],

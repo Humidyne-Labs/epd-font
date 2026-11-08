@@ -7,9 +7,9 @@
     "Humiditron (https://github.com/humiditron)",
     "AI/LLM Collaborative Development Partner"
   ],
-  "version": "1.0.20",
-  "release_archive_tag": "v1.0.20",
-  "previous_version": "1.0.19c",
+  "version": "1.0.21",
+  "release_archive_tag": "v1.0.21",
+  "previous_version": "1.0.20",
   "release_date": "2026-11-08",
   "repository_license": "MIT",
   "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
@@ -34,7 +34,6 @@
   "root_patch_manifest": "font_icon_epd_patches.json",
   "hardware_schemes": [
     "esp32s3-N8R8-hw_scheme.json",
-    "genaric_hw.json",
     "generic_hw.json"
   ],
   "naming_scheme": {
@@ -58,7 +57,7 @@
     "audits": "build/audits",
     "ascii_patches": "build/<workflow>/ascii_patches",
     "debug_stages": "build/<workflow>/debug_stages",
-    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.20.zip"
+    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.21.zip"
   },
   "target_hardware": {
     "chip_name": "ESP32-S3-N8R8",
@@ -68,7 +67,7 @@
   },
   "static_ttf_count": 113,
   "patch_count": 0,
-  "codename": "Nine-Pipeline Multi-Device 3D OpenCL & 75% Shared GPU RAM Edition",
+  "codename": "Nine-Pipeline Public Release, Single-Source Hardware Config & 75% Shared GPU RAM Edition",
   "target_display_dpi": 188.15,
   "math_backends": [
     "tools/fonts/math_backends/opencl_kernels.py (PyOpenCL 3D NDRange GPU/CPU + 75% Shared GPU RAM Arena + 1+JFA Marching Squares)",

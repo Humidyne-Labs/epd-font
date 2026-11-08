@@ -3,8 +3,9 @@ setlocal
 cd /d "%~dp0..\.."
 
 echo ============================================================================
-echo [Font-Eval 02] Humidyne Labs - Humiditron epd-font v1.0.20
-echo                External Font Directory 8-Pipeline Evaluation
+echo [Font-Eval 02] Humidyne Labs - Humiditron epd-font v1.0.21
+echo                External Font Directory 9-Pipeline Evaluation
+echo                HW Config : esp32s3-N8R8-hw_scheme.json
 echo ============================================================================
 
 if "%~1"=="" (
@@ -17,6 +18,7 @@ set "EVAL_DIR=%~1"
 shift
 
 python tools\fonts\humid1_font_eval.py ^
+    --hw-scheme esp32s3-N8R8-hw_scheme.json ^
     --src-dir "%EVAL_DIR%" ^
     --out-dir build\evals\external_fonts ^
     --sizes 10 12 14 16 20 24 ^
@@ -27,6 +29,6 @@ if %ERRORLEVEL% neq 0 (
     exit /b %ERRORLEVEL%
 )
 
-echo [+] Per-font 8-pipeline evaluation PNG sheets generated in build\evals\external_fonts\sheets\.
+echo [+] Per-font 9-pipeline evaluation PNG sheets generated in build\evals\external_fonts\sheets\.
 echo [+] Master comparison sheet and reports generated in build\evals\external_fonts\.
 exit /b 0

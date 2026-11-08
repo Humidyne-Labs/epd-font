@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-hw_dispatch.py (v1.0.20)
+hw_dispatch.py (v1.0.21)
 ========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -8,7 +8,7 @@ Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Par
 License    : MIT License
 
 Multi-Device Hardware Capability Check, 3D NDRange GPU/CPU Dispatcher, 75% Shared RAM Arena &
-Deterministic Teardown (`v1.0.20`):
+Deterministic Teardown (`v1.0.21`):
   - Enumerates all available OpenCL platforms and devices (e.g., `[0] Ellesmere (GPU - 32 CUs)` and
     `[1] AMD Ryzen 5 5600G with Radeon Graphics (CPU - 12 CUs)` installed via Intel CPU Runtime for OpenCL).
   - Enforces Single-Owner GPU Context isolation (`EPD_FONT_WORKER_ROLE="cpu"` in child CPU workers) so
@@ -54,7 +54,7 @@ from .opencl_kernels import (
 )
 from .umat_math import is_opencv_umat_opencl_active, umat_median_blur, umat_morphology_close
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 
 @dataclass

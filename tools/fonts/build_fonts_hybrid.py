@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_fonts_hybrid.py (v1.0.20)
+build_fonts_hybrid.py (v1.0.21)
 ==============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -31,7 +31,7 @@ from opencl_dispatcher import describe_hybrid_dispatch_plan, get_devices
 def main() -> None:
     gpu_dev, cpu_dev, devs = get_devices()
     print("============================================================================")
-    print("[*] Hybrid OpenCL + Multi-Core CPU Hardware Dispatch Inventory (v1.0.20):")
+    print("[*] Hybrid OpenCL + Multi-Core CPU Hardware Dispatch Inventory (v1.0.21):")
     if devs:
         for d in devs:
             print(

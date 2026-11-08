@@ -2,19 +2,19 @@
 name: scheme-and-patch-workflow
 description: Customize declarative JSON font schemes, dump/apply Full-Canvas 1:1 ASCII patches, and build dist bundles.
 ---
-# Declarative JSON Scheme & Root Patch Workflow
+# Declarative JSON Scheme & Root Patch Workflow (`epd-font` v1.0.21)
 
-1. **Inventory Available Fonts & Schemes**:
+1. **Inventory Available Fonts, Hardware Configs & Schemes**:
    ```bash
    python tools/agent/tools/font_catalog_info.py
    ```
 2. **Build Static TTFs & Metadata into `build/`**:
    ```bash
-   python tools/fonts/build_static_ttf_assets.py --verify
+   python tools/fonts/build_static_ttf_assets.py --src-dir assets --out-dir build/static_ttfs --meta-out-dir build/metadata --verify
    ```
 3. **Dump Editable 1:1 ASCII Patches into `build/<target>/ascii_patches/`**:
    ```bash
-   python tools/fonts/humid1_generate_1bpp.py --workflow patch --dump --scheme tools/fonts/schemes/humid1_reference.scheme.json --out-dir build/default
+   python tools/fonts/humid1_generate_1bpp.py --workflow patch --dump --hw-scheme esp32s3-N8R8-hw_scheme.json --scheme tools/fonts/schemes/humid1_reference.scheme.json --src-dir build/static_ttfs --out-dir build/default --ascii-dir build/default/ascii_patches --patches font_icon_epd_patches.json
    ```
 4. **Compile Modified ASCII Patches into Root `font_icon_epd_patches.json`**:
    ```bash

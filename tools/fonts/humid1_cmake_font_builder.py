@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_cmake_font_builder.py (v1.0.20)
+humid1_cmake_font_builder.py (v1.0.21)
 ======================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -22,7 +22,6 @@ ESP-IDF & CMake Integration Python Script for Embedded Displays:
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +44,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument("-S", "--scheme", type=str, required=True, help="Path to declarative .scheme.json file (required)")
+    parser.add_argument("-H", "--hw-scheme", type=str, default=None, help="Optional path to target hardware scheme JSON (e.g. esp32s3-N8R8-hw_scheme.json or generic_hw.json)")
     parser.add_argument("-o", "--out-dir", type=str, required=True, help="Output directory for generated LVGL .c/.h files (required)")
     parser.add_argument("-v", "--vault", type=str, default=None, help="Optional path to pre-rasterized humid1_epd_vault.json.gz (fast zero-dependency mode)")
     parser.add_argument("-s", "--src-dir", type=str, default=None, help="Optional path to font directory for direct conversion mode")
@@ -91,6 +91,8 @@ def main() -> None:
             "--vault", str(vault_path),
             "--out-dir", str(out_dir),
         ]
+        if args.hw_scheme:
+            cmd.extend(["--hw-scheme", str(require_valid_path(args.hw_scheme, "--hw-scheme", must_exist=True, expect_dir=False))])
         if args.ascii_dir:
             cmd.extend(["--ascii-dir", str(require_valid_path(args.ascii_dir, "--ascii-dir", must_exist=True, expect_dir=True))])
         if args.sizes:
@@ -110,6 +112,8 @@ def main() -> None:
         ]
         if args.patches:
             cmd.extend(["--patches", str(require_valid_path(args.patches, "--patches", must_exist=True, expect_dir=False))])
+        if args.hw_scheme:
+            cmd.extend(["--hw-scheme", str(require_valid_path(args.hw_scheme, "--hw-scheme", must_exist=True, expect_dir=False))])
         if args.ascii_dir:
             cmd.extend(["--ascii-dir", str(require_valid_path(args.ascii_dir, "--ascii-dir", must_exist=True, expect_dir=True))])
         if args.sizes:

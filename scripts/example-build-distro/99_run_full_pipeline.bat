@@ -3,8 +3,10 @@ setlocal
 set EPD_NO_PAUSE=1
 cd /d "%~dp0"
 echo ============================================================================
-echo [99] Humidyne Labs - Humiditron epd-font v1.0.20 - Full End-to-End Pipeline
-echo      Workflow : General Embedded Display Example Workflow
+echo [99] Humidyne Labs - Humiditron epd-font v1.0.21 - Full End-to-End Pipeline
+echo      Workflow   : General Embedded Display Example Distribution Workflow
+echo      HW Config  : generic_hw.json
+echo      Scheme     : scripts\example-build-distro\example.scheme.json
 echo ============================================================================
 call 01_build_static_ttfs.bat
 if errorlevel 1 exit /b 1
@@ -19,8 +21,8 @@ if errorlevel 1 exit /b 1
 call 07_package_distro.bat
 if errorlevel 1 exit /b 1
 echo ============================================================================
-echo [+] Full v1.0.20 pipeline completed!
+echo [+] Full v1.0.21 pipeline completed!
 echo     Build Output : build\example\
-echo     Dist Bundle  : dist\example_distro\ (and dist\epd-font_example_v1.0.20.zip)
+echo     Dist Bundle  : dist\example_distro\ (and dist\epd-font_example_v1.0.21.zip)
 echo ============================================================================
 if "%EPD_CI%"=="" pause

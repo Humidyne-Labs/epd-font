@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-string_info.py (v1.0.20) — Agent-First Deterministic String Layout & Screen Budget Calculator
+string_info.py (v1.0.21) — Agent-First Deterministic String Layout & Screen Budget Calculator
 ============================================================================================
 Computes exact LVGL v9 1-bpp pixel width, kerning adjustments, bounding height, line wrapping,
 and horizontal screen clearance (`usable_width = screen_width - 2 * safe_margin`) for any string
@@ -92,8 +92,9 @@ def main() -> None:
     parser.add_argument("--text", "-t", type=str, required=True, help="Text string to measure")
     parser.add_argument("--right-text", "-r", type=str, default=None, help="Optional right-aligned telemetry string on the same row")
     parser.add_argument("--right-strike", type=str, default=None, help="Optional strike symbol for --right-text (default: same as --strike)")
-    parser.add_argument("--screen-width", type=int, default=200, help="Target screen width in pixels (default: 200)")
-    parser.add_argument("--safe-margin", type=int, default=6, help="Safe margin on each side in pixels (default: 6)")
+    parser.add_argument("-H", "--hw-scheme", type=str, default="esp32s3-N8R8-hw_scheme.json", help="Target hardware scheme JSON (default: esp32s3-N8R8-hw_scheme.json)")
+    parser.add_argument("--screen-width", type=int, default=None, help="Target screen width override in pixels (default: from --hw-scheme)")
+    parser.add_argument("--safe-margin", type=int, default=None, help="Safe margin override in pixels (default: from --hw-scheme)")
     parser.add_argument("--min-gap", type=int, default=8, help="Minimum required pixel gap between left and right text (default: 8)")
     parser.add_argument("--vault", "-v", type=str, default=None, help="Optional path to humid1_epd_vault.json.gz")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
@@ -129,7 +130,15 @@ def main() -> None:
             sys.exit(1)
         right_w, right_bd = measure_string_exact(args.right_text, strikes[r_strike_name], fb_strike)
 
-    usable_w = args.screen_width - (2 * args.safe_margin)
+    hw_disp = {"width_px": 200, "safe_margin_px": 6}
+    hw_cand = Path(args.hw_scheme) if Path(args.hw_scheme).is_absolute() else (repo_root / args.hw_scheme)
+    if hw_cand.is_file():
+        hw_disp = json.loads(hw_cand.read_text(encoding="utf-8")).get("display", hw_disp)
+    eff_screen_w = int(args.screen_width if args.screen_width is not None else hw_disp.get("width_px", 200))
+    eff_safe_m = int(args.safe_margin if args.safe_margin is not None else hw_disp.get("safe_margin_px", 6))
+    args.screen_width = eff_screen_w
+    args.safe_margin = eff_safe_m
+    usable_w = eff_screen_w - (2 * eff_safe_m)
     combined_w = left_w + right_w
     clearance_px = usable_w - combined_w
     needed_gap = args.min_gap if args.right_text else 0

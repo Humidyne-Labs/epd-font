@@ -1,23 +1,10 @@
 {
-  "schema_version": "1.0.20",
+  "schema_version": "1.0.21",
   "scheme_id": "full_audit_10_40px_step2",
   "project_brand": "Humidyne Labs / Humiditron Complete 10px-40px (Step 2px) Audit & Distribution Suite",
   "description": "Exhaustive 10px-40px (step size 2px) audit build across all text families (IBM Plex, Google Noto, Terminus) and all 4 icon suites (Font Awesome 7, Lucide, Phosphor, Tabler) evaluating all 8 bilevel resolution-reduction pipelines (raw-unhinted, raw-hinted, svg-potrace, mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive).",
   "spdx_license": "MIT AND OFL-1.1",
-  "target_display": {
-    "panel": "Humiditron Universal Monochrome EPD / LCD Audit Target",
-    "width_px": 200,
-    "height_px": 200,
-    "dpi": 188.15,
-    "safe_margin_px": 6,
-    "usable_width_px": 188,
-    "color_depth_bpp": 1,
-    "lvgl_color_format": "LV_COLOR_FORMAT_I1",
-    "target_partition_bytes": 3145728,
-    "target_soc": "ESP32-S3-N8R8",
-    "chip_name": "ESP32-S3-N8R8",
-    "partition_1": "3 MBytes"
-  },
+  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
     "raster_mode": "raw-hinted",
     "normal_weight": 500,
@@ -1173,6 +1160,5 @@
       "kerning": true,
       "fallback": "humid1_font_plex_serif_normal_{size}"
     }
-  ],
-  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json"
+  ]
 }

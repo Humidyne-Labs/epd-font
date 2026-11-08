@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ft_raster.py (v1.0.20)
+humid1_ft_raster.py (v1.0.21)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -31,26 +31,17 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from fontTools.ttLib import TTFont, TTLibFileIsCollectionError
 
 from humid1_bilevel_pipelines import (
-    CANONICAL_PIPELINES,
-    FT_LOAD_FORCE_AUTOHINT,
-    FT_LOAD_MONOCHROME,
-    FT_LOAD_NO_AUTOHINT,
-    FT_LOAD_NO_HINTING,
-    FT_LOAD_RENDER,
-    FT_LOAD_TARGET_LIGHT,
-    FT_LOAD_TARGET_MONO,
-    FT_LOAD_TARGET_NORMAL,
-    FT_PIXEL_MODE_GRAY,
-    FT_PIXEL_MODE_MONO,
+    binary_array_to_rows,
     normalize_pipeline_name,
     render_glyph_via_pipeline,
     save_debug_stage_artifacts,
+    trim_binary_array,
 )
 from humid1_runtime import resolve_font_file_recursive
 
 logging.getLogger("fontTools").setLevel(logging.ERROR)
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 
 def _convert_bdf_to_cached_ttf(bdf_path: Path) -> Path:
@@ -85,7 +76,7 @@ def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = F
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.20 `humid1_` symbol naming convention:
+    Canonical v1.0.21 `humid1_` symbol naming convention:
       - Core UI/Telemetry families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Explicit Noto families (noto_sans, noto_cond, noto_mono, noto_serif, noto_math) -> humid1_font_<family>_<role>_<size>
       - Explicit Plex families (plex_sans, plex_cond, plex_mono, plex_serif, plex_math) -> humid1_font_<family>_<role>_<size>
@@ -575,16 +566,6 @@ def extract_kerning_pairs_from_meta(
     ]
 
 
-def resolve_freetype_flags(raster_mode: str, size_px: int) -> int:
-    """Resolve FreeType load flags for direct FreeType rasterization modes."""
-    rm = normalize_pipeline_name(raster_mode)
-    if rm == "exact-mono":
-        return FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME
-    if rm == "raw-unhinted":
-        return FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_NORMAL
-    return FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL
-
-
 HOMOGLYPH_EQUIVALENTS: Dict[int, List[int]] = {
     0x0394: [0x2206],        # Greek Capital Delta <-> Math Increment
     0x2206: [0x0394],
@@ -661,7 +642,7 @@ def rasterize_font_strike(
     verbose: bool = False,
 ) -> Tuple[List[GlyphStrike], int, int, int, int, List[Tuple[int, int, int, int, int]]]:
     """
-    Rasterize a 1-bpp font strike using one of the 8 v1.0.20 resolution-reduction conversion pipelines
+    Rasterize a 1-bpp font strike using one of the 8 v1.0.21 resolution-reduction conversion pipelines
     (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `mdf`, `msdf`, `sdf-smoothstep`, `adf-biquadratic`,
     `otsu-adaptive`, or `exact-mono`) with linear grayscale conversion and optional gamma factor.
     """
@@ -762,22 +743,9 @@ def rasterize_font_strike(
             )
             debug_emitted_count += 1
 
-        raw_h, raw_w = bw_arr.shape if bw_arr.size > 0 else (0, 0)
-        raw_rows = ["".join("#" if bw_arr[r, c] else "." for c in range(raw_w)) for r in range(raw_h)]
-
-        non_empty_r = [i for i, r in enumerate(raw_rows) if "#" in r]
-        if not non_empty_r:
-            box_w, box_h, ofs_x, ofs_y, trimmed_rows = 0, 0, 0, 0, []
-        else:
-            r0, r1 = min(non_empty_r), max(non_empty_r)
-            trimmed_rows = raw_rows[r0 : r1 + 1]
-            non_empty_c = [c for c in range(len(trimmed_rows[0])) if any(row[c] == "#" for row in trimmed_rows)]
-            c0, c1 = min(non_empty_c), max(non_empty_c)
-            trimmed_rows = [row[c0 : c1 + 1] for row in trimmed_rows]
-            box_w = len(trimmed_rows[0])
-            box_h = len(trimmed_rows)
-            ofs_x = b_left + c0
-            ofs_y = (b_top - raw_h) + (raw_h - 1 - r1)
+        raw_h = int(bw_arr.shape[0]) if bw_arr.size > 0 else 0
+        cropped_arr, box_w, box_h, ofs_x, ofs_y = trim_binary_array(bw_arr, b_left, b_top - raw_h)
+        trimmed_rows = binary_array_to_rows(cropped_arr)
 
         is_patched = False
         hex_key = f"0x{code:04X}"

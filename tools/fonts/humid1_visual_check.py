@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_visual_check.py (v1.0.20)
+humid1_visual_check.py (v1.0.21)
 ================================
 Humidyne Labs / Humiditron `epd-font` Visual Diagnostic Inspection Sheet,
 Multi-Method Comparison Sheet, Single-Character Blueprint & 188.15 DPI E-Ink Specimen Renderer Module.
@@ -22,7 +22,7 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 _UI_FONTS_CACHE: Dict[str, dict] = {}
 

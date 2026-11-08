@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-umat_math.py (v1.0.20)
+umat_math.py (v1.0.21)
 ======================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-OpenCV Transparent API (`cv2.UMat` OpenCL) Secondary GPU Math Backend (v1.0.20):
+OpenCV Transparent API (`cv2.UMat` OpenCL) Secondary GPU Math Backend (v1.0.21):
 Accelerates morphological operations, median filtering, and distance-field resizing
 via OpenCV's `cv2.UMat` OpenCL transparent queue when `pyopencl` is not installed
 but `cv2.ocl.useOpenCL()` is active, with worker-role isolation so CPU workers
@@ -21,15 +21,7 @@ import os
 import cv2
 import numpy as np
 
-from .cpu_math import (
-    eval_adf_biquadratic_cpu,
-    eval_msdf_median3_reconstruct_cpu,
-    eval_otsu_linear_threshold_cpu,
-    eval_sdf_smoothstep_cpu,
-    eval_srgb_to_linear_grayscale_cpu,
-)
-
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 
 def is_opencv_umat_opencl_active() -> bool:

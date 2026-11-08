@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.20)
+humid1_generate_1bpp.py (v1.0.21)
 =================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Modular 1-BPP Font & Asset Pipeline Orchestrator (v1.0.20):
+Modular 1-BPP Font & Asset Pipeline Orchestrator (v1.0.21):
   - Nine selectable resolution-reduction bilevel conversion methods (`--pipeline` / `--raster-mode`):
       1. `raw-unhinted`    : Raw Threshold without Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
       2. `raw-hinted`      : Raw Threshold with Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
@@ -22,7 +22,7 @@ Modular 1-BPP Font & Asset Pipeline Orchestrator (v1.0.20):
       *  `all`            : Run every offered conversion method and dump per-method sheets/chars when enabled
       *  `all-debug`      : Run every offered conversion method with `sheet_debug=true` and `char_debug=true`
   - Strict `char_debug` and `sheet_debug` boolean gating (`false` disables char/sheet PNG generation)
-  - Strict Target Hardware Scheme validation (`esp32s3-N8R8-hw_scheme.json` & `genaric_hw.json`, 3 MByte partition, zero hard defaults)
+  - Strict Target Hardware Scheme validation (`esp32s3-N8R8-hw_scheme.json` & `generic_hw.json`, 3 MByte partition, zero hard defaults)
   - Manual Closed-Loop ASCII Patching Workflow & LVGL >= 9.6.0 Validated Fallback Font Pointers.
 """
 
@@ -45,7 +45,7 @@ from humid1_ascii_patches import (
     build_patches_json_from_ascii_root,
     dump_strike_to_ascii_folder,
 )
-from math_backends import describe_math_backend, select_math_backend, teardown_math_backends
+from math_backends import select_math_backend, teardown_math_backends
 from opencl_dispatcher import describe_hybrid_dispatch_plan
 from humid1_bilevel_pipelines import (
     CANONICAL_PIPELINES,
@@ -442,7 +442,7 @@ Nine Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
             "  patch      : Dump (--dump) or compile (--apply) Full-Canvas 1:1 ASCII .txt glyph patches\n"
             "  check      : Render Page Check PNGs, Char-by-Char Blueprint PNGs & 200x200 screen audit\n"
             "  build      : Emit LVGL >= 9.6.0 1-bpp .c/.h files, BDFs, CSV metrics & Strike Vault\n"
-            "  audit      : Ingest audit scheme, evaluate all 8 pipelines, and generate all assets\n"
+            "  audit      : Ingest audit scheme, evaluate all 9 pipelines, and generate all assets\n"
             "  all        : Run gen-assets -> patch -> build -> check in sequence"
         ),
     )
@@ -456,7 +456,7 @@ Nine Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
         "-H", "--hw-scheme",
         type=str,
         default=None,
-        help="Path to target hardware scheme JSON (e.g. esp32s3-N8R8-hw_scheme.json or genaric_hw.json)",
+        help="Path to target hardware scheme JSON (e.g. esp32s3-N8R8-hw_scheme.json or generic_hw.json)",
     )
     parser.add_argument(
         "-s", "--src-dir",
@@ -665,7 +665,7 @@ Nine Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
     parser.add_argument(
         "--debug-stages",
         action="store_true",
-        help="Emit intermediate stage debug images (10x linear gray, 10x binary, Potrace .svg, MSDF RGB, 8-pipeline grid) to <out-dir>/debug_stages/",
+        help="Emit intermediate stage debug images (10x linear gray, 10x binary, Potrace .svg, MSDF RGB, 9-pipeline grid) to <out-dir>/debug_stages/",
     )
     parser.add_argument(
         "-j", "--jobs",
@@ -1386,7 +1386,7 @@ def main() -> None:
         hdr_cols = " | ".join(f"`{pm}` (Stem / >=2px / Cnt)" for pm in CANONICAL_PIPELINES)
         sep_cols = " | ".join(":---" for _ in CANONICAL_PIPELINES)
         md_lines = [
-            f"# 8-Pipeline Resolution-Reduction Bilevel Conversion Audit Summary (`epd-font` v{TOOL_VERSION})",
+            f"# 9-Pipeline Resolution-Reduction Bilevel Conversion Audit Summary (`epd-font` v{TOOL_VERSION})",
             "",
             f"- **Scheme**: `{scheme_path.name}`",
             f"- **Hardware Scheme**: `{hw_spec.hw_scheme_id}` (`{hw_spec.chip_name}`, `partition_1 = {hw_spec.partition_1}`)",
@@ -1402,10 +1402,10 @@ def main() -> None:
                 cells.append(f"`{st.get('mean_stem_px', 0):.2f}px` / `{st.get('stem_2px_pct', 0):.1f}%` / `{st.get('counter_pct', 0):.1f}%`")
             md_lines.append(f"| `{s_sym}` | `{s_sz}px` | {' | '.join(cells)} |")
         md_body = "\n".join(md_lines) + "\n"
-        aud_file = aud_dir / "audit_8_pipelines_summary.md"
+        aud_file = aud_dir / "audit_9_pipelines_summary.md"
         aud_file.write_text(md_body, encoding="utf-8")
-        (aud_dir / "audit_4_pipelines_summary.md").write_text(md_body, encoding="utf-8")
-        print(f"[+] Generated 8-Pipeline Resolution-Reduction Audit Summary -> {aud_file}")
+        (aud_dir / "audit_8_pipelines_summary.md").write_text(md_body, encoding="utf-8")
+        print(f"[+] Generated 9-Pipeline Resolution-Reduction Audit Summary -> {aud_file}")
 
     if do_build_c:
         generate_headers(c_out_dir, compiled_symbols, scheme_cfg=scheme_cfg)

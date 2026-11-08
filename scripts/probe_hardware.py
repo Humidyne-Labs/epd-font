@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/probe_hardware.py (v1.0.20)
+scripts/probe_hardware.py (v1.0.21)
 ==================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font

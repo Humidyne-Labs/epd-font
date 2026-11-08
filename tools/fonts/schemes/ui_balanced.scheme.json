@@ -1,23 +1,10 @@
 {
-  "schema_version": "1.0.20",
+  "schema_version": "1.0.21",
   "scheme_id": "ui_balanced",
   "project_brand": "Humiditron General Embedded GUI Balanced Scheme",
   "description": "Balanced UI typography scheme (IBM Plex Sans 12-24px + Mono 14-20px + Lucide UI icons).",
   "spdx_license": "MIT AND OFL-1.1",
-  "target_display": {
-    "panel": "Monochrome 1-BPP Display",
-    "width_px": 200,
-    "height_px": 200,
-    "dpi": 188.15,
-    "safe_margin_px": 6,
-    "usable_width_px": 188,
-    "color_depth_bpp": 1,
-    "lvgl_color_format": "LV_COLOR_FORMAT_I1",
-    "target_partition_bytes": 3145728,
-    "target_soc": "ESP32-S3-N8R8",
-    "chip_name": "ESP32-S3-N8R8",
-    "partition_1": "3 MBytes"
-  },
+  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
     "raster_mode": "raw-hinted",
     "normal_weight": 500,
@@ -575,6 +562,5 @@
       "kerning": false,
       "fallback": "humid1_font_plex_sans_bold_{size}"
     }
-  ],
-  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json"
+  ]
 }

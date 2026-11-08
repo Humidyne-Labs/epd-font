@@ -1,14 +1,14 @@
-# Complete How-To Guide — `epd-font` (v1.0.20)
+# Complete How-To Guide — `epd-font` (v1.0.21)
 
 - **Project**: A 1-bit EPD font generator and asset pipeline for embedded displays
-- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.20`)
+- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.21`)
 - **Authors**: [Humiditron](https://github.com/humiditron) (Humidyne Labs) & AI/LLM Collaborative Development Partner
 - **Supported Platforms**: Windows (Primary) and Linux (Optional). *(Note: unsupported Apple OS is not supported.)*
 - **License**: MIT License (Pipeline & Tooling) / SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT (Upstream Fonts)
 
 ## 1. Host Prerequisites & Dependency Installation
 
-`epd-font` v1.0.20 supports two operational modes:
+`epd-font` v1.0.21 supports two operational modes:
 1. **Full Pipeline & Asset Builder (`build_static_ttf_assets.py`, `humid1_generate_1bpp.py`, `humid1_font_eval.py`)**: Requires Python 3.9+, `fonttools`, `Pillow`, `numpy`, `opencv-python`, and `freetype-py` (`freetype.dll` on Windows or `libfreetype.so.6` on Linux).
 2. **Downstream Firmware / CMake Vault Emitter (`humid1_fw_emit.py`)**: Requires **ONLY** the standard Python 3 library (`0` third-party packages, `< 0.15s` execution time).
 
@@ -39,9 +39,9 @@ Pass `--pipeline <method>` (or set `"pipeline"` inside `"raster_config"` in your
   - Per-method full character sheets in `build/<workflow>/inspect_pages/<method>/<symbol>.png`
   - Side-by-side 8-method visual comparison sheets in `build/<workflow>/inspect_pages/compare_methods/<symbol>_all_methods.png`
 
-## 3. Hardware Partition Schemes (`esp32s3-N8R8-hw_scheme.json` & `genaric_hw.json`)
+## 3. Hardware Partition Schemes (`esp32s3-N8R8-hw_scheme.json` & `generic_hw.json`)
 
-Every `.scheme.json` references a hardware scheme (`"hardware_scheme": "esp32s3-N8R8-hw_scheme.json"` or `"genaric_hw.json"`) and specifies the single `3 MByte` (`3,145,728` bytes) partition constraint:
+Every `.scheme.json` references a hardware scheme (`"hardware_scheme": "esp32s3-N8R8-hw_scheme.json"` or `"generic_hw.json"`) and specifies the single `3 MByte` (`3,145,728` bytes) partition constraint:
 ```json
 "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
 "target_display": {
@@ -50,11 +50,11 @@ Every `.scheme.json` references a hardware scheme (`"hardware_scheme": "esp32s3-
   "target_partition_bytes": 3145728
 }
 ```
-All hardcoded partition fallback defaults have been removed in `v1.0.20`: if `"partition_1"` / `"target_partition_bytes"` is removed or does not equal `3 MBytes` (`3,145,728` bytes), the generator immediately exits with a descriptive configuration error.
+All hardcoded partition fallback defaults have been removed in `v1.0.21`: if `"partition_1"` / `"target_partition_bytes"` is removed or does not equal `3 MBytes` (`3,145,728` bytes), the generator immediately exits with a descriptive configuration error.
 
 ## 4. Closed-Loop Manual ASCII Patching Workflow
 
-In `v1.0.20`, all pixel-level modifications are controlled directly by the developer:
+In `v1.0.21`, all pixel-level modifications are controlled directly by the developer:
 1. **Step 1 — Generate Static Assets**: Run `01_build_static_ttfs.bat` and `02_build_fonts.bat` to generate static `.ttf` binaries and baseline `.c`/`.h` font strikes using `font_icon_epd_patches.json`.
 2. **Step 2 — Dump Visual Inspection PNGs**: Run `03_visual_check_pngs.bat` (`--sheet-debug`) to render per-strike character map sheets (`build/<workflow>/inspect_pages/*.png`) and `master_char_icon_map.png`.
 3. **Step 3 — Dump Editable ASCII Files**: Run `04_dump_ascii_patches.bat` (`--workflow patch --dump`) to export Full-Canvas `1:1` Spaced ASCII `.txt` files into `build/<workflow>/ascii_patches/<strike>/`.

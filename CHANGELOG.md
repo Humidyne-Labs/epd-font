@@ -2,6 +2,23 @@
 
 All notable changes to the `epd-font` repository ([Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)) designed and developed by [Humiditron](https://github.com/humiditron) and the AI/LLM Collaborative Development Partner are documented in this file.
 
+## [v1.0.21] — 2026-11-08
+
+### Changed
+- **Single-Source-of-Truth Hardware & Display Configuration (`esp32s3-N8R8-hw_scheme.json`, `generic_hw.json`, All 20 `.scheme.json` Files)**:
+  - Removed the redundant 13-line `"target_display"` dictionary from all 20 `.scheme.json` files (`scripts/h1os-build-distro/h1os_full.scheme.json`, `h1os_lite.scheme.json`, `scripts/example-build-distro/example.scheme.json`, `scripts/full-audit-build-distro/full_audit_distro.scheme.json`, and all 16 schemes in `tools/fonts/schemes/*.scheme.json`).
+  - Every `.scheme.json` now references its authoritative root hardware scheme (`"hardware_scheme": "esp32s3-N8R8-hw_scheme.json"` or `"generic_hw.json"`) at the top of the file, and `load_and_validate_hardware_scheme()` in `humid1_runtime.py`, `humid1_fw_emit.py`, `font_catalog_info.py`, and `string_info.py` resolve all MCU, `3 MByte` (`3,145,728` bytes) partition, and display (`200x200 @ 188.15 DPI`) attributes directly from the hardware config (or CLI `--hw-scheme <path>`).
+- **1-Click Windows `.bat` Launcher & CMake Argument Cohesion (`scripts/*/*.bat`, `humid1_cmake_font_builder.py`, `humid1_fw_emit.py`, `humid1_font_eval.py`, `epd_font_esp_idf.cmake`)**:
+  - Updated all 29 Windows 1-click `.bat` launchers (`scripts/h1os-build-distro/`, `scripts/example-build-distro/`, `scripts/full-audit-build-distro/`, and `scripts/font-eval-suite/`) to pass explicit `--hw-scheme`, `--scheme`, `--src-dir`, `--out-dir`, `--dist-dir`, and `--patches` arguments matching each script's exact workflow scope (`--workflow audit` in `full-audit-build-distro/03_visual_check_pngs.bat`, `--hw-scheme generic_hw.json` in `example-build-distro/`, and `--hw-scheme esp32s3-N8R8-hw_scheme.json` in `h1os-build-distro/` and `font-eval-suite/`).
+  - Added `-H` / `--hw-scheme` (`HW_SCHEME` in CMake) across `humid1_fw_emit.py`, `humid1_cmake_font_builder.py`, `humid1_package_distro.py`, `humid1_font_eval.py`, `string_info.py`, and `epd_font_esp_idf.cmake`.
+
+### Fixed
+- **Spelling, Filename Case Normalization, Unused Code & AST Cohesion Audit (`PRE_AUDIT_REPORT_v1.0.20.md`, `POST_AUDIT_REPORT_v1.0.21.md`)**:
+  - Removed the misspelled duplicate `genaric_hw.json` file and corrected `"hw_scheme_id": "generic_hw"` inside `generic_hw.json` (retaining a transparent fallback in `load_and_validate_hardware_scheme()` if an external script passes `genaric_hw.json`).
+  - Wired `dispatch_median_blur`, `dispatch_morphology_close`, and `dispatch_msdf_median3_reconstruct` into `compute_mdf_bilevel_bitmap()` and `compute_msdf_bilevel_bitmap()` in `humid1_bilevel_pipelines.py`, deduplicated `trim_binary_array()` and `binary_array_to_rows()` in `humid1_ft_raster.py`, and removed all unused imports and dead functions (`0` unused imports and `0` dead definitions across all 26 Python modules).
+  - Removed the duplicate `docs/LEGACY_METHODOLOGY_v1.0.17.md`, moved `docs/humid1-audit-v1.0.20.md` to `docs/audits/notes/humid1-audit-v1.0.20.md`, and normalized `docs/audits/H1OS_FONT_STRATEGY_REPORT_v1.0.16.md`.
+  - Fixed `SharedHostMemoryArena.budget_bytes` attribute parity and suppressed Intel OpenCL `CompilerWarning` noise in `scripts/check_PyOpenCL.py` and `tools/fonts/math_backends/opencl_kernels.py`.
+
 ## [v1.0.20] — 2026-11-08
 
 ### Added

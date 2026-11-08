@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-char_info.py (v1.0.20) — Agent-First Deterministic Character & Icon Metric Inspector
+char_info.py (v1.0.21) — Agent-First Deterministic Character & Icon Metric Inspector
 ===================================================================================
 Queries exact 1-bpp glyph metrics (advance width, bounding box, bearing offsets,
 UTF-8 C literal, and 1:1 ASCII bitmap) from a compiled Strike Vault (`dist/*/*.json.gz`),
@@ -17,7 +17,7 @@ import gzip
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 
 def find_repo_root() -> Path:

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-cpu_math.py (v1.0.20)
+cpu_math.py (v1.0.21)
 =====================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Vectorized CPU (NumPy / OpenCV) Mathematical Backend (v1.0.20):
+Vectorized CPU (NumPy / OpenCV) Mathematical Backend (v1.0.21):
 Provides deterministic 1:1 CPU implementations of all mathematical kernels in
 `opencl_kernels.py` (including 2D and 3D batched arrays and a precomputed L1-cached
 256-entry `uint8` LUT for `gamma == 1.0` single-channel linearization):
@@ -29,7 +29,7 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 # Precomputed IEC 61966-2-1 sRGB [0..255] -> Linear [0.0..1.0] Lookup Table
 _SRGB_TO_LINEAR_LUT: np.ndarray = np.array(

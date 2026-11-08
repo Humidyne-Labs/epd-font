@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_fw_emit.py (v1.0.20)
+humid1_fw_emit.py (v1.0.21)
 ===========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
-import os
 import re
 import shutil
 import signal
@@ -31,7 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 
 def _install_sigint() -> None:
@@ -743,6 +742,12 @@ Examples:
         help="Path to declarative JSON font scheme (required)",
     )
     parser.add_argument(
+        "-H", "--hw-scheme",
+        type=str,
+        default=None,
+        help="Optional path to target hardware scheme JSON (e.g. esp32s3-N8R8-hw_scheme.json or generic_hw.json)",
+    )
+    parser.add_argument(
         "-v", "--vault",
         type=str,
         required=True,
@@ -996,22 +1001,27 @@ def main() -> None:
 
     generate_scheme_headers(out_dir, emitted_symbols, scheme)
 
-    # Validate hardware partition budget strictly from scheme or hardware_scheme (no hardcoded default)
-    td = scheme.get("target_display") or {}
-    part_bytes = td.get("target_partition_bytes")
-    chip_name = str(td.get("chip_name") or td.get("target_soc") or "").strip()
-    part_label = str(td.get("partition_1") or "").strip()
-    hw_ref = scheme.get("hardware_scheme")
+    # Validate hardware partition budget strictly from root hardware_scheme (or --hw-scheme override)
+    hw_ref = getattr(args, "hw_scheme", None) or scheme.get("hardware_scheme")
+    if isinstance(hw_ref, str) and hw_ref.strip().lower() == "genaric_hw.json":
+        hw_ref = "generic_hw.json"
+    part_bytes = None
+    chip_name = ""
+    part_label = ""
     if hw_ref:
-        for cand_hw in [scheme_path.parent / str(hw_ref), repo_root / str(hw_ref)]:
+        for cand_hw in [
+            Path(str(hw_ref)),
+            scheme_path.parent / str(hw_ref),
+            scheme_path.parent.parent / str(hw_ref),
+            vault_path.parent / str(hw_ref),
+            repo_root / str(hw_ref),
+        ]:
             if cand_hw.is_file():
                 hw_obj = json.loads(cand_hw.read_text(encoding="utf-8"))
                 hw_spec = hw_obj.get("hardware", hw_obj)
-                if not chip_name:
-                    chip_name = str(hw_spec.get("chip_name", "")).strip()
-                if not part_label:
-                    part_label = str(hw_spec.get("partition_1", "")).strip()
-                if part_bytes is None and "partition_1_bytes" in hw_spec:
+                chip_name = str(hw_spec.get("chip_name", "")).strip()
+                part_label = str(hw_spec.get("partition_1", "")).strip()
+                if "partition_1_bytes" in hw_spec:
                     part_bytes = int(hw_spec["partition_1_bytes"])
                 break
     if part_bytes is None and part_label:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.20)
+build_static_ttf_assets.py (v1.0.21)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -56,7 +56,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES
@@ -1030,7 +1030,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    from humid1_runtime import install_clean_signal_handlers, detect_host_hardware, collect_all_licenses_recursive
+    from humid1_runtime import install_clean_signal_handlers
     install_clean_signal_handlers()
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent

@@ -1,23 +1,10 @@
 {
-  "schema_version": "1.0.20",
+  "schema_version": "1.0.21",
   "scheme_id": "terminus_retro_terminal",
   "project_brand": "Humiditron Terminus v4.49.1 Crisp Console & Debug Terminal Scheme",
   "description": "Bit-exact Terminus bitmap-derived TrueType scheme for serial consoles, boot logs, and retro UIs.",
   "spdx_license": "MIT AND OFL-1.1",
-  "target_display": {
-    "panel": "2.9-inch 296x128 EPD Terminal",
-    "width_px": 296,
-    "height_px": 128,
-    "dpi": 188.15,
-    "safe_margin_px": 4,
-    "usable_width_px": 288,
-    "color_depth_bpp": 1,
-    "lvgl_color_format": "LV_COLOR_FORMAT_I1",
-    "target_partition_bytes": 3145728,
-    "target_soc": "ESP32-S3-N8R8",
-    "chip_name": "ESP32-S3-N8R8",
-    "partition_1": "3 MBytes"
-  },
+  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
     "raster_mode": "raw-hinted",
     "normal_weight": 500,
@@ -528,6 +515,5 @@
       "kerning": false,
       "fallback": "humid1_font_terminus_normal_{size}"
     }
-  ],
-  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json"
+  ]
 }

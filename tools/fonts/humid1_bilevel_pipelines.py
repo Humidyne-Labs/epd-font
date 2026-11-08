@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_pipelines.py (v1.0.20)
+humid1_bilevel_pipelines.py (v1.0.21)
 =====================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -39,9 +39,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from math_backends import (
-    describe_math_backend,
     dispatch_adf_biquadratic,
-    dispatch_bezier_sdf_yuksel,
     dispatch_jfa_marching_squares,
     dispatch_median_blur,
     dispatch_morphology_close,
@@ -50,10 +48,9 @@ from math_backends import (
     dispatch_sdf_smoothstep,
     dispatch_srgb_to_linear_grayscale,
     get_active_math_backend,
-    select_math_backend,
 )
 
-TOOL_VERSION = "1.0.20"
+TOOL_VERSION = "1.0.21"
 
 CANONICAL_PIPELINES: Tuple[str, ...] = (
     "raw-unhinted",
@@ -427,7 +424,7 @@ def compute_mdf_bilevel_bitmap(
         return empty, empty
 
     ksize = 3 if upscale < 10 else 5
-    filtered_gray = cv2.medianBlur(high_gray, ksize)
+    filtered_gray = dispatch_median_blur(high_gray, ksize)
     fg_mask = (filtered_gray >= 128).astype(np.uint8)
     bg_mask = 1 - fg_mask
 
@@ -441,8 +438,8 @@ def compute_mdf_bilevel_bitmap(
 
     h_kernel = np.ones((1, max(3, upscale // 3)), dtype=np.uint8)
     v_kernel = np.ones((max(3, upscale // 3), 1), dtype=np.uint8)
-    fg_h = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, h_kernel)
-    fg_v = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, v_kernel)
+    fg_h = dispatch_morphology_close(fg_mask, h_kernel)
+    fg_v = dispatch_morphology_close(fg_mask, v_kernel)
     sdf_h = (cv2.distanceTransform(fg_h, cv2.DIST_L2, 3) - cv2.distanceTransform(1 - fg_h, cv2.DIST_L2, 3)) / float(upscale)
     sdf_v = (cv2.distanceTransform(fg_v, cv2.DIST_L2, 3) - cv2.distanceTransform(1 - fg_v, cv2.DIST_L2, 3)) / float(upscale)
 
@@ -545,20 +542,9 @@ def compute_msdf_bilevel_bitmap(
     msdf_rgb_center = msdf_rgb_hi[np.ix_(center_r, center_c)]
     msdf_rgb_blend = np.round(0.55 * msdf_rgb_low.astype(np.float32) + 0.45 * msdf_rgb_center.astype(np.float32)).astype(np.uint8)
 
-    # Reconstruct signed distance via Chlumsky's median(R, G, B) operator
-    d_med_u8 = np.median(msdf_rgb_blend, axis=-1).astype(np.float32)
-    d_px = (d_med_u8 - 128.0) / 64.0
-
-    # Apply L2 gradient-normalized linearstep AA ramp (Boesch 2025) before binarization
-    dx = cv2.Sobel(d_px, cv2.CV_32F, 1, 0, ksize=3) / 8.0
-    dy = cv2.Sobel(d_px, cv2.CV_32F, 0, 1, ksize=3) / 8.0
-    w_grad = np.clip(np.hypot(dx, dy), 0.65, 1.50)
-
+    # Reconstruct signed distance via Chlumsky's median(R, G, B) operator + L2 gradient linearstep (Boesch 2025)
     eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
-    bias_px = (128.0 - float(eff_t)) / 64.0
-    cov_lin = np.clip((d_px + bias_px) / w_grad + 0.5, 0.0, 1.0)
-    field_u8 = np.clip(np.round(cov_lin * 255.0), 0.0, 255.0).astype(np.uint8)
-    bilevel = (cov_lin >= 0.5).astype(np.uint8)
+    bilevel, field_u8 = dispatch_msdf_median3_reconstruct(msdf_rgb_blend, threshold=eff_t)
     return bilevel, field_u8, msdf_rgb_blend
 
 

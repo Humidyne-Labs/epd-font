@@ -1,13 +1,13 @@
-# `epd-font` (v1.0.20) — A 1-bit EPD Font Generator and Asset Pipeline for Embedded Displays
+# `epd-font` (v1.0.21) — A 1-bit EPD Font Generator and Asset Pipeline for Embedded Displays
 
-[![Version](https://img.shields.io/badge/version-v1.0.20-blue.svg)](VERSION.json)
+[![Version](https://img.shields.io/badge/version-v1.0.21-blue.svg)](VERSION.json)
 [![Repository](https://img.shields.io/badge/github-Humidyne--Labs%2Fepd--font-181717.svg)](https://github.com/Humidyne-Labs/epd-font)
 [![Lead Developer](https://img.shields.io/badge/developer-Humiditron-0A66C2.svg)](https://github.com/humiditron)
 [![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL--1.1%20%2F%20ISC-green.svg)](LICENSE)
 
 **`epd-font`** is **A 1-bit EPD font generator and asset pipeline for embedded displays**, designed and developed collaboratively by **[Humiditron](https://github.com/humiditron)** (Humidyne Labs) and the **AI/LLM Collaborative Development Partner** for monochrome Electrophoretic Displays (EPD) such as the Waveshare 1.54" e-Paper V2 (`SSD1681` / `GDEY0154D67`, `200 × 200` pixels @ `188.15 DPI`), OLEDs, Memory LCDs, and LVGL `>= 9.6.0` (and v8/v9) embedded applications ([public repository](https://github.com/Humidyne-Labs/epd-font)).
 
-## 1. Core Capabilities in v1.0.20
+## 1. Core Capabilities in v1.0.21
 
 1. **Eight Deterministic Resolution-Reduction (`1-bpp`) Conversion Pipelines + Linear Grayscale & Gamma (`tools/fonts/humid1_bilevel_pipelines.py`)**:
    - **True Linear Grayscale + Optional Gamma**: Converts sRGB or single-channel coverage rasters to ITU-R BT.709 / IEC 61966-2-1 linear luminance ($Y_{\text{lin}} = 0.2126 R_{\text{lin}} + 0.7152 G_{\text{lin}} + 0.0722 B_{\text{lin}}$) with configurable gamma adjustment (`--gamma`, default `1.0`) and an L1-cached 256-entry `uint8` LUT for `gamma == 1.0`.
@@ -28,11 +28,11 @@
 3. **Strict `char_debug` & `sheet_debug` Boolean Gating + `'all'` / `'all-debug'` Multi-Method Comparison**:
    - Individual character blueprint cards (`inspect_chars/`) and strike character map sheets (`inspect_pages/`) are strictly gated off when `"char_debug": false` and `"sheet_debug": false` in `.scheme.json` (or `--no-char-debug` / `--no-sheet-debug`).
    - Setting `"pipeline": "all"` (or `"all-debug"`) in `.scheme.json` executes all 8 conversion methods and dumps every method's sheet (`inspect_pages/<method>/<symbol>.png`) plus a side-by-side multi-method comparison sheet (`inspect_pages/compare_methods/<symbol>_all_methods.png`).
-4. **Hardware Scheme Files (`esp32s3-N8R8-hw_scheme.json`, `genaric_hw.json`), `188.15 DPI` Calibration & Strict `3 MByte` Partition Validation**:
+4. **Hardware Scheme Files (`esp32s3-N8R8-hw_scheme.json`, `generic_hw.json`), `188.15 DPI` Calibration & Strict `3 MByte` Partition Validation**:
    - Calibrated to the exact physical pixel density of the Waveshare 1.54" e-Paper V2 (`200 × 200` pixels across `27.00 mm × 27.00 mm`, `0.135 mm` pixel pitch -> `188.15 DPI`).
    - Supports only the single `3 MByte` (`3,145,728` bytes) hardware partition constraint in `rom_space_estimate.txt` and `total_disk_size.txt`, with **zero hardcoded fallback defaults**.
 5. **Closed-Loop Manual ASCII Patching & LVGL `>= 9.6.0` ESP-IDF CMake Integration**:
-   - Includes `humid1_cmake_font_builder.py`, `humid1_fw_emit.py`, `cmake/epd_font_esp_idf.cmake`, and `humid1_package_distro.py` for zero-dependency ESP-IDF CMake builds and portable versioned `.zip` distribution bundles (`dist/epd-font_<workflow>_v1.0.20.zip`).
+   - Includes `humid1_cmake_font_builder.py`, `humid1_fw_emit.py`, `cmake/epd_font_esp_idf.cmake`, and `humid1_package_distro.py` for zero-dependency ESP-IDF CMake builds and portable versioned `.zip` distribution bundles (`dist/epd-font_<workflow>_v1.0.21.zip`).
 
 ## 2. Detailed Installation, OpenCL Runtime Libraries & Setup Guide
 
@@ -154,18 +154,18 @@ Get-ItemProperty "HKLM:\SOFTWARE\Khronos\OpenCL\Vendors"
    python -c "import sys; sys.path.insert(0, 'tools/fonts'); from humid1_ft_raster import load_freetype; from math_backends import describe_math_backend, teardown_math_backends; load_freetype(); print('FreeType OK |', describe_math_backend()); teardown_math_backends()"
    ```
 
-## 3. Repository Directory Structure (`v1.0.20`)
+## 3. Repository Directory Structure (`v1.0.21`)
 
 ```text
 epd-font/
 ├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron pipeline & tooling)
-├── VERSION.json                             # Release & upstream asset version manifest (v1.0.20)
+├── VERSION.json                             # Release & upstream asset version manifest (v1.0.21)
 ├── requirements.txt                         # Pip dependency manifest for core & optional GPU packages
 ├── esp32s3-N8R8-hw_scheme.json              # Root ESP32-S3-N8R8 hardware scheme (188.15 DPI, partition_1: "3 MBytes")
-├── genaric_hw.json                          # Root generic hardware scheme (188.15 DPI, partition_1: "3 MBytes")
+├── generic_hw.json                          # Root generic hardware scheme (188.15 DPI, partition_1: "3 MBytes")
 ├── font_icon_epd_patches.json               # Root-tracked manual 1-bpp pixel patch manifest
 ├── README.md                                # Primary repository overview, OpenCL runtime & setup guide
-├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.20)
+├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.21)
 ├── docs/
 │   ├── HOW_TO_GUIDE.md                      # Complete CLI, scheme, 8-pipeline & ESP-IDF CMake guide
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp mathematical, 3D OpenCL & pipeline specification
@@ -210,9 +210,9 @@ epd-font/
 
 ### A. One-Click Windows Batch Workflows (`scripts/*`)
 Run `00_setup_env.bat` once to install dependencies, then run `99_run_full_pipeline.bat` inside any workflow folder:
-- **General Example Project**: `scripts\example-build-distro\99_run_full_pipeline.bat` -> outputs to `build\example\` and `dist\epd-font_example_v1.0.20.zip`
-- **Full 10px–40px (Step 2px) Master Audit**: `scripts\full-audit-build-distro\99_run_full_pipeline.bat` -> outputs to `build\audit\` and `dist\epd-font_audit_v1.0.20.zip`
-- **H1OS / `humid1-os` Deployment**: `scripts\h1os-build-distro\99_run_full_pipeline.bat` -> outputs to `build\h1os\` and `dist\epd-font_h1os_v1.0.20.zip`
+- **General Example Project**: `scripts\example-build-distro\99_run_full_pipeline.bat` -> outputs to `build\example\` and `dist\epd-font_example_v1.0.21.zip`
+- **Full 10px–40px (Step 2px) Master Audit**: `scripts\full-audit-build-distro\99_run_full_pipeline.bat` -> outputs to `build\audit\` and `dist\epd-font_audit_v1.0.21.zip`
+- **H1OS / `humid1-os` Deployment**: `scripts\h1os-build-distro\99_run_full_pipeline.bat` -> outputs to `build\h1os\` and `dist\epd-font_h1os_v1.0.21.zip`
 
 ### B. Command-Line Usage (Windows & Linux Python 3)
 ```bash

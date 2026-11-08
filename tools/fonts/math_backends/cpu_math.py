@@ -24,7 +24,7 @@ Provides deterministic 1:1 CPU implementations of all mathematical kernels in
 
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -280,14 +280,65 @@ def eval_sdf_smoothstep_cpu(
 
 
 def eval_msdf_median3_reconstruct_cpu(
-    sdf_r: np.ndarray,
-    sdf_g: np.ndarray,
-    sdf_b: np.ndarray,
+    msdf_rgb_or_r: np.ndarray,
+    sdf_g: Optional[np.ndarray] = None,
+    sdf_b: Optional[np.ndarray] = None,
+    threshold: int = 128,
     edge_offset_px: float = 0.0,
-) -> np.ndarray:
-    """Chlumsky MSDF 3-channel median-of-three reconstruction on CPU (supports 2D and 3D)."""
-    msdf_low = np.maximum(np.minimum(sdf_r, sdf_g), np.minimum(np.maximum(sdf_r, sdf_g), sdf_b))
-    return (msdf_low >= edge_offset_px).astype(np.uint8)
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Chlumsky MSDF 3-channel median-of-three reconstruction + L2 screen-space gradient
+    linearstep anti-aliasing (Boesch 2025) on CPU (supports 2D and 3D batched arrays).
+    Accepts either:
+      1. Single interleaved 3-channel array `msdf_rgb` (shape `(H, W, 3)` or `(B, H, W, 3)` in `uint8` or `float32`).
+      2. Three separate planar arrays `(sdf_r, sdf_g, sdf_b)`.
+    Returns `(bilevel, field_u8)`.
+    """
+    if msdf_rgb_or_r.size == 0:
+        empty = np.zeros((1, 1), dtype=np.uint8)
+        return empty, empty
+
+    if sdf_g is not None and sdf_b is not None:
+        r_arr, g_arr, b_arr = msdf_rgb_or_r, sdf_g, sdf_b
+    elif msdf_rgb_or_r.ndim >= 3 and msdf_rgb_or_r.shape[-1] == 3:
+        r_arr = msdf_rgb_or_r[..., 0]
+        g_arr = msdf_rgb_or_r[..., 1]
+        b_arr = msdf_rgb_or_r[..., 2]
+    else:
+        raise ValueError("eval_msdf_median3_reconstruct_cpu requires a 3-channel array or 3 separate channel arrays")
+
+    if r_arr.ndim == 3:
+        bw_list, fld_list = [], []
+        for b in range(r_arr.shape[0]):
+            bw, fld = eval_msdf_median3_reconstruct_cpu(
+                r_arr[b], g_arr[b], b_arr[b],
+                threshold=threshold,
+                edge_offset_px=edge_offset_px,
+            )
+            bw_list.append(bw)
+            fld_list.append(fld)
+        return np.stack(bw_list, axis=0), np.stack(fld_list, axis=0)
+
+    # Median-of-three signed distance
+    d_med = np.maximum(np.minimum(r_arr, g_arr), np.minimum(np.maximum(r_arr, g_arr), b_arr)).astype(np.float32)
+
+    if np.issubdtype(msdf_rgb_or_r.dtype, np.integer):
+        # Encoded uint8 texture: 128 = zero crossing, 64 units per pixel
+        d_px = (d_med - 128.0) / 64.0
+    else:
+        d_px = d_med
+
+    # L2 gradient linearstep AA ramp (Boesch 2025)
+    dx = cv2.Sobel(d_px, cv2.CV_32F, 1, 0, ksize=3) / 8.0
+    dy = cv2.Sobel(d_px, cv2.CV_32F, 0, 1, ksize=3) / 8.0
+    w_grad = np.clip(np.hypot(dx, dy), 0.65, 1.50)
+
+    eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
+    bias_px = (128.0 - float(eff_t)) / 64.0 + float(edge_offset_px)
+    cov_lin = np.clip((d_px + bias_px) / w_grad + 0.5, 0.0, 1.0)
+    field_u8 = np.clip(np.round(cov_lin * 255.0), 0.0, 255.0).astype(np.uint8)
+    bilevel = (cov_lin >= 0.5).astype(np.uint8)
+    return bilevel, field_u8
 
 
 def eval_adf_biquadratic_cpu(

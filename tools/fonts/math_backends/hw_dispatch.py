@@ -416,21 +416,22 @@ def dispatch_sdf_smoothstep(
 
 
 def dispatch_msdf_median3_reconstruct(
-    sdf_r: np.ndarray,
-    sdf_g: np.ndarray,
-    sdf_b: np.ndarray,
+    msdf_rgb_or_r: np.ndarray,
+    sdf_g: Optional[np.ndarray] = None,
+    sdf_b: Optional[np.ndarray] = None,
+    threshold: int = 128,
     edge_offset_px: float = 0.0,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     """Dispatch Chlumsky MSDF 3-channel 3D NDRange median-of-three reconstruction to GPU (OpenCL) or CPU."""
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
-        return eval_msdf_median3_reconstruct_cpu(sdf_r, sdf_g, sdf_b, edge_offset_px)
+        return eval_msdf_median3_reconstruct_cpu(msdf_rgb_or_r, sdf_g, sdf_b, threshold, edge_offset_px)
     st = get_active_math_backend()
-    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and sdf_r.size >= 1024:
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and msdf_rgb_or_r.size >= 1024:
         try:
-            return _ACTIVE_ACCEL.eval_msdf_median3_reconstruct(sdf_r, sdf_g, sdf_b, edge_offset_px)
+            return _ACTIVE_ACCEL.eval_msdf_median3_reconstruct(msdf_rgb_or_r, sdf_g, sdf_b, threshold, edge_offset_px)
         except Exception:
             pass
-    return eval_msdf_median3_reconstruct_cpu(sdf_r, sdf_g, sdf_b, edge_offset_px)
+    return eval_msdf_median3_reconstruct_cpu(msdf_rgb_or_r, sdf_g, sdf_b, threshold, edge_offset_px)
 
 
 def dispatch_adf_biquadratic(

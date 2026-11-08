@@ -431,10 +431,11 @@ __kernel void msdf_median3_reconstruct_3d_kernel(
     __global const float* sdf_g,
     __global const float* sdf_b,
     __global uchar* out_bilevel,
+    __global uchar* out_field,
     const int target_w,
     const int target_h,
     const int batch_z,
-    const float edge_offset_px)
+    const float bias_px)
 {
     const int gx = (int)get_global_id(0);
     const int gy = (int)get_global_id(1);
@@ -443,7 +444,22 @@ __kernel void msdf_median3_reconstruct_3d_kernel(
 
     int idx = (gz * target_h + gy) * target_w + gx;
     float m = median3_f(sdf_r[idx], sdf_g[idx], sdf_b[idx]);
-    out_bilevel[idx] = (m >= edge_offset_px) ? 1 : 0;
+
+    int x_r = min(gx + 1, target_w - 1);
+    int y_d = min(gy + 1, target_h - 1);
+    int idx_r = (gz * target_h + gy) * target_w + x_r;
+    int idx_d = (gz * target_h + y_d) * target_w + gx;
+
+    float m_r = median3_f(sdf_r[idx_r], sdf_g[idx_r], sdf_b[idx_r]);
+    float m_d = median3_f(sdf_r[idx_d], sdf_g[idx_d], sdf_b[idx_d]);
+
+    float dx = m_r - m;
+    float dy = m_d - m;
+    float w = clamp(length((float2)(dx, dy)), 0.65f, 1.50f);
+
+    float cov = clamp((m + bias_px) / w + 0.5f, 0.0f, 1.0f);
+    out_field[idx] = convert_uchar_sat_rte(clamp(cov * 255.0f, 0.0f, 255.0f));
+    out_bilevel[idx] = (cov >= 0.50f) ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1207,21 +1223,39 @@ class OpenCLMathAccelerator:
     # -----------------------------------------------------------------------
     def eval_msdf_median3_reconstruct(
         self,
-        sdf_r: np.ndarray,
-        sdf_g: np.ndarray,
-        sdf_b: np.ndarray,
+        msdf_rgb_or_r: np.ndarray,
+        sdf_g: Optional[np.ndarray] = None,
+        sdf_b: Optional[np.ndarray] = None,
+        threshold: int = 128,
         edge_offset_px: float = 0.0,
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         assert self.shared_arena is not None
-        if sdf_r.ndim == 2:
-            batch_z = 1
-            target_h, target_w = sdf_r.shape
+        if sdf_g is not None and sdf_b is not None:
+            r_arr, g_arr, b_arr = msdf_rgb_or_r, sdf_g, sdf_b
+        elif msdf_rgb_or_r.ndim >= 3 and msdf_rgb_or_r.shape[-1] == 3:
+            r_arr = msdf_rgb_or_r[..., 0]
+            g_arr = msdf_rgb_or_r[..., 1]
+            b_arr = msdf_rgb_or_r[..., 2]
         else:
-            batch_z, target_h, target_w = sdf_r.shape
+            raise ValueError("eval_msdf_median3_reconstruct requires 3 channels")
 
-        r_f = np.ascontiguousarray(sdf_r.astype(np.float32))
-        g_f = np.ascontiguousarray(sdf_g.astype(np.float32))
-        b_f = np.ascontiguousarray(sdf_b.astype(np.float32))
+        if r_arr.ndim == 2:
+            batch_z = 1
+            target_h, target_w = r_arr.shape
+        else:
+            batch_z, target_h, target_w = r_arr.shape
+
+        eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
+        if np.issubdtype(msdf_rgb_or_r.dtype, np.integer):
+            r_f = np.ascontiguousarray((r_arr.astype(np.float32) - 128.0) / 64.0)
+            g_f = np.ascontiguousarray((g_arr.astype(np.float32) - 128.0) / 64.0)
+            b_f = np.ascontiguousarray((b_arr.astype(np.float32) - 128.0) / 64.0)
+        else:
+            r_f = np.ascontiguousarray(r_arr.astype(np.float32))
+            g_f = np.ascontiguousarray(g_arr.astype(np.float32))
+            b_f = np.ascontiguousarray(b_arr.astype(np.float32))
+
+        bias_px = np.float32((128.0 - float(eff_t)) / 64.0 + float(edge_offset_px))
         out_bytes = int(batch_z * target_h * target_w)
 
         q = self._next_queue()
@@ -1229,6 +1263,7 @@ class OpenCLMathAccelerator:
         g_buf = self.shared_arena.stage_input(q, "msdf_g_in", g_f)
         b_buf = self.shared_arena.stage_input(q, "msdf_b_in", b_f)
         bw_buf = self.shared_arena.get_pinned_buffer("msdf_bw_out", out_bytes)
+        fld_buf = self.shared_arena.get_pinned_buffer("msdf_fld_out", out_bytes)
 
         loc_3d = self._effective_local_3d(batch_z)
         glob_3d = self._round_global_3d(target_w, target_h, batch_z)
@@ -1240,14 +1275,18 @@ class OpenCLMathAccelerator:
             g_buf,
             b_buf,
             bw_buf,
+            fld_buf,
             np.int32(target_w),
             np.int32(target_h),
             np.int32(batch_z),
-            np.float32(edge_offset_px),
+            bias_px,
         )
-        out_shape = (target_h, target_w) if sdf_r.ndim == 2 else (batch_z, target_h, target_w)
+        out_shape = (target_h, target_w) if r_arr.ndim == 2 else (batch_z, target_h, target_w)
         bilevel = np.empty(out_shape, dtype=np.uint8)
-        return self.shared_arena.read_output(q, bw_buf, bilevel)
+        field_u8 = np.empty(out_shape, dtype=np.uint8)
+        self.shared_arena.read_output(q, bw_buf, bilevel)
+        self.shared_arena.read_output(q, fld_buf, field_u8)
+        return bilevel, field_u8
 
     # -----------------------------------------------------------------------
     # 4. 3D NDRange Saffron 9-Point Bi-Quadratic Lagrange ADF

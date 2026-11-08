@@ -7,7 +7,7 @@ echo      Workflow   : Complete 10px-40px (Step 2px) 9-Pipeline Visual Audit and
 echo      Input Dir  : build\audit\ascii_patches\
 echo      Output File: font_icon_epd_patches.json
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow patch --apply --ascii-dir "build\audit\ascii_patches" --patches font_icon_epd_patches.json %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow patch --apply --ascii-dir "build\audit\ascii_patches" --patches font_icon_epd_patches.json %*
 if errorlevel 1 (
     echo [!] Applying ASCII patches failed.
     if "%EPD_NO_PAUSE%"=="" pause

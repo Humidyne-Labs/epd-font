@@ -17,7 +17,7 @@ if "%~1"=="" (
 set "EVAL_DIR=%~1"
 shift
 
-python tools\fonts\humid1_font_eval.py ^
+python3 tools\fonts\humid1_font_eval.py ^
     --hw-scheme esp32s3-N8R8-hw_scheme.json ^
     --src-dir "%EVAL_DIR%" ^
     --out-dir build\evals\external_fonts ^

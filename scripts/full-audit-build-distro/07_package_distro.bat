@@ -7,7 +7,7 @@ echo      Workflow    : Complete 10px-40px (Step 2px) 9-Pipeline Visual Audit an
 echo      Build Input : build\audit\
 echo      Dist Output : dist\audit_distro\ and dist\epd-font_audit_v1.0.22.zip
 echo ============================================================================
-python tools\fonts\humid1_package_distro.py --build-dir "build\audit" --dist-dir "dist\audit_distro" --schemes "scripts\full-audit-build-distro\full_audit_distro.scheme.json" --name "audit" %*
+python3 tools\fonts\humid1_package_distro.py --build-dir "build\audit" --dist-dir "dist\audit_distro" --schemes "scripts\full-audit-build-distro\full_audit_distro.scheme.json" --name "audit" %*
 if errorlevel 1 (
     echo [!] Packaging distribution bundle failed.
     if "%EPD_NO_PAUSE%"=="" pause

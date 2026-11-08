@@ -7,7 +7,7 @@ echo      Workflow   : General Embedded Display Example Distribution Workflow
 echo      Input Dir  : build\example\ascii_patches\
 echo      Output File: font_icon_epd_patches.json
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow patch --apply --ascii-dir "build\example\ascii_patches" --patches font_icon_epd_patches.json %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow patch --apply --ascii-dir "build\example\ascii_patches" --patches font_icon_epd_patches.json %*
 if errorlevel 1 (
     echo [!] Applying ASCII patches failed.
     if "%EPD_NO_PAUSE%"=="" pause

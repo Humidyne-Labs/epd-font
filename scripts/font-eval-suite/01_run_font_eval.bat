@@ -8,7 +8,7 @@ echo                9-Pipeline Evaluation Suite (Static TTF Corpus)
 echo                HW Config : esp32s3-N8R8-hw_scheme.json
 echo ============================================================================
 
-python tools\fonts\humid1_font_eval.py ^
+python3 tools\fonts\humid1_font_eval.py ^
     --hw-scheme esp32s3-N8R8-hw_scheme.json ^
     --src-dir build\static_ttfs ^
     --out-dir build\evals\static_ttfs ^

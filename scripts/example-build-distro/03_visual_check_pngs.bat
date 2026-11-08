@@ -7,7 +7,7 @@ echo      Workflow   : General Embedded Display Example Distribution Workflow
 echo      Scheme     : scripts\example-build-distro\example.scheme.json (Hardware: generic_hw.json)
 echo      Output Dir : build\example\inspect_pages\ and build\example\inspect_chars\
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow check --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" --dist-dir "dist\example_distro" %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow check --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" --dist-dir "dist\example_distro" %*
 if errorlevel 1 (
     echo [!] Visual check failed.
     if "%EPD_NO_PAUSE%"=="" pause

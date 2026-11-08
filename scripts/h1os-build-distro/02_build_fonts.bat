@@ -8,7 +8,7 @@ echo      Scheme     : scripts\h1os-build-distro\h1os_full.scheme.json (Hardware
 echo      Build Dir  : build\h1os\
 echo      Dist Dir   : dist\h1os_distro\
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow build --scheme "scripts\h1os-build-distro\h1os_full.scheme.json" --src-dir build\static_ttfs --out-dir "build\h1os" --dist-dir "dist\h1os_distro" %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow build --scheme "scripts\h1os-build-distro\h1os_full.scheme.json" --src-dir build\static_ttfs --out-dir "build\h1os" --dist-dir "dist\h1os_distro" %*
 if errorlevel 1 (
     echo [!] Font build failed.
     if "%EPD_NO_PAUSE%"=="" pause

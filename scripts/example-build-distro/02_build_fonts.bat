@@ -8,7 +8,7 @@ echo      Scheme     : scripts\example-build-distro\example.scheme.json (Hardwar
 echo      Build Dir  : build\example\
 echo      Dist Dir   : dist\example_distro\
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow build --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" --dist-dir "dist\example_distro" %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow build --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" --dist-dir "dist\example_distro" %*
 if errorlevel 1 (
     echo [!] Font build failed.
     if "%EPD_NO_PAUSE%"=="" pause

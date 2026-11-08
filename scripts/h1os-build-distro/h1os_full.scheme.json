@@ -15,7 +15,7 @@
     "italic_weight": 600,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/h1os/ascii_patches",
-    "sheet_debug": true,
+    "sheet_debug": false,
     "char_debug": false,
     "debug_stages": false
   },

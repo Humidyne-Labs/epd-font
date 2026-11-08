@@ -7,7 +7,7 @@ echo      Workflow   : General Embedded Display Example Distribution Workflow
 echo      Source Dir : assets\
 echo      Output Dir : build\static_ttfs\ and build\metadata\
 echo ============================================================================
-python tools\fonts\build_static_ttf_assets.py --src-dir assets --out-dir build\static_ttfs --meta-out-dir build\metadata --verify %*
+python3 tools\fonts\build_static_ttf_assets.py --src-dir assets --out-dir build\static_ttfs --meta-out-dir build\metadata --verify %*
 if errorlevel 1 (
     echo [!] Static TTF asset build failed.
     if "%EPD_NO_PAUSE%"=="" pause

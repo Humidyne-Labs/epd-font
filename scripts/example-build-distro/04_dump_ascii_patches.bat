@@ -7,7 +7,7 @@ echo      Workflow   : General Embedded Display Example Distribution Workflow
 echo      Scheme     : scripts\example-build-distro\example.scheme.json (Hardware: generic_hw.json)
 echo      Output Dir : build\example\ascii_patches\
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow patch --dump --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow patch --dump --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" %*
 if errorlevel 1 (
     echo [!] ASCII patch dump failed.
     if "%EPD_NO_PAUSE%"=="" pause

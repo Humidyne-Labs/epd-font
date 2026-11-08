@@ -7,7 +7,7 @@ echo      Workflow   : H1OS and humid1-os Firmware Distribution Workflow (ESP32-
 echo      Input Dir  : build\h1os\ascii_patches\
 echo      Output File: font_icon_epd_patches.json
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow patch --apply --ascii-dir "build\h1os\ascii_patches" --patches font_icon_epd_patches.json %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow patch --apply --ascii-dir "build\h1os\ascii_patches" --patches font_icon_epd_patches.json %*
 if errorlevel 1 (
     echo [!] Applying ASCII patches failed.
     if "%EPD_NO_PAUSE%"=="" pause

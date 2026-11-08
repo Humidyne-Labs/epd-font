@@ -804,21 +804,42 @@ class SharedHostMemoryArena:
     Manages a reusable pool of pinned Host/GPU Shared RAM (`CL_MEM_ALLOC_HOST_PTR`) buffers
     mapped into the 15.7 GB WDDM Shared GPU Memory aperture (dynamically capped at 75% of
     total Shared GPU Memory, e.g., ~11,775 MB on a 15.7 GB shared pool).
-    Uses `cl.enqueue_map_buffer` (`CL_MAP_WRITE_INVALIDATE_REGION` / `CL_MAP_READ`) so buffers
-    remain in host-visible Shared GPU Memory rather than promoting into Dedicated 4 GB VRAM,
+    Keeps persistent host mappings (`self._pins`) active so WDDM / AMD PAL drivers lock the
+    allocations inside Shared GPU Memory rather than promoting into Dedicated 4 GB VRAM,
     and guarantees deterministic `.release()` teardown on exit.
     """
 
     def __init__(self, ctx: "cl.Context", max_shared_mb: int = 4096) -> None:
+        ensure_pyopencl()
         self.ctx = ctx
         self.max_shared_bytes = max(64, int(max_shared_mb)) * 1024 * 1024
         self.budget_bytes = self.max_shared_bytes
         self.allocated_bytes = 0
         self._lock = threading.Lock()
         self._slots: Dict[str, Tuple["cl.Buffer", int]] = {}
+        self._pins: Dict[str, Tuple[np.ndarray, "cl.CommandQueue"]] = {}
 
-    def get_pinned_buffer(self, slot_name: str, min_bytes: int, flags: int = 0) -> "cl.Buffer":
+    def _unpin_slot_unlocked(self, slot_name: str) -> None:
+        pinned = self._pins.pop(slot_name, None)
+        if pinned is not None:
+            mapped, q = pinned
+            try:
+                mapped.base.release(q)
+            except Exception:
+                try:
+                    mapped.base.release()
+                except Exception:
+                    pass
+
+    def get_pinned_buffer(
+        self,
+        slot_name: str,
+        min_bytes: int,
+        flags: int = 0,
+        queue: Optional["cl.CommandQueue"] = None,
+    ) -> "cl.Buffer":
         """Acquire or grow a named reusable `CL_MEM_ALLOC_HOST_PTR` buffer in Shared GPU RAM."""
+        ensure_pyopencl()
         req_bytes = max(4096, ((int(min_bytes) + 4095) // 4096) * 4096)
         mf = cl.mem_flags
         alloc_flags = (flags or mf.READ_WRITE) | mf.ALLOC_HOST_PTR
@@ -828,7 +849,17 @@ class SharedHostMemoryArena:
             if existing is not None:
                 buf, cap = existing
                 if cap >= req_bytes:
+                    if queue is not None and slot_name not in self._pins:
+                        try:
+                            mapped, _ = cl.enqueue_map_buffer(
+                                queue, buf, cl.map_flags.READ | cl.map_flags.WRITE,
+                                0, (cap,), np.uint8, is_blocking=True
+                            )
+                            self._pins[slot_name] = (mapped, queue)
+                        except Exception:
+                            pass
                     return buf
+                self._unpin_slot_unlocked(slot_name)
                 try:
                     buf.release()
                 except Exception:
@@ -842,35 +873,49 @@ class SharedHostMemoryArena:
             new_buf = cl.Buffer(self.ctx, alloc_flags, size=req_bytes)
             self._slots[slot_name] = (new_buf, req_bytes)
             self.allocated_bytes += req_bytes
+
+            if queue is not None:
+                try:
+                    mapped, _ = cl.enqueue_map_buffer(
+                        queue, new_buf, cl.map_flags.READ | cl.map_flags.WRITE,
+                        0, (req_bytes,), np.uint8, is_blocking=True
+                    )
+                    self._pins[slot_name] = (mapped, queue)
+                except Exception:
+                    pass
+
             return new_buf
 
     def stage_input(self, queue: "cl.CommandQueue", slot_name: str, arr: np.ndarray) -> "cl.Buffer":
         """
         Stage `arr` into a persistent `CL_MEM_ALLOC_HOST_PTR` Shared GPU RAM slot using
-        `cl.enqueue_map_buffer` (falling back to `enqueue_copy` if map flags are unsupported).
+        a persistent WDDM GTT host mapping so pages stay locked in Shared GPU Memory.
         """
         contig = np.ascontiguousarray(arr)
         nbytes = int(contig.nbytes)
-        buf = self.get_pinned_buffer(slot_name, nbytes, cl.mem_flags.READ_WRITE)
+        buf = self.get_pinned_buffer(slot_name, nbytes, cl.mem_flags.READ_WRITE, queue=queue)
+        with self._lock:
+            pinned = self._pins.get(slot_name)
+            if pinned is not None:
+                mapped_u8, _ = pinned
+                mapped_u8[:nbytes] = contig.view(np.uint8).ravel()
+                return buf
         try:
-            map_flag = getattr(cl.map_flags, "WRITE_INVALIDATE_REGION", cl.map_flags.WRITE)
-            mapped, _ = cl.enqueue_map_buffer(
-                queue,
-                buf,
-                map_flag,
-                0,
-                (contig.size,),
-                contig.dtype,
-                is_blocking=True,
-            )
-            with mapped.base:
-                mapped[:] = contig.ravel()
-        except Exception:
             cl.enqueue_copy(queue, buf, contig)
+        except Exception:
+            pass
         return buf
 
     def read_output(self, queue: "cl.CommandQueue", buf: "cl.Buffer", out_arr: np.ndarray) -> np.ndarray:
         """Read results from a `CL_MEM_ALLOC_HOST_PTR` Shared GPU RAM slot into `out_arr`."""
+        queue.finish()
+        nbytes = int(out_arr.nbytes)
+        with self._lock:
+            for slot_name, (s_buf, _) in self._slots.items():
+                if s_buf == buf and slot_name in self._pins:
+                    mapped_u8, _ = self._pins[slot_name]
+                    out_arr.view(np.uint8).ravel()[:] = mapped_u8[:nbytes]
+                    return out_arr
         try:
             mapped, _ = cl.enqueue_map_buffer(
                 queue,
@@ -889,6 +934,8 @@ class SharedHostMemoryArena:
             return out_arr
 
     def _evict_unlocked(self) -> None:
+        for slot_name in list(self._pins.keys()):
+            self._unpin_slot_unlocked(slot_name)
         for _, (buf, _) in list(self._slots.items()):
             try:
                 buf.release()
@@ -898,7 +945,7 @@ class SharedHostMemoryArena:
         self.allocated_bytes = 0
 
     def release(self) -> int:
-        """Deterministically release all pinned `CL_MEM_ALLOC_HOST_PTR` buffers."""
+        """Deterministically unmap and release all pinned `CL_MEM_ALLOC_HOST_PTR` buffers."""
         with self._lock:
             count = len(self._slots)
             self._evict_unlocked()
@@ -962,6 +1009,7 @@ class OpenCLMathAccelerator:
         num_queues: int = 4,
         shared_ram_mb: Optional[int] = None,
     ) -> None:
+        ensure_pyopencl()
         self.ctx: Optional["cl.Context"] = ctx
         self.device: Optional["cl.Device"] = device
         self.device_name = str(getattr(device, "name", "OpenCL Device")).strip()
@@ -973,7 +1021,6 @@ class OpenCLMathAccelerator:
         self.global_mem_mb = int(getattr(device, "global_mem_size", 0) // (1024 * 1024))
         self.local_mem_kb = int(getattr(device, "local_mem_size", 0) // 1024)
 
-        ensure_pyopencl()
         total_shared_mb, usable_75pct_mb = detect_shared_gpu_memory_mb()
         self.total_shared_gpu_ram_mb = total_shared_mb
         self.cap_75pct_shared_gpu_ram_mb = int(round(total_shared_mb * SHARED_RAM_CAP_RATIO))

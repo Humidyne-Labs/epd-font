@@ -8,7 +8,7 @@ echo      Scheme     : scripts\full-audit-build-distro\full_audit_distro.scheme.
 echo      Build Dir  : build\audit\
 echo      Dist Dir   : dist\audit_distro\
 echo ============================================================================
-python tools\fonts\humid1_generate_1bpp.py --workflow build --scheme "scripts\full-audit-build-distro\full_audit_distro.scheme.json" --src-dir build\static_ttfs --out-dir "build\audit" --dist-dir "dist\audit_distro" %*
+python3 tools\fonts\humid1_generate_1bpp.py --workflow build --scheme "scripts\full-audit-build-distro\full_audit_distro.scheme.json" --src-dir build\static_ttfs --out-dir "build\audit" --dist-dir "dist\audit_distro" %*
 if errorlevel 1 (
     echo [!] Font build failed.
     if "%EPD_NO_PAUSE%"=="" pause

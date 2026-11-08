@@ -7,7 +7,7 @@ echo      Workflow    : General Embedded Display Example Distribution Workflow
 echo      Build Input : build\example\
 echo      Dist Output : dist\example_distro\ and dist\epd-font_example_v1.0.22.zip
 echo ============================================================================
-python tools\fonts\humid1_package_distro.py --build-dir "build\example" --dist-dir "dist\example_distro" --schemes "scripts\example-build-distro\example.scheme.json" --name "example" %*
+python3 tools\fonts\humid1_package_distro.py --build-dir "build\example" --dist-dir "dist\example_distro" --schemes "scripts\example-build-distro\example.scheme.json" --name "example" %*
 if errorlevel 1 (
     echo [!] Packaging distribution bundle failed.
     if "%EPD_NO_PAUSE%"=="" pause

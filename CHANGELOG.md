@@ -1,6 +1,92 @@
-# Changelog — `epd-font` (Humidyne Labs 1-BPP Typography Foundry)
+# Changelog — `epd-font` (A 1-bit EPD Font Generator and Asset Pipeline for Embedded Displays)
 
-All notable changes to the `epd-font` repository and `H1OS` font generation pipeline are documented in this file.
+All notable changes to the `epd-font` repository ([Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)) designed and developed by [Humiditron](https://github.com/humiditron) and the AI/LLM Collaborative Development Partner are documented in this file.
+
+## [v1.0.19c] — 2026-11-07
+
+### Added
+- **Comprehensive Installation & Setup Guide (`README.md`, `requirements.txt`, `scripts/*/00_setup_env.bat`)**:
+  - Added a detailed Installation and Setup Guide in `README.md` covering host operating system prerequisites (`Windows 10/11 x64` and `Linux x86_64/ARM64`), Python `3.9+` runtime setup, FreeType 2 shared library (`freetype.dll` / `libfreetype.so`) bundling, optional OpenCL `1.2`/`3.0` GPU driver setup ([Khronos OpenCL 3.0 Unified Specification](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/)), required vs. optional package breakdown (`fonttools>=4.40.0`, `Pillow>=10.0.0`, `freetype-py>=2.4.0`, `numpy>=1.24.0`, `opencv-python>=4.8.0`, and optional `pyopencl>=2023.1`), step-by-step `venv` + `pip` commands for Windows (`PowerShell`/`CMD`) and Linux (`bash`), and one-line environment & hardware backend verification.
+  - Added root `requirements.txt` and updated `scripts/*/00_setup_env.bat` to upgrade `pip setuptools wheel` and install from `requirements.txt`.
+
+## [v1.0.19b] — 2026-11-07
+
+### Added
+- **Modular GPU/CPU Mathematical Abstraction Package (`tools/fonts/math_backends/`)**:
+  - Abstracted all resolution-reduction, polynomial root-finding, luminance linearization, and thresholding math into four modular backend files:
+    1. `tools/fonts/math_backends/opencl_kernels.py`: PyOpenCL GPU / heterogeneous compute kernels conforming to the [Khronos OpenCL 3.0 Unified Specification](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/), implementing `srgb_to_linear_gamma_kernel`, `render_bezier_sdf_yuksel_kernel` (Cem Yüksel degree-5 to degree-2 monotonic derivative cascade + Newton-Bisection quintic solver + cubic ray-crossing winding parity), `sdf_valve_smoothstep_kernel` ($L_2$ screen-space gradient smoothstep), `msdf_median3_reconstruct_kernel` ([Chlumsky/msdfgen](https://github.com/Chlumsky/msdfgen)), `adf_biquadratic_9pt_kernel` (Saffron 9-point biquadratic Lagrange $4\times 4$ quadrature), and `compute_histogram_local_atomic` (`__local uint local_hist[256]` work-group atomic histogram for Otsu $\sigma_B^2(k^*)$). Uses wavefront-aligned `16x8` / `8x8` work-groups and `CL_MEM_ALLOC_HOST_PTR` zero-copy pinned host buffers.
+    2. `tools/fonts/math_backends/umat_math.py`: OpenCV Transparent API (`cv2.ocl` / `cv2.UMat`) OpenCL secondary GPU acceleration tier.
+    3. `tools/fonts/math_backends/cpu_math.py`: Vectorized `NumPy` / `OpenCV` CPU implementations with 1:1 function signatures (including CPU Cem Yüksel quintic Bézier root-finding).
+    4. `tools/fonts/math_backends/hw_dispatch.py`: Runtime hardware capability probe (`select_math_backend()`, `describe_math_backend()`, `validate_sdf_gradient()`) that verifies device compiler availability, kernel parity, and unit SDF gradient slope ($\|\nabla d\|_2 \approx 1.0$) before dispatching math calls to `opencl`, `umat`, or `cpu`.
+  - Added `--accel {auto,opencl,umat,cpu}` CLI flag (and `"math_backend": "auto"` in `.scheme.json`) to `humid1_generate_1bpp.py` and `humid1_font_eval.py`.
+
+### Changed
+- **Calibrated Exact Physical EPD Resolution to `188.15 DPI` (`25.4 mm / 0.135 mm`)**:
+  - Updated target display resolution from `188.3 DPI` to **`188.15 DPI`** across `esp32s3-N8R8-hw_scheme.json`, `genaric_hw.json`, `generic_hw.json`, all `20` `.scheme.json` files, `.bdf` / `.c` / `.h` exporters, and visual specimen sheets per the Waveshare 1.54" e-Paper V2 (`SSD1681` / `GDEY0154D67`) mechanical specification (`200 x 200` pixels, `27.00 mm x 27.00 mm` active area, `0.135 mm x 0.135 mm` pixel pitch).
+- **Documented Physical Justification for 1-Bit Bilevel EPD Rendering**:
+  - Documented the electro-optical constraints of 2-bit (4-level) EPD driving (Arrhenius thermal viscosity drift, Kubelka-Munk sigmoidal reflectance, inter-frame hysteresis across SSD1681 `0x24`/`0x26` 5,000-byte RAM planes, DC bias degradation, and `1,000–1,500 ms` refresh latency vs. `250–350 ms` 1-bit partial updates) in `docs/MAINTAINER_SPEC.md` and `docs/audits/POST_AUDIT_REPORT_v1.0.19b.md`.
+
+## [v1.0.19] — 2026-11-07
+
+### Added
+- **Eight Resolution-Reduction Conversion Pipelines (`tools/fonts/humid1_bilevel_pipelines.py`, `humid1_ft_raster.py`, `humid1_font_eval.py`)**:
+  - Added true **Multi-Channel Signed Distance Field (`msdf`)** pipeline ([Chlumsky/msdfgen](https://github.com/Chlumsky/msdfgen)) using corner-delimited contour decomposition, 3-channel $(R, G, B)$ edge coloring (`Yellow`, `Cyan`, `Magenta`), directional signed pseudo-distance evaluation, and $\text{median}(R, G, B)$ corner-preserving reconstruction alongside `mdf`.
+  - Added three resolution-reduction pipelines derived from the distance-field and vector rasterization literature:
+    1. **`sdf-smoothstep`**: `16x` Euclidean Signed Distance Field with analytical Hermite `smoothstep` edge reconstruction ([Red Blob Games SDF Typography](https://www.redblobgames.com/articles/sdf-fonts/)).
+    2. **`adf-biquadratic`**: Adaptive Distance Field (`ADF`) quadtree subdivision (`16x` -> $4\times 4$ cells) with 9-point biquadratic polynomial surface interpolation $P(u, v)$.
+    3. **`otsu-adaptive`**: Linear-luminance Otsu global threshold blended with local Sauvola mean/variance adaptive thresholding for small-ppem counter preservation.
+  - Added **True sRGB-to-Linear Grayscale Conversion (`rgb_to_linear_grayscale`) + Optional Gamma Factor (`--gamma`)**: Converts sRGB or single-channel coverage rasters to linear luminance ($Y_{\text{lin}} = 0.2126 R_{\text{lin}} + 0.7152 G_{\text{lin}} + 0.0722 B_{\text{lin}}$) and applies configurable gamma adjustment (`--gamma`, default `1.0`) prior to thresholding.
+- **Root Hardware Partition Schemes (`esp32s3-N8R8-hw_scheme.json`, `genaric_hw.json`, `generic_hw.json`) & Strict Single `3 MByte` Partition Validation**:
+  - Added root `esp32s3-N8R8-hw_scheme.json` and `genaric_hw.json` (`"partition_1": "3 MBytes"`, `"partition_1_bytes": 3145728`).
+  - Removed all hardcoded partition fallback defaults (`3 Mbit`, `64 KB..8 MB` lookup tables) in `humid1_runtime.py`, `humid1_lvgl_bdf_export.py`, and `humid1_fw_emit.py`. If the `3 MByte` (`3,145,728` bytes) partition specification is removed or missing from `.scheme.json` / hardware scheme, the pipeline fails immediately with a clear configuration error.
+- **Strict `char_debug` & `sheet_debug` Boolean Gating + `all` / `all-debug` Multi-Method Sheet Comparison (`humid1_generate_1bpp.py`, `humid1_visual_check.py`)**:
+  - Added explicit `"char_debug"` (`--char-debug` / `--no-char-debug`) and `"sheet_debug"` (`--sheet-debug` / `--no-sheet-debug`) boolean controls. When `false`, zero character PNGs or sheet PNGs are emitted.
+  - When `"pipeline": "all"` or `"all-debug"` is configured, the pipeline executes all 8 conversion methods and dumps per-method character sheets (`inspect_pages/<method>/<symbol>.png`) and side-by-side 8-method visual comparison sheets (`inspect_pages/compare_methods/<symbol>_all_methods.png`).
+- **Formal Pre-Audit and Post-Audit Reports (`docs/audits/PRE_AUDIT_REPORT_v1.0.18.md`, `docs/audits/POST_AUDIT_REPORT_v1.0.19.md`)**:
+  - Authored formal Markdown pre-audit (`v1.0.18` baseline) and post-audit (`v1.0.19` verification) reports with zero `.docx` files in the repository.
+
+### Fixed
+- **Resolved Full Audit (`scripts/full-audit-build-distro/`) Crash (`humid1_ft_raster.py`, `humid1_generate_1bpp.py`, `full-audit-build-distro/*.bat`)**:
+  - Fixed `TTFont` file handle leak in `_get_cached_tt_meta()` / `rasterize_font_strike()` that previously leaked `11,040` open file descriptors across worker processes during the 368-strike `10px..40px` (`step 2px`) audit (`OSError: Too many open files` / `BrokenProcessPool` on Windows CRT).
+  - Updated `02_build_fonts.bat` and `99_run_full_pipeline.bat` to eliminate redundant triple-audit passes and respect `char_debug: false` by default.
+- **Resolved Filled Icon Asset Sheet Rendering Bug (`humid1_ft_raster.py`, `humid1_bilevel_pipelines.py`, `humid1_visual_check.py`)**:
+  - Fixed `load_icon_name_registry()` rebinding `ICON_NAME_REGISTRY` locally instead of mutating the shared dictionary in place (`clear()` + `update()`), which previously caused `humid1_icon_tabler_filled_*` (`Tabler-Filled.ttf`, `U+EE80..U+FA6D`) to resolve `0` glyphs (`PATCHED: 0/0`, blank sheet).
+  - Upgraded `svg-potrace` contour extraction from two-level `cv2.RETR_CCOMP` to full hierarchical `cv2.RETR_TREE` with topological tree-depth rasterization so filled icons with nested interior cutouts (`Tabler-Filled.ttf`, `Phosphor-Fill.ttf`, `FontAwesome7-Solid.ttf`) preserve all interior islands and counters.
+  - Fixed `draw_icon()` in `humid1_visual_check.py` to render filled icons cleanly on the 200x200 EPD specimen screens.
+- **Removed Retained Legacy Auto-Tuner Dead Code**:
+  - Deleted `tools/fonts/humid1_bilevel_tuner.py` and removed deprecated `--auto-floor`, `--repair-engine`, and `--tune-mode` flags from `humid1_generate_1bpp.py`.
+
+## [v1.0.18] — 2026-11-07
+
+### Added
+- **Four-Method Bilevel (`1-bpp`) Conversion Pipeline Engine (`tools/fonts/humid1_bilevel_pipelines.py`, `humid1_ft_raster.py`)**:
+  - Implemented `raw-unhinted` (direct unhinted FreeType grayscale rasterization + configurable threshold, default `128`).
+  - Implemented `raw-hinted` (grid-fitted hinted FreeType rasterization + configurable threshold, default `128`).
+  - Implemented `svg-potrace` (high-resolution `10x` anti-aliased rasterization -> binary threshold -> Potrace B-spline / cubic Bézier `.svg` vector contour tracing -> `+0.5 px` half-pixel center alignment -> non-antialiased `LINE_8` even-odd re-rasterization).
+  - Implemented `mdf` (high-resolution `12x` super-sampling with median filter + Multi-Channel / Euclidean Signed Distance Field computation -> pixel-center downsampling -> configurable threshold, default `128`).
+- **Per-Stage Visual Debug Output (`--debug-stages`, `--verbose`)**:
+  - Added `save_debug_stage_artifacts()` emitting raw `.svg` vector files and 5-stage visual comparison cards (`10x Grayscale`, `10x Binary`, `Potrace SVG Vector`, `MDF Distance Field`, and `4-Pipeline 1-BPP Grid`) into `build/<workflow>/debug_stages/`.
+- **4-Pipeline Per-Font, Per-Size Evaluation & Visual Audit Suite (`humid1_font_eval.py`, `humid1_generate_1bpp.py`)**:
+  - Updated `humid1_font_eval.py` and `--workflow audit` to evaluate all 4 conversion methods (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `mdf`) for every font and every pixel size, generating per-font 4-pipeline comparison PNGs (`build/evals/sheets/*_eval.png`) and master comparison scorecards.
+  - Updated `full_audit_distro.scheme.json` and `TERMINUS_BDF_CONVERSION_TABLE` to cover the complete `10px - 40px` (`step size 2px`) ladder (`16` even pixel sizes per strike) and enabled `.bdf` output across all sizes `10px..40px`.
+  - Added `render_master_char_icon_map_png()` generating a combined full-scheme master character and icon map PNG (`inspect_pages/master_char_icon_map.png`) alongside per-strike sheets and per-character blueprint PNGs.
+- **ESP-IDF CMake Font Builder & Portable Versioned Distribution Packager (`humid1_cmake_font_builder.py`, `humid1_package_distro.py`, `cmake/`)**:
+  - Added `tools/fonts/humid1_cmake_font_builder.py`, `tools/fonts/cmake/epd_font_esp_idf.cmake`, and `tools/fonts/cmake/example_CMakeLists.txt` for direct integration into ESP-IDF CMake build systems.
+  - Added `tools/fonts/humid1_package_distro.py` to automatically copy all upstream font/icon/pipeline license files and package versioned `.zip` archives (`dist/epd-font_<workflow>_v1.0.18.zip`).
+- **Host Hardware Utilization, Clean `Ctrl-C` Handling & Strict CLI Validation (`tools/fonts/humid1_runtime.py`)**:
+  - Added GPU/OpenCL/CUDA detection (`cv2.UMat`), multi-core CPU / dynamic RAM worker scaling, deterministic strike caching (`build/cache/`), clean `SIGINT` (`Ctrl-C`) worker pool shutdown, recursive font/license discovery across `.ttf/.otf/.ttc/.bdf` files, and explicit CLI/path validation with zero hardcoded user paths.
+- **ESP32-S3-N8R8 (`3 Mbit` & `3 MByte`) Per-Build & Per-Font-Pair ROM Space Estimator (`rom_space_estimate.txt`)**:
+  - Added configurable partition targets (`target_partition_bits`, `target_partition_bytes`, `--partition-config <ini>`) and per-font-pair (`Normal + Bold`) `.rodata` tables to `rom_space_estimate.txt` and `total_disk_size.txt`.
+- **Formal Pre-Audit, Post-Audit & Legacy Methodology Documentation (`docs/`)**:
+  - Added `docs/LEGACY_METHODOLOGY_v1.0.17.md`, `docs/audits/PRE_AUDIT_REPORT_v1.0.17.md`, and `docs/audits/POST_AUDIT_REPORT_v1.0.18.md`.
+
+### Changed
+- **Retired Algorithmic Auto-Tuner in Favor of Manual Closed-Loop ASCII Patching**:
+  - Removed automatic glyph mutation (`08_iterative_auto_repair.bat` and `M0..M8` auto-tuning passes) and cleared synthetic auto-tuner entries from `font_icon_epd_patches.json` so all glyph adjustments are controlled manually via Full-Canvas `1:1` ASCII patch files.
+- **LVGL `>= 9.6.0` Validated Fallback Font Pointers (`humid1_lvgl_bdf_export.py`, `humid1_fw_emit.py`)**:
+  - Fixed fallback symbol prefix normalization and DAG validation in `humid1_fw_emit.py` and `humid1_lvgl_bdf_export.py`, adding `#if LV_VERSION_CHECK(9, 6, 0) || LVGL_VERSION_MAJOR >= 9` and `.static_bitmap = 0` support.
+- **Project Rebranding & Lexicon Rule Compliance**:
+  - Rebranded repository as `"A 1-bit EPD font generator and asset pipeline for embedded displays"` (`epd-font`) crediting both [Humiditron](https://github.com/humiditron) and the AI/LLM development partner, and updated terminology across the repository to strictly follow IEEE, mathematical, and scientific nomenclature.
 
 ## [v1.0.17] — 2026-11-05
 
@@ -17,7 +103,7 @@ All notable changes to the `epd-font` repository and `H1OS` font generation pipe
 - **Unified FreeType 2 Auto-Hinting Engine (`humid1_ft_raster.py`, `humid1_font_eval.py`)**:
   - Fixed `"autohint_mono"` vs `"autohint-mono"` discrepancy in `resolve_freetype_flags()` so both build and evaluation pipelines execute Symmetric 8-Bit Auto-Hinting + Coverage Thresholding (`FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL`), improving `16px` HQ confidence by `+3.6%..+5.7%` and eliminating 1-bit scanline spurs. Added `--raster-mode` CLI flag to `humid1_font_eval.py`.
 - **Closed-Loop Bowl-Join Bridge Sealer & Pre-Exit Gate Fix (`humid1_bilevel_tuner.py`)**:
-  - Added Step 2a (`HQ Coverage Hysteresis Arch Recovery + 1px/2px Bowl-Join Bridge Sealer`) inside `carve_and_unpinch_counters()` to seal 1px anti-aliased bowl-to-stem join leaks on `q, b, a, 8`, achieving **`100.0%` counter survival at `16px` across 50 of 51 foundry cuts**.
+  - Added Step 2a (`HQ Coverage Hysteresis Arch Recovery + 1px/2px Bowl-Join Bridge Sealer`) inside `preserve_interior_apertures()` to seal 1px anti-aliased bowl-to-stem join leaks on `q, b, a, 8`, achieving **`100.0%` counter survival at `16px` across 50 of 51 foundry cuts**.
   - Fixed undefined `b1_m0_now` variable in `inspect_and_repair_glyph_bitmap()` when `--tune-mode off` is used, and fixed pre-exit checks (`lines 1423–1438`) testing `b1_base` instead of `b1_m0_now`.
 - **Width-Preserving Family Stem Extraction (`humid1_font_eval.py`)**:
   - Updated `extract_base_family_stem()` to preserve `SemiCondensed`, `Condensed`, and `ExtraCondensed` width sub-families during Triad evaluation.
@@ -30,14 +116,14 @@ All notable changes to the `epd-font` repository and `H1OS` font generation pipe
 - **Resolved Visual Weight Homogeneity Across `Normal`, `Bold`, and `Italic` (`humid1_font_eval.py`, `humid1_generate_1bpp.py`, `*.scheme.json`)**:
   - Diagnosed why single-font isolated scoring in `v1.0.15` caused `Normal (w600 SemiBold, 2.36px)`, `Bold (w700 Bold, 2.57px — only +6.5% ink delta)`, and `Italic (w800 ExtraBoldItalic, 3.08px — heavier than Bold!)` to look like the same weight or invert the hierarchy.
   - Fixed `humid1_generate_1bpp.py` ignoring `bold_weight` and `italic_weight` from `.scheme.json` and updated all 19 `.scheme.json` files (`h1os_full.scheme.json`, `h1os_lite.scheme.json`, `example.scheme.json`, `tools/fonts/schemes/*.scheme.json`) from `"bold_weight": 700` to **`"bold_weight": 800, "italic_weight": 600, "normal_weight": 500`**.
-  - `Sans` at `16px` now delivers **`2.17px` `Normal` (`w500`, `2,566` ink)** vs. **`3.13px` `Bold` (`w800 ExtraBold`, `3,482` ink = `+35.7%` Ink Punch / `+0.96px` stem jump!)** vs. **`2.30px` `Italic` (`w600 SemiBoldItalic`, `2,600` ink = `+1.3%` iso-weight subtle emphasis, `-33.9%` lighter than Bold!)**.
-- **Universal Counter-Carving & Loop-Unpinching on Heavy `ExtraBold (w800)` / `Black (w900)` & `Italic` Cuts (`humid1_bilevel_tuner.py`)**:
-  - Added `carve_and_unpinch_counters()` (`M0_counter_carved`) so glyphs that skip stem thickening (`is_bold_role=True` or high-confidence `M0`) still have collapsed/pinholed counters (`<2px` on `a, e, o, b, d, p, q, g, 0, 4, 6, 8, 9, A, B, D, O, P, Q, R, $, %, &`) and pinched open curves (`s, c, w, M`) surgically carved open using the `8x` HQ continuous master.
+  - `Sans` at `16px` now delivers **`2.17px` `Normal` (`w500`, `2,566` ink)** vs. **`3.13px` `Bold` (`w800 ExtraBold`, `3,482` ink = `+35.7%` Ink Contrast Gain / `+0.96px` stem jump!)** vs. **`2.30px` `Italic` (`w600 SemiBoldItalic`, `2,600` ink = `+1.3%` iso-weight subtle emphasis, `-33.9%` lighter than Bold!)**.
+- **Universal Aperture-Preservation & Loop-Unpinching on Heavy `ExtraBold (w800)` / `Black (w900)` & `Italic` Cuts (`humid1_bilevel_tuner.py`)**:
+  - Added `preserve_interior_apertures()` (`M0_counter_carved`) so glyphs that skip stem thickening (`is_bold_role=True` or high-confidence `M0`) still have collapsed/pinholed counters (`<2px` on `a, e, o, b, d, p, q, g, 0, 4, 6, 8, 9, A, B, D, O, P, Q, R, $, %, &`) and pinched open curves (`s, c, w, M`) precisely opened open using the `8x` HQ continuous master.
   - Clamped `expected_b1 = 1` on `SINGLE_COUNTER_OPEN_TAIL_CHARS` (`0469ADOPQRabdeopq`) so single-story italic `a` or two-story hooks never trigger false 2-hole targets. Both `IBMPlexSans-ExtraBold (w800)` and `IBMPlexSans-SemiBoldItalic (w600)` now achieve **`100.0%` counter survival from `12px` to `24px`**.
 
 ### Added
 - **Tri-Role Visual Contrast Triad Scorer & Contrast Sheet (`humid1_font_eval.py`)**:
-  - Added `classify_font_role_and_score()`, `evaluate_family_triads()`, `render_triad_contrast_sheet()` (`build/font_eval/font_eval_triad_contrast_sheet.png`), and `--re-digest-json` to evaluate complete `(Normal + Bold Punch + Subtle Iso-Weight Italic)` family triads and re-digest the 425-font / 30-family evaluation corpus.
+  - Added `classify_font_role_and_score()`, `evaluate_family_triads()`, `render_triad_contrast_sheet()` (`build/font_eval/font_eval_triad_contrast_sheet.png`), and `--re-digest-json` to evaluate complete `(Normal + Bold Contrast Gain + Subtle Iso-Weight Italic)` family triads and re-digest the 425-font / 30-family evaluation corpus.
 - **Instantiated `SemiBoldItalic (w600)` Static TTFs Across All IBM Plex Families (`build_static_ttf_assets.py`)**:
   - Added `IBMPlexSansCondensed-SemiBoldItalic.ttf`, `IBMPlexMono-SemiBoldItalic.ttf`, and `IBMPlexSerif-SemiBoldItalic.ttf` alongside `IBMPlexSans-SemiBoldItalic.ttf`.
 
@@ -57,7 +143,7 @@ All notable changes to the `epd-font` repository and `H1OS` font generation pipe
 
 ### Changed
 - **Simplified `humid1_bilevel_tuner.py` into a Clean 3-Stage Architecture (~2.5x Faster)**:
-  - Pruned redundant/low-yield synthesis passes (`M1`'s 18 `warpAffine` shifts, `M2`'s `0.4%`-win-rate 4x Python medial-axis loop, `M3`'s duplicate 4x SDF, and `M6`'s 1-way shift) into 3 orthogonal stages: **Stage 0 (`M0_wart_shaved`)** 4-Directional Outline-Wart Shaver, **Stage 1 (`M1_dyn_thresh` / `M1_hysteresis`)** Dynamic Threshold + Dual-Hysteresis 8x HQ Area-Downscale, **Stage 2 (`M2_collinear`)** Outward/In-Place Collinear Stem Floor, and **Stage 3 (`M3_central_spine` + `MirrorSync`)**.
+  - Pruned redundant/low-yield synthesis passes (`M1`'s 18 `warpAffine` shifts, `M2`'s `0.4%`-win-rate 4x Python medial-axis loop, `M3`'s duplicate 4x SDF, and `M6`'s 1-way shift) into 3 orthogonal stages: **Stage 0 (`M0_wart_shaved`)** 4-Directional Outline-spur Shaver, **Stage 1 (`M1_dyn_thresh` / `M1_hysteresis`)** Dynamic Threshold + Dual-Hysteresis 8x HQ Area-Downscale, **Stage 2 (`M2_collinear`)** Outward/In-Place Collinear Stem Floor, and **Stage 3 (`M3_central_spine` + `MirrorSync`)**.
 
 ### Added
 - **408-Font Contender Analysis & Head-to-Head Comparison vs. IBM Plex (`docs/audits/FONT_CONTENDERS_ANALYSIS_v1.0.15.md`)**:
@@ -68,21 +154,21 @@ All notable changes to the `epd-font` repository and `H1OS` font generation pipe
 ### Fixed
 - **`.ttc` TrueType Collection Crash in `humid1_ft_raster.py` & `humid1_font_eval.py` (`crash-log.txt` Font `[61/408]`)**:
   - Fixed `rasterize_font_strike()` in `tools/fonts/humid1_ft_raster.py` (line 566) throwing `fontTools.ttLib.TTLibFileIsCollectionError: specify a font number between 0 and 2 (inclusive)` when evaluating `.ttc` TrueType Collection files (such as `IosevkaAile-Bold.ttc`).
-  - Added `open_ttfont_safe(font_path, font_number=0, lazy=False)` across `humid1_ft_raster.py`, `humid1_font_eval.py`, and `humid1_generate_1bpp.py`, plus `try...except Exception` worker fault isolation in `_worker_evaluate_font()` so a single corrupted or unreadable font in a 400+ font directory never aborts the multi-core evaluation pool.
+  - Added `open_ttfont_safe(font_path, font_number=0, lazy=False)` across `humid1_ft_raster.py`, `humid1_font_eval.py`, and `humid1_generate_1bpp.py`, plus `try...except Exception` worker fault isolation in `_worker_evaluate_font()` so a single corrupted or unreadable font in a 400+ font directory never halts the multi-core evaluation pool.
 - **"Ghost Font" `>=2px: 100.0%` Paradox on Ultra-Thin Weights (`Inter-Thin w100` / `InterDisplay-ThinItalic w100`)**:
   - Fixed `measure_stem_deficits()` in `humid1_bilevel_tuner.py` returning `h_ratio = 1.0, needs_h = False` when `nz == 0` or `total_stem_runs == 0`, and updated `_worker_evaluate_font()` in `humid1_font_eval.py` to evaluate all `len(EVAL_BENCHMARK_CHARS)` characters without skipping vanished glyphs (`box_w == 0`). Ultra-thin `w100–w200` cuts that suffer sub-pixel hairline dropout under 1-BPP rasterization now properly report `>=2px: 0.0%`, `Size Floor: >24px`, and `TIER 4: DO NOT USE ON 1-BPP EPD`.
 - **Recalibrated Realistic Pixel Size Floor Estimator (`size_floor_raw_px` & `size_floor_tuned_px`)**:
   - Removed the `if w0 >= 5 and h0 >= 7:` gate on `expected_b1` in `humid1_bilevel_tuner.py` that caused collapsed counters on lowercase `a` and `e` at `10px–12px` (`h0 = 6`) to be ignored (`expected_b1 = 0`).
   - Added `CANONICAL_MIN_HOLES`, `PINCH_FORBIDDEN_CHARS`, and `_check_counter_cavity_viable()` (`hole_px >= 2` on core single-loop counters in heavy weights `wght >= 650`, `b1 == 0` on open curves `s`, `c`, `w`, `M`, `HQConf >= 72.0%`, and `mean_stem_width >= 1.62px`). Heavy cuts (`Inter-ExtraBold w800`, `IBMPlexSans-ExtraBold w800`) now report a realistic **`16px` (`12.0pt`)** floor instead of `10px–12px`.
-- **Eliminated Residual 4-Directional "Outline-Warts" (`M0_wart_shaved`)**:
-  - Upgraded `detect_skin_tags_and_notches()` in `humid1_bilevel_tuner.py` to scan all 4 cardinal directions (horizontal left/right lateral spurs on `fg[r]` + vertical top/bottom pimples on `fg[:, c]` verified against the 8x continuous HQ Master coverage map).
-  - Added a **Universal Pre-Exit Wart-Shaving Pass (`M0_wart_shaved`)** inside `inspect_and_repair_glyph_bitmap()` so that even glyphs that skip stem thickening (`Bold`/`ExtraBold` and `>=14px` `Medium`/`SemiBold`) have their 1px autohint outline-warts cleanly shaved off.
+- **Eliminated Residual 4-Directional "Outline-spurs" (`M0_wart_shaved`)**:
+  - Upgraded `detect_skin_tags_and_notches()` in `humid1_bilevel_tuner.py` to scan all 4 cardinal directions (horizontal left/right lateral spurs on `fg[r]` + vertical top/bottom protrusions on `fg[:, c]` verified against the 8x continuous HQ Master coverage map).
+  - Added a **Universal Pre-Exit spur-Shaving Pass (`M0_wart_shaved`)** inside `inspect_and_repair_glyph_bitmap()` so that even glyphs that skip stem thickening (`Bold`/`ExtraBold` and `>=14px` `Medium`/`SemiBold`) have their 1px autohint outline-spurs cleanly shaved off.
 - **Synchronized `.bat` Script Banners to `v1.0.14`**:
   - Updated all batch script `echo` headers across `scripts/h1os-build-distro/`, `scripts/example-build-distro/`, and `scripts/full-audit-build-distro/` from `v1.0.11` to `v1.0.14`.
 
 ### Added
-- **Selectable `--tune-mode {off,wart-only,surgical,full}` Across Build & Evaluation Pipeline**:
-  - Added `--tune-mode` to `humid1_bilevel_tuner.py`, `humid1_generate_1bpp.py`, and `humid1_font_eval.py` (plus `"tune_mode"` in `*.scheme.json`) to support native font/weight division-of-labor (`off` = 100% pure FreeType, `wart-only` = zero stem thickening with 4-directional wart shaving + mirror bracket sync, `surgical` = default, `full` = full tournament).
+- **Selectable `--tune-mode {off,spur-only,targeted,full}` Across Build & Evaluation Pipeline**:
+  - Added `--tune-mode` to `humid1_bilevel_tuner.py`, `humid1_generate_1bpp.py`, and `humid1_font_eval.py` (plus `"tune_mode"` in `*.scheme.json`) to support native font/weight division-of-labor (`off` = 100% pure FreeType, `spur-only` = zero stem thickening with 4-directional spur shaving + mirror bracket sync, `targeted` = default, `full` = full multi-method evaluation).
 
 ## [v1.0.13] — 2026-11-04
 
@@ -93,11 +179,11 @@ All notable changes to the `epd-font` repository and `H1OS` font generation pipe
   - Enforced the **Multi-Stroke Pigeonhole Law** (`k_runs * min_stem + (k_runs - 1) <= box_w`), **Open-Valley Scanline Run-Count Invariance (`compute_open_valley_stats`)**, and the **Render -> 8x Upscale -> HQ Master Confidence & Valley-Occlusion Sanity Gate (`compute_upscaled_hq_metrics`)**, mathematically preventing open V-valleys in `'W'`/`'w'`/`'M'` from ever being bridged into a solid black mass.
 - **Eliminated Stale Legacy Patch Accumulation & Over-Correction on `'A'`, `'B'`, `'f'`, `'g'`, `'s'`, `')'`**:
   - Fixed `build_patches_json_from_ascii_root()` in `tools/fonts/humid1_ascii_patches.py` so each strike dictionary in `font_icon_epd_patches.json` is replaced cleanly rather than merged via `.update()` onto stale `v1.0.9–v1.0.11` overrides.
-  - Added the **"Do No Harm" Conservative Surgical Trigger Gate**, leaving already-thick `Bold` / `ExtraBold (800)` glyphs and high-confidence `Medium (500)` glyphs (`HQConf >= 72%`) 100% untouched (`M0_verified`), reducing total compiled patches across all 63 H1OS strikes from `1,816` down to **`651` surgical overrides**.
+  - Added the **"Do No Harm" Conservative Targeted Trigger Gate**, leaving already-thick `Bold` / `ExtraBold (800)` glyphs and high-confidence `Medium (500)` glyphs (`HQConf >= 72%`) 100% untouched (`M0_verified`), reducing total compiled patches across all 63 H1OS strikes from `1,816` down to **`651` targeted overrides**.
 
 ### Added
 - **Pre-Tune (`RAW`) vs. Post-Tune (`TUNED`) Traceability & Per-Font PNG Evaluation Sheets (`build/font_eval/sheets/*_eval.png`)**:
-  - `humid1_font_eval.py` now records and renders both untouched FreeType (`PRE-TUNE / RAW`) and tournament-repaired (`POST-TUNE / TUNED`) metrics (`HQ Confidence %`, `HQ Diff %`, `>=2px Stem %`, `Counter %`, and `Tuning Burden %`) across all sizes.
+  - `humid1_font_eval.py` now records and renders both untouched FreeType (`PRE-TUNE / RAW`) and multi-method evaluation-repaired (`POST-TUNE / TUNED`) metrics (`HQ Confidence %`, `HQ Diff %`, `>=2px Stem %`, `Counter %`, and `Tuning Burden %`) across all sizes.
   - Emits a dedicated visual inspection PNG sheet per font (`build/font_eval/sheets/<font_stem>_eval.png`) with 1:1 specimen strings and 2x-zoomed critical glyph strips (`W w M m A B C f g r s $ ( ) [ ] 0 8`), plus `build/font_eval/font_eval_report.csv`, `.md`, `.json`, and `font_eval_comparison_sheet.png`.
 
 ## [v1.0.12] — 2026-11-04
@@ -115,15 +201,15 @@ All notable changes to the `epd-font` repository and `H1OS` font generation pipe
 - **Anisotropic `ExtraBold (wght=800)` Static TTF Synthesis & 3-Tier Weight Hierarchy**:
   - Upgraded `tools/fonts/build_static_ttf_assets.py` (now generating **88 static `.ttf` files**) to synthesize `IBMPlexSans-ExtraBold.ttf`, `IBMPlexSans-ExtraBoldItalic.ttf`, `IBMPlexSansCondensed-ExtraBold.ttf`, `IBMPlexSansCondensed-ExtraBoldItalic.ttf`, `IBMPlexMono-ExtraBold.ttf`, `IBMPlexMono-ExtraBoldItalic.ttf`, `IBMPlexSerif-ExtraBold.ttf`, and `IBMPlexSerif-ExtraBoldItalic.ttf` via anisotropic `gvar` positive-weight delta extrapolation (`1.45x` horizontal stem weight, `1.18x` vertical bar weight).
   - Mapped `bold -> ExtraBold (800)` when `normal = Medium (500)`, restoring a `+31.1%` to `+48.3%` ink-mass separation (`mean stem 3.11px` vs `2.26px` at `16px`) between `normal`, `bold`, and `italic`.
-- **Multi-Font & Weight Tournament Evaluator (`tools/fonts/humid1_font_eval.py` & `scripts/font-eval-suite/01_run_font_eval.bat`)**:
-  - Benchmarks candidate typefaces and weights across `10px–20px`, estimates raw vs. tournament-tuned pixel size floors, writes `docs/audits/FONT_EVAL_BENCHMARK_v1.0.12.md`, and renders `build/font_eval/font_eval_comparison_sheet.png`.
+- **Multi-Font & Weight Multi-Method Evaluation Evaluator (`tools/fonts/humid1_font_eval.py` & `scripts/font-eval-suite/01_run_font_eval.bat`)**:
+  - Benchmarks candidate typefaces and weights across `10px–20px`, estimates raw vs. multi-method evaluation-tuned pixel size floors, writes `docs/audits/FONT_EVAL_BENCHMARK_v1.0.12.md`, and renders `build/font_eval/font_eval_comparison_sheet.png`.
 - **Modularized Foundry Architecture (`tools/fonts/`)**:
   - Extracted `humid1_ft_raster.py`, `humid1_ascii_patches.py`, `humid1_visual_check.py`, and `humid1_lvgl_bdf_export.py` from `humid1_generate_1bpp.py`, reducing `humid1_generate_1bpp.py` from `4,309` lines to `1,426` lines while preserving 100% CLI and import compatibility.
 
 ## [v1.0.11] — 2026-11-04
 ### Added
 - **8-Method Iterative Typographic Correction, Scoring & Evaluation Engine (`tools/fonts/humid1_bilevel_tuner.py`, `SPEC-TYPO-MATH-1BPP-001`)**:
-  - Evaluates 8 distinct mathematical synthesis & repair methods per glyph (`M0_untouched`, `M1_phase` sub-pixel phase/threshold sweep, `M2_line_tracer` medial-axis centerline + asymmetric $\begin{bmatrix}1 & 1\end{bmatrix}$ stroke kernel, `M3_sdf` signed distance field zero-level-set perturbation, `M4_hysteresis_inktrap` dual-threshold hysteresis + $\text{LoG}$ acute ink-trap carving, `M5_collinear` whole-stem collinear dilation + Jenson-Garamond counter-punch, `M6_diagonal_rectified` rational slant rectifier, and `M7_mumford_shah_clean` total-variation spur/notch cleaner).
+  - Evaluates 8 distinct mathematical synthesis & repair methods per glyph (`M0_untouched`, `M1_phase` sub-pixel phase/threshold sweep, `M2_line_tracer` medial-axis centerline + asymmetric $\begin{bmatrix}1 & 1\end{bmatrix}$ stroke kernel, `M3_sdf` signed distance field zero-level-set perturbation, `M4_hysteresis_inktrap` dual-threshold hysteresis + $\text{LoG}$ acute ink-trap opening, `M5_collinear` whole-stem collinear dilation + Jenson-Garamond counter-contrast gain, `M6_diagonal_rectified` rational slant rectifier, and `M7_mumford_shah_clean` total-variation spur/notch cleaner).
   - Scores every candidate out of `100.0` points against both an **$8\times$ HQ Continuous Master Reference ($U_{\text{HQ}}$)** and a **Smallest-Strike ($12\text{px}$) Nth-Factor Upscale Reference ($U_{\text{base}\times N}$)** with hard gates on Euler-Poincaré Betti numbers ($B_0, B_1$), HQ Structural IOU ($\ge 0.66$), and zero skin tags / zero notches.
 - **Prominent `PATCHED OVERRIDES ACTIVE: N / Total GLYPHS` Banner Badge in Page Check PNGs (`03_visual_check_pngs.bat`)**:
   - Every `inspect_pages/<symbol>.png` sheet now displays `PATCHED: N/Total` in the title bar and an emerald-green status pill in the top-right corner alongside green-bordered patched glyph cells.
@@ -271,7 +357,7 @@ All notable changes to the **[Humidyne-Labs/epd-font](https://github.com/Humidyn
 - **Unified Single-Input (`--src-dir`) and Single-Output (`--out-dir`) CLI Architecture**:
   - Audited and simplified `build_static_ttf_assets.py` and `generate_plex_1bpp.py` so only a single `--src-dir` and a single `--out-dir` are needed (eliminating the dual `--plex-dir` / `--icons-src` / `--font-dir` conflict while retaining hidden backward-compatible aliases).
 - **Consolidated Documentation into 4 Canonical Files**:
-  - Replaced scattered engineering notes with exactly 4 structured documents: `README.md`, `CHANGELOG.md`, `docs/HOW_TO_GUIDE.md`, and `docs/MAINTAINER_SPEC.md`.
+  - Replaced scattered technical design notes with exactly 4 structured documents: `README.md`, `CHANGELOG.md`, `docs/HOW_TO_GUIDE.md`, and `docs/MAINTAINER_SPEC.md`.
 
 ### Fixed
 - **Fixed Column-0 `#` Pixel Parsing in `parse_ascii_glyph_folder()`**:
@@ -307,7 +393,7 @@ All notable changes to the **[Humidyne-Labs/epd-font](https://github.com/Humidyn
 - **Full-Canvas 1:1 Spaced ASCII Patch Format & Auto-Bounding-Box Parser**:
   - Plotted every glyph across its full vertical (`ASCENDER` to `DESCENDER`) and horizontal (`adv_w`) canvas using 2-character cells (`# `, `. `, `- `) so monospace editors display a true 1:1 aspect ratio and show exact baseline positioning for underscores (`_`), periods (`.`), and degrees (`°`).
 - **Two-Level Visual Check PNG Suite (`inspect_pages/` & `inspect_chars/`)**:
-  - Added auto-wrapping specimen strings on Page Check PNGs and 18×–24× integer-zoom Char-by-Char Engineering Blueprint PNG cards.
+  - Added auto-wrapping specimen strings on Page Check PNGs and 18×–24× integer-zoom Char-by-Char Technical Design Blueprint PNG cards.
 - **Portable Zero-Dependency Firmware Emitter (`plex_fw_emit.py` & `plex_epd_vault.json.gz`)**:
   - Split heavy desktop foundry operations (`generate_plex_1bpp.py`) from fast, zero-dependency CMake firmware emission (`plex_fw_emit.py`).
 

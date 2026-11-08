@@ -60,7 +60,7 @@ Every build now automatically generates `total_disk_size.txt` in `<out-dir>/font
 | **`example.scheme.json`** (`scripts/example-build-distro`) | `19` | `1,989` | **`70,583 B` (`68.93 KB`)** | `1,303,647 B` (`1,273.09 KB`) | **YES (`26.9%`)** | **YES (`6.7%`)** |
 | **`h1os_full.scheme.json`** (`scripts/h1os-build-distro`) | `27` | `2,244` | **`82,420 B` (`80.49 KB`)** | `1,497,507 B` (`1,462.41 KB`) | **YES (`31.4%`)** | **YES (`7.9%`)** |
 
-## 4. Engineering Evaluation: GNU Unifont (`unifont-18.0.01.otf`)
+## 4. Technical Design Evaluation: GNU Unifont (`unifont-18.0.01.otf`)
 
 ### 4.1 What GNU Unifont Is
 [GNU Unifont](https://unifoundry.com/unifont/) (`unifont-18.0.01.otf`) is a dual-width (`8×16` half-width ASCII/Latin and `16×16` full-width CJK/symbol) bitmap-derived font covering all **65,536 codepoints** of the Unicode Basic Multilingual Plane (`U+0000..U+FFFF`).

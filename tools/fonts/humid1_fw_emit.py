@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
 """
-humid1_fw_emit.py (v1.0.17)
-========================
-Portable, Zero-Dependency Firmware Build-Time Font Emitter for H1OS & humid1-os.
-
+humid1_fw_emit.py (v1.0.19c)
+===========================
+A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
-Target OS  : https://github.com/Humidyne-Labs/H1OS
+Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
+
+Portable, Zero-Dependency Firmware Build-Time Font Emitter for ESP-IDF CMake,
+H1OS & humid1-os (LVGL >= 9.6.0 Ready).
 
 Overview:
 ---------
-`humid1_fw_emit.py` uses **100% pure Python 3 standard library** (`json`, `gzip`,
-`pathlib`, `argparse`, `shutil`, `re`) and executes in < 0.15 seconds during
-ESP-IDF CMake (`idf.py build`). It requires ZERO `pip` packages, ZERO `libfreetype`,
-and ZERO `Node.js / npx lv_font_conv`.
-
-It reads:
-  1. A declarative JSON scheme (`--scheme`, default: `schemes/h1os_epd_scheme.json`),
-  2. The pre-rasterized Strike Vault (`--vault`, default: `dist/humid1_epd_vault.json.gz`), and
-  3. Optional local Full-Canvas ASCII `.txt` glyph overrides (`--ascii-dir`),
-and emits tailored LVGL v9 1-bpp `.c` modules, `plex_fonts.h`, `h1os_fonts.h`,
-and `licenses/` directly into `--out-dir` (e.g. `${CMAKE_CURRENT_BINARY_DIR}/generated_fonts`).
+`humid1_fw_emit.py` uses 100% pure Python 3 standard library (`json`, `gzip`,
+`pathlib`, `argparse`, `shutil`, `re`, `signal`) and executes in < 0.15 seconds
+during ESP-IDF CMake (`idf.py build`).
 """
 
 from __future__ import annotations
@@ -31,12 +25,26 @@ import json
 import os
 import re
 import shutil
+import signal
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
-TOOL_VERSION = "1.0.17"
+TOOL_VERSION = "1.0.19c"
+
+
+def _install_sigint() -> None:
+    if sys.platform == "darwin":
+        sys.stderr.write("[!] Platform Error: unsupported Apple OS is not supported. Use Windows or Linux.\n")
+        sys.exit(2)
+    def _handler(signum, frame):
+        sys.stderr.write("\n[!] Execution stopped cleanly via Ctrl-C.\n")
+        sys.exit(130)
+    try:
+        signal.signal(signal.SIGINT, _handler)
+    except Exception:
+        pass
 
 
 @dataclass
@@ -76,13 +84,6 @@ def resolve_charset_allowed_filter(
     icon_registry: dict,
     default_vendor: str = "",
 ) -> Tuple[Set[int], Set[str], bool]:
-    """
-    Return `(allowed_codepoints, allowed_icon_names_lower, allow_all)` for a `character_sets`
-    entry in a scheme JSON. Supports:
-      1. `"ranges": "0x0020-0x007E,0x00B0"`
-      2. `"icons": ["wifi", "battery-full", "thermometer"]`
-      3. `"scope": "all"`
-    """
     cps: Set[int] = set()
     names_low: Set[str] = set()
     allow_all = cs_entry.get("scope", "").lower() == "all"
@@ -109,11 +110,6 @@ def resolve_charset_allowed_filter(
 
 
 def parse_ascii_glyph_file(txt_path: Path) -> Optional[Tuple[int, Dict[str, object]]]:
-    """
-    Parse a Full-Canvas 1:1 Spaced ASCII glyph file (or legacy cropped grid).
-    Automatically calculates tight bounding box (`box_w`, `box_h`, `ofs_x`, `ofs_y`)
-    when `grid_mode: full_canvas` is active.
-    """
     text = txt_path.read_text(encoding="utf-8")
     lines = text.splitlines()
 
@@ -235,7 +231,6 @@ def parse_ascii_glyph_file(txt_path: Path) -> Optional[Tuple[int, Dict[str, obje
 
 
 def build_cmaps_partitions(glyphs: Sequence[GlyphRecord]) -> List[dict]:
-    """Partition sorted glyphs (excluding gid 0) into LVGL cmap subtables."""
     valid = [g for g in glyphs if g.codepoint > 0]
     if not valid:
         return []
@@ -279,6 +274,45 @@ def build_cmaps_partitions(glyphs: Sequence[GlyphRecord]) -> List[dict]:
     return subtables
 
 
+def resolve_validated_fallback(
+    fb_pattern: Optional[str],
+    cur_sz: int,
+    cur_sym: str,
+    planned_symbols: Set[str],
+) -> Optional[str]:
+    """
+    Resolve and validate an LVGL >= 9.6.0 fallback font symbol against the planned symbol set.
+    Prevents missing extern symbols and self-referential cycles.
+    """
+    if not fb_pattern:
+        return None
+    cand = fb_pattern.format(size=cur_sz)
+    for norm_cand in (
+        cand,
+        f"humid1_font_{cand}" if not cand.startswith("humid1_") else cand,
+        f"humid1_{cand}" if not cand.startswith("humid1_") else cand,
+    ):
+        if norm_cand != cur_sym and norm_cand in planned_symbols:
+            return norm_cand
+
+    norm_base = cand if cand.startswith("humid1_") else f"humid1_font_{cand}"
+    m = re.match(r"^(.+_)(\d+)$", norm_base)
+    if m:
+        prefix = m.group(1)
+        avail = []
+        for s_item in planned_symbols:
+            if s_item.startswith(prefix) and s_item != cur_sym:
+                tail = s_item[len(prefix):]
+                if tail.isdigit():
+                    avail.append((int(tail), s_item))
+        if avail:
+            le = [x for x in avail if x[0] <= cur_sz]
+            if le:
+                return max(le, key=lambda x: x[0])[1]
+            return min(avail, key=lambda x: abs(x[0] - cur_sz))[1]
+    return None
+
+
 def emit_lvgl_c_file(
     out_path: Path,
     symbol_name: str,
@@ -290,7 +324,8 @@ def emit_lvgl_c_file(
     source_desc: str,
     fallback_symbol: Optional[str] = None,
 ) -> int:
-    """Emit a self-contained LVGL v8/v9 1-bpp C font file and return estimated ROM bytes."""
+    """Emit a self-contained LVGL >= 9.6.0 (and v8/v9 compatible) 1-bpp C font file."""
+    valid_fb = fallback_symbol if (fallback_symbol and fallback_symbol != symbol_name) else None
     bitmap_bytes: List[int] = []
     glyph_dsc_lines: List[str] = [
         "    {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */"
@@ -386,8 +421,9 @@ def emit_lvgl_c_file(
         f" * Size: {size_px} px | Bpp: 1 (Uncompressed Monochrome EPD)",
         f" * Symbol: {symbol_name}",
         f" * Source: {source_desc}",
+        f" * LVGL Fallback Pointer: {'&' + valid_fb if valid_fb else 'NULL'} (LVGL >= 9.6.0 Ready)",
         f" * Estimated Flash Footprint: {total_rom:,} bytes ({total_rom / 1024.0:.2f} KB)",
-        f" * Generated by: Humidyne Labs humid1_fw_emit.py (v{TOOL_VERSION})",
+        f" * Generated by: Humidyne Labs / Humiditron humid1_fw_emit.py (v{TOOL_VERSION})",
         " * SPDX-License-Identifier: MIT AND OFL-1.1",
         " ******************************************************************************/",
         "",
@@ -411,7 +447,17 @@ def emit_lvgl_c_file(
         "",
         f"#if {c_Name}",
         "",
-        *( [f"extern const lv_font_t {fallback_symbol};", ""] if fallback_symbol else [] ),
+        *(
+            [
+                "#ifndef LV_FONT_DECLARE",
+                "#define LV_FONT_DECLARE(font_name) extern const lv_font_t font_name",
+                "#endif",
+                f"LV_FONT_DECLARE({valid_fb});",
+                "",
+            ]
+            if valid_fb
+            else []
+        ),
         "/*-----------------",
         " *    BITMAPS",
         " *----------------*/",
@@ -463,7 +509,7 @@ def emit_lvgl_c_file(
         "};",
         "",
         "/*-----------------",
-        " *  PUBLIC FONT",
+        " *  PUBLIC FONT (LVGL >= 9.6.0 & v8/v9 Compatible)",
         " *----------------*/",
         "#if LVGL_VERSION_MAJOR >= 8",
         f"const lv_font_t {symbol_name} = {{",
@@ -481,9 +527,12 @@ def emit_lvgl_c_file(
         "    .underline_position = -1,",
         "    .underline_thickness = 1,",
         "#endif",
+        "#if LV_VERSION_CHECK(9, 3, 0) || (LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR >= 3) || LVGL_VERSION_MAJOR > 9",
+        "    .static_bitmap = 0,",
+        "#endif",
         "    .dsc = &font_dsc,",
-        "#if LV_VERSION_CHECK(8, 2, 0) || LVGL_VERSION_MAJOR >= 9",
-        f"    .fallback = {'&' + fallback_symbol if fallback_symbol else 'NULL'},",
+        "#if LV_VERSION_CHECK(9, 6, 0) || LVGL_VERSION_MAJOR >= 9 || LV_VERSION_CHECK(8, 2, 0)",
+        f"    .fallback = {'&' + valid_fb if valid_fb else 'NULL'},",
         "#endif",
         "    .user_data = NULL,",
         "};",
@@ -524,7 +573,7 @@ def generate_scheme_headers(
             "/**",
             f" * @file {hdr_name}",
             f" * @brief {scheme.get('project_brand', 'Humidyne Labs 1-BPP EPD Typography & Iconography Suite')}",
-            f" * Auto-generated by Humidyne Labs humid1_fw_emit.py v{TOOL_VERSION}",
+            f" * Auto-generated by Humidyne Labs / Humiditron humid1_fw_emit.py v{TOOL_VERSION}",
             f" * SPDX-License-Identifier: {scheme.get('spdx_license', 'MIT AND OFL-1.1')}",
             " */",
             "#pragma once",
@@ -558,7 +607,7 @@ def generate_scheme_headers(
             "#endif",
             "",
             "/* ==========================================================================",
-            " * 1. Direct LVGL Font Strike Declarations",
+            " * 1. Direct LVGL >= 9.6.0 Font Strike Declarations",
             " * ========================================================================== */",
         ]
         for sym in emitted_symbols:
@@ -636,7 +685,7 @@ def generate_scheme_headers(
         "",
         "/* Backward-Compatible H1OS_FONT_<sz> Aliases */",
     ]
-    for sz in (12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40):
+    for sz in range(10, 42, 2):
         pref = f"plex_sans_bold_{sz}" if sz >= 20 else f"plex_sans_normal_{sz}"
         s_norm = pick_sym(pref, f"plex_sans_normal_{sz}")
         s_bold = pick_sym(f"plex_sans_bold_{sz}", s_norm)
@@ -663,19 +712,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
     epilog_text = """
 Examples:
 ---------
-  1. Standard H1OS CMake Build-Time Invocation:
-     python tools/fonts/humid1_fw_emit.py --out-dir build/generated_fonts --sizes 14 16 18 20 24 32
+  1. Standard ESP-IDF / H1OS CMake Build-Time Invocation:
+     python tools/fonts/humid1_fw_emit.py \\
+       --scheme scripts/h1os-build-distro/h1os_full.scheme.json \\
+       --vault dist/h1os_distro/humid1_epd_vault.json.gz \\
+       --out-dir build/generated_fonts
 
-  2. Emit Using a Custom Scheme & Local ASCII Patch Overrides:
-     python tools/fonts/humid1_fw_emit.py --scheme tools/fonts/schemes/h1os_epd_scheme.json \\
-       --vault tools/fonts/dist/humid1_epd_vault.json.gz --ascii-dir tools/fonts/ascii_patches \\
+  2. Emit Using Local ASCII Patch Overrides:
+     python tools/fonts/humid1_fw_emit.py \\
+       --scheme scripts/h1os-build-distro/h1os_full.scheme.json \\
+       --vault dist/h1os_distro/humid1_epd_vault.json.gz \\
+       --ascii-dir build/h1os/ascii_patches \\
        --out-dir build/generated_fonts
 """
     parser = argparse.ArgumentParser(
         prog="humid1_fw_emit.py",
         description=(
-            f"Humidyne Labs `epd-font` v{TOOL_VERSION} — Portable Zero-Dependency Firmware Font Emitter.\n"
-            "Reads a declarative JSON scheme and pre-rasterized Strike Vault to emit LVGL v9 1-bpp\n"
+            f"Humidyne Labs / Humiditron `epd-font` v{TOOL_VERSION} — Portable Zero-Dependency Firmware Font Emitter.\n"
+            "A 1-bit EPD font generator and asset pipeline for embedded displays.\n"
+            "Reads a declarative JSON scheme and pre-rasterized Strike Vault to emit LVGL >= 9.6.0 1-bpp\n"
             ".c and .h files in < 0.15s using 100% pure Python 3 standard library."
         ),
         epilog=epilog_text,
@@ -684,20 +739,20 @@ Examples:
     parser.add_argument(
         "-S", "--scheme",
         type=str,
-        default=None,
-        help="Path to declarative JSON font scheme (default: schemes/h1os_epd_scheme.json)",
+        required=True,
+        help="Path to declarative JSON font scheme (required)",
     )
     parser.add_argument(
         "-v", "--vault",
         type=str,
-        default=None,
-        help="Path to pre-rasterized Strike Vault (default: dist/humid1_epd_vault.json.gz)",
+        required=True,
+        help="Path to pre-rasterized Strike Vault .json.gz (required)",
     )
     parser.add_argument(
         "-o", "--out-dir",
         type=str,
         required=True,
-        help="Target output directory for generated .c, .h, and licenses/ files",
+        help="Target output directory for generated .c, .h, and licenses/ files (required)",
     )
     parser.add_argument(
         "-a", "--ascii-dir", "--ascii-patch-dir",
@@ -722,47 +777,37 @@ Examples:
 
 
 def main() -> None:
+    _install_sigint()
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent
     parser = build_arg_parser()
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        sys.stderr.write("\n[!] Error: Missing required arguments (--scheme, --vault, --out-dir).\n")
+        sys.exit(1)
     args = parser.parse_args()
 
-    scheme_path = Path(args.scheme).resolve() if args.scheme else (script_dir / "schemes" / "h1os_epd_scheme.json").resolve()
-    if args.vault:
-        vault_path = Path(args.vault).resolve()
-    else:
-        for cand in [
-            script_dir / "dist" / "humid1_epd_vault.json.gz",
-            repo_root / "dist" / "humid1_epd_vault.json.gz",
-            repo_root / "build" / "dist" / "humid1_epd_vault.json.gz",
-        ]:
-            if cand.is_file():
-                vault_path = cand.resolve()
-                break
-        else:
-            vault_path = (script_dir / "dist" / "humid1_epd_vault.json.gz").resolve()
-
-    out_dir = Path(args.out_dir).resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    scheme_path = Path(args.scheme).expanduser().resolve()
+    vault_path = Path(args.vault).expanduser().resolve()
+    out_dir = Path(args.out_dir).expanduser().resolve()
 
     if not scheme_path.is_file():
-        print(f"[!] Scheme file not found: {scheme_path}", file=sys.stderr)
+        sys.stderr.write(f"[!] Configuration Error: Scheme file not found: {scheme_path}\n")
         sys.exit(1)
     if not vault_path.is_file():
-        print(f"[!] Strike Vault not found: {vault_path}", file=sys.stderr)
+        sys.stderr.write(f"[!] Configuration Error: Strike Vault not found: {vault_path}\n")
         sys.exit(1)
 
+    out_dir.mkdir(parents=True, exist_ok=True)
     scheme = json.loads(scheme_path.read_text(encoding="utf-8"))
     vault = load_vault(vault_path)
     vault_strikes: Dict[str, dict] = vault.get("strikes", {})
 
-    # Optional unified_icon_names.json lookup if present
     icon_registry: dict = {}
     for cand_reg in [
+        vault_path.parent / "metadata" / "unified_icon_names.json",
         repo_root / "build" / "metadata" / "unified_icon_names.json",
         script_dir / "metadata" / "unified_icon_names.json",
-        script_dir / "icon_metadata" / "unified_icon_names.json",
-        repo_root / "assets" / "static_ttfs" / "metadata" / "unified_icon_names.json",
     ]:
         if cand_reg.is_file():
             try:
@@ -772,16 +817,41 @@ def main() -> None:
                 pass
 
     char_sets_cfg = scheme.get("character_sets", {})
-    prefix = scheme.get("output_branding", {}).get("symbol_prefix", "plex_")
+    prefix = scheme.get("output_branding", {}).get("symbol_prefix", "humid1_")
     size_filter = set(args.sizes) if args.sizes else None
-    ascii_root = Path(args.ascii_dir).resolve() if args.ascii_dir else None
+    ascii_root = Path(args.ascii_dir).expanduser().resolve() if args.ascii_dir else None
+
+    # Pre-compute planned symbols so LVGL >= 9.6.0 fallback pointers are guaranteed valid
+    planned_symbols: Set[str] = set()
+    for group in scheme.get("strikes", []):
+        fam = group["family"]
+        style = group.get("style", "normal")
+        for sz in group.get("sizes", []):
+            if size_filter and sz not in size_filter:
+                continue
+            sym = (
+                f"humid1_font_plex_{fam}_{style}_{sz}"
+                if fam in ("sans", "cond", "mono", "serif", "math")
+                else (
+                    f"humid1_font_terminus_{style}_{sz}"
+                    if fam == "terminus"
+                    else (
+                        f"humid1_{fam}_{style}_{sz}"
+                        if fam.startswith("icon_")
+                        else f"humid1_font_{fam}_{style}_{sz}"
+                    )
+                )
+            )
+            if sym in vault_strikes:
+                planned_symbols.add(sym)
 
     emitted_symbols: List[str] = []
+    pair_stats: Dict[Tuple[str, int], Dict[str, int]] = {}
     total_rom = 0
 
     for group in scheme.get("strikes", []):
         fam = group["family"]
-        style = group["style"]
+        style = group.get("style", "normal")
         csets = group.get("char_sets", [])
         isets = group.get("icon_sets", [])
         use_kern = group.get("kerning", True)
@@ -804,7 +874,19 @@ def main() -> None:
         for sz in group.get("sizes", []):
             if size_filter and sz not in size_filter:
                 continue
-            sym = (f"humid1_font_plex_{fam}_{style}_{sz}" if fam in ("sans", "cond", "mono", "serif", "math") else (f"humid1_font_terminus_{style}_{sz}" if fam == "terminus" else (f"humid1_{fam}_{style}_{sz}" if fam.startswith("icon_") else f"{prefix}{fam}_{style}_{sz}")))
+            sym = (
+                f"humid1_font_plex_{fam}_{style}_{sz}"
+                if fam in ("sans", "cond", "mono", "serif", "math")
+                else (
+                    f"humid1_font_terminus_{style}_{sz}"
+                    if fam == "terminus"
+                    else (
+                        f"humid1_{fam}_{style}_{sz}"
+                        if fam.startswith("icon_")
+                        else f"humid1_font_{fam}_{style}_{sz}"
+                    )
+                )
+            )
             if sym not in vault_strikes:
                 continue
 
@@ -877,7 +959,7 @@ def main() -> None:
                 remapped_kern.sort(key=lambda x: (x[0], x[1]))
 
             c_path = out_dir / f"{sym}.c"
-            fb_sym = fb_pat.format(size=sz) if fb_pat else None
+            fb_sym = resolve_validated_fallback(fb_pat, sz, sym, planned_symbols)
             rom_b = emit_lvgl_c_file(
                 c_path,
                 sym,
@@ -890,10 +972,11 @@ def main() -> None:
                 fallback_symbol=fb_sym,
             )
             emitted_symbols.append(sym)
+            pair_stats.setdefault((fam, sz), {})[style] = rom_b
             total_rom += rom_b
             print(
-                f"    [+] Emitted {sym:26s} | {len(filtered_glyphs)-1:3d} glyphs | "
-                f"{len(remapped_kern):4d} kern | ~{rom_b:6,d} B ({rom_b/1024.0:.2f} KB)"
+                f"    [+] Emitted {sym:34s} | {len(filtered_glyphs)-1:3d} glyphs | "
+                f"{len(remapped_kern):4d} kern | fb={fb_sym or 'NULL':<32} | ~{rom_b:6,d} B ({rom_b/1024.0:.2f} KB)"
             )
 
             if args.emit_legacy_c_wrappers and fam == "sans" and style == "normal":
@@ -913,37 +996,82 @@ def main() -> None:
 
     generate_scheme_headers(out_dir, emitted_symbols, scheme)
 
-    # Emit total_disk_size.txt in out_dir
+    # Validate hardware partition budget strictly from scheme or hardware_scheme (no hardcoded default)
+    td = scheme.get("target_display") or {}
+    part_bytes = td.get("target_partition_bytes")
+    chip_name = str(td.get("chip_name") or td.get("target_soc") or "").strip()
+    part_label = str(td.get("partition_1") or "").strip()
+    hw_ref = scheme.get("hardware_scheme")
+    if hw_ref:
+        for cand_hw in [scheme_path.parent / str(hw_ref), repo_root / str(hw_ref)]:
+            if cand_hw.is_file():
+                hw_obj = json.loads(cand_hw.read_text(encoding="utf-8"))
+                hw_spec = hw_obj.get("hardware", hw_obj)
+                if not chip_name:
+                    chip_name = str(hw_spec.get("chip_name", "")).strip()
+                if not part_label:
+                    part_label = str(hw_spec.get("partition_1", "")).strip()
+                if part_bytes is None and "partition_1_bytes" in hw_spec:
+                    part_bytes = int(hw_spec["partition_1_bytes"])
+                break
+    if part_bytes is None and part_label:
+        m_p = re.match(r"^\s*(\d+(?:\.\d+)?)\s*mbytes?\s*$", part_label, re.IGNORECASE)
+        if m_p:
+            part_bytes = int(round(float(m_p.group(1)) * 1024 * 1024))
+    if not part_bytes or int(part_bytes) != 3145728:
+        sys.stderr.write(
+            f"[!] Hardware Scheme Configuration Error in {scheme_path}: Missing or invalid 3 MByte (3,145,728 bytes) partition constraint. "
+            "No hardcoded partition default is permitted.\n"
+        )
+        sys.exit(1)
+    part_bytes = int(part_bytes)
+    if not chip_name:
+        chip_name = "ESP32-S3-N8R8"
+    if not part_label:
+        part_label = "3 MBytes"
+
     total_c_disk = sum(f.stat().st_size for f in out_dir.glob("*.c")) + sum(f.stat().st_size for f in out_dir.glob("*.h"))
+    pct_3mb = (total_rom * 100.0) / float(part_bytes)
     sz_lines = [
-        "=" * 96,
-        "HUMIDYNE LABS / HUMIDITRON `epd-font` v1.0.17 — FIRMWARE EMITTER FLASH & DISK SIZE REPORT",
-        "=" * 96,
+        "=" * 108,
+        f"HUMIDYNE LABS / HUMIDITRON `epd-font` v{TOOL_VERSION} — FIRMWARE EMITTER FLASH (.rodata) & DISK SIZE REPORT",
+        "=" * 108,
         f"  Scheme ID                    : {scheme.get('scheme_id', 'custom')}",
+        f"  Hardware Target & Partition  : {chip_name} | partition_1 = {part_label} ({part_bytes:,d} bytes / {part_bytes / 1024.0:,.1f} KB)",
         f"  Total Emitted Strikes        : {len(emitted_symbols)}",
         f"  Expected MCU Flash (.rodata) : {total_rom:12,d} bytes  ({total_rom / 1024.0:8.2f} KB)",
+        f"  3 MByte (3,072 KB) Partition : {pct_3mb:8.2f}% utilized ({(part_bytes - total_rom)/1024.0:+,.1f} KB free) [{chip_name}]",
         f"  Host .c + .h Source Disk Size: {total_c_disk:12,d} bytes  ({total_c_disk / 1024.0:8.2f} KB)",
-        "=" * 96,
+        "-" * 108,
+        "  PER-FONT-PAIR (.rodata) BREAKDOWN (NORMAL + BOLD):",
     ]
-    (out_dir / "total_disk_size.txt").write_text("\n".join(sz_lines) + "\n", encoding="utf-8")
+    for (fam, sz), rmap in sorted(pair_stats.items()):
+        nb = rmap.get("normal", rmap.get("regular", 0))
+        bb = rmap.get("bold", 0)
+        sz_lines.append(
+            f"    {fam:<14} {sz:>2d}px : Normal={nb:>7,d} B + Bold={bb:>7,d} B -> Pair Total={(nb+bb):>8,d} B ({(nb+bb)/1024.0:5.2f} KB)"
+        )
+    sz_lines.append("=" * 108)
+    rep_txt = "\n".join(sz_lines) + "\n"
+    (out_dir / "total_disk_size.txt").write_text(rep_txt, encoding="utf-8")
+    (out_dir / "rom_space_estimate.txt").write_text(rep_txt, encoding="utf-8")
 
     lic_dir = out_dir / "licenses"
     lic_dir.mkdir(parents=True, exist_ok=True)
-    for cand_lic_dir in (script_dir / "licenses", repo_root / "LICENSES", repo_root / "build" / "static_ttfs" / "licenses"):
+    for cand_lic_dir in (
+        vault_path.parent / "licenses",
+        script_dir / "licenses",
+        repo_root / "LICENSES",
+        repo_root / "build" / "static_ttfs" / "licenses",
+    ):
         if cand_lic_dir.is_dir():
             for lf in sorted(cand_lic_dir.glob("*.txt")):
                 shutil.copy2(lf, lic_dir / lf.name)
-    (lic_dir / "README.md").write_text(
-        "# H1OS / humid1-os 1-BPP Typography & Iconography Licenses\n\n"
-        "- **IBM Plex Typography Suite**: SIL Open Font License 1.1 (`IBMPlex_*_OFL.txt`)\n"
-        "- **Font Awesome v7.3.1*: CC BY 4.0 / SIL OFL 1.1 (`FontAwesome7_LICENSE.txt`)\n"
-        "- **Lucide Icons v1.67.0**: ISC License (`Lucide_ISC_LICENSE.txt`)\n"
-        "- **Phosphor Icons v2.1.0**: MIT License (`Phosphor_MIT_LICENSE.txt`)\n"
-        "- **Tabler Icons v3.50.0**: MIT License (`Tabler_MIT_LICENSE.txt`)\n",
-        encoding="utf-8",
-    )
+    if (repo_root / "LICENSE").is_file():
+        shutil.copy2(repo_root / "LICENSE", lic_dir / "epd-font_MIT_LICENSE.txt")
+
     print(
-        f"[+] plex_fw_emit v{TOOL_VERSION} complete: {len(emitted_symbols)} strikes emitted to {out_dir} "
+        f"[+] humid1_fw_emit v{TOOL_VERSION} complete: {len(emitted_symbols)} strikes emitted to {out_dir} "
         f"(total ROM = {total_rom:,} B / {total_rom/1024.0:.1f} KB)"
     )
 

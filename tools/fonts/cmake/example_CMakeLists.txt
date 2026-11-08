@@ -1,0 +1,23 @@
+# ==============================================================================
+# Example ESP-IDF Component CMakeLists.txt for epd-font (v1.0.19c)
+# A 1-bit EPD font generator and asset pipeline for embedded displays
+# Repository : https://github.com/Humidyne-Labs/epd-font
+# Target SoC : ESP32-S3-N8R8 (H1OS / LVGL >= 9.6.0)
+# ==============================================================================
+
+cmake_minimum_required(VERSION 3.16)
+
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/epd_font_esp_idf.cmake")
+
+# Generate LVGL >= 9.6.0 1-bpp C/H font sources at configure/build time
+epd_font_generate_lvgl_target(
+    TARGET_NAME humid1_epd_fonts
+    SCHEME      "${CMAKE_CURRENT_LIST_DIR}/schemes/h1os_full.scheme.json"
+    VAULT       "${CMAKE_CURRENT_LIST_DIR}/humid1_epd_vault.json.gz"
+    OUT_DIR     "${CMAKE_CURRENT_BINARY_DIR}/generated_fonts"
+)
+
+# If building inside an ESP-IDF component:
+if(COMMAND idf_component_register)
+    target_link_libraries(${COMPONENT_LIB} PUBLIC humid1_epd_fonts)
+endif()

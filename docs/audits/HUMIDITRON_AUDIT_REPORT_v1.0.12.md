@@ -1,4 +1,4 @@
-# Humiditron `epd-font` v1.0.12 — Formal Engineering & Typographic Audit Report
+# Humiditron `epd-font` v1.0.12 — Formal Technical Design & Typographic Audit Report
 
 - **Repository**: [https://github.com/Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)
 - **Target OS**: [https://github.com/Humidyne-Labs/H1OS](https://github.com/Humidyne-Labs/H1OS) (`humid1-os`)
@@ -10,13 +10,13 @@
 
 ## 1. Executive Summary of Audit Findings & Resolutions
 
-| Audit Issue (`humid1-audit-v1.0.12.txt`) | Root Cause Identified | v1.0.12 Engineering Resolution | Verification Status |
+| Audit Issue (`humid1-audit-v1.0.12.txt`) | Root Cause Identified | v1.0.12 Technical Design Resolution | Verification Status |
 | :--- | :--- | :--- | :--- |
 | **1. Stray `2px` File in Repo Root** | Line 16 of `08_iterative_auto_repair.bat` contained `echo [+] Closed-loop >=2px stem auto-floor...`. In Windows `cmd.exe`, `>` is the stdout redirection operator and `=` is a token delimiter, redirecting the `echo` line into a file literally named `2px`. | Deleted the root `2px` file and replaced `>=2px` with `2px+` across all `.bat` scripts (`scripts/h1os-build-distro/`, `scripts/example-build-distro/`, `scripts/full-audit-build-distro/`). | **VERIFIED (`0` stray files)** |
 | **2. Paired Bracket Asymmetry (`(` vs `)`, `[` vs `]`)** | In `evaluate_glyph_candidate()`, `base_cand_iou >= 0.62` used `cv2.resize(base_1bit, (w, h), INTER_NEAREST)`. Thickening a `1px` curve ($N$ px) to `2px` ($2N$ px) yields $\text{IOU} = 0.50 < 0.62$, while `INTER_NEAREST` (`4 -> 5` cols) duplicated column `1`, helping left-curved `(` pass (`0.68`) while rejecting right-curved `)` (`0.48`). | Replaced raw nearest-neighbor IOU with a **Symmetric Dilated-Skeleton Containment Gate** (`Precision >= 0.85`, `Recall >= 0.84`) and added **Bilateral Mirror-Pair Synchronization (`synchronize_mirror_glyph_pairs()`)** across all paired delimiters and arrows. | **VERIFIED (`(` & `)` both `5x16` `2px` mirrors)** |
 | **3. Unpatched `$` (`U+0024`) & `1px` Vertical Bars (`\|`, `!`)** | In `$` (`U+0024`), outer loop walls were `2px` (`##.#.##`) while the interior vertical spine (`c = w // 2`) was `1px` (`#`). In `\|` (`U+007C`, `1x16`), `w0 <= 1` skipped tuning altogether. Furthermore, `_apply_counter_punch()` eroded inward-thickened `2px` walls even when counters were already open. | Added **Method M8 (`synth_m8_central_spine_expansion`)** to duplicate the `1px` central spine column to `2px` (`##.##.##`) while preserving both counters (`B1 = 2`), enabled `w0 == 1` auto-floor (`1x16 -> 2x16`), and made `_apply_counter_punch()` non-destructive when `open_px > 0`. | **VERIFIED (`$` `8x16` `2px` spine + 2 holes; `\|` `2x16`)** |
 | **4. `normal` vs `bold` Weight Collision** | Promoting `normal` to `Medium (500)` in `v1.0.10–11` caused `normal (500)` and `bold (700)` to quantize to the same `2px` stem thickness at `12px–16px` (`+9.0%` ink difference at `16px`; `'H'` had `58` ink pixels in both!). Upstream IBM Plex Variable TTFs cap `fvar.wght` at `700.0`. | Synthesized true **`ExtraBold (800)`** static TTFs (`IBMPlex*-ExtraBold.ttf` & `ExtraBoldItalic.ttf`) in `build_static_ttf_assets.py` via anisotropic `gvar` positive-weight extrapolation (`1.45x` horizontal stem weight, `1.18x` vertical bar weight) and mapped `bold -> ExtraBold (800)`. | **VERIFIED (`+31.1%` to `+48.3%` ink separation; `3.11px` mean stem)** |
-| **5. Multi-Font Evaluator & Size-Floor Tool** | Needed a dedicated tool to benchmark candidate fonts/weights via the tournament system, estimate minimum viable pixel size floors, and render side-by-side test strings across sizes. | Built `tools/fonts/humid1_font_eval.py` and `scripts/font-eval-suite/01_run_font_eval.bat`, benchmarking 13 font cuts across `10px–20px` and generating `docs/audits/FONT_EVAL_BENCHMARK_v1.0.12.md` + `build/font_eval/font_eval_comparison_sheet.png`. | **VERIFIED (`13` fonts benchmarked)** |
+| **5. Multi-Font Evaluator & Size-Floor Tool** | Needed a dedicated tool to benchmark candidate fonts/weights via the multi-method evaluation system, estimate minimum viable pixel size floors, and render side-by-side test strings across sizes. | Built `tools/fonts/humid1_font_eval.py` and `scripts/font-eval-suite/01_run_font_eval.bat`, benchmarking 13 font cuts across `10px–20px` and generating `docs/audits/FONT_EVAL_BENCHMARK_v1.0.12.md` + `build/font_eval/font_eval_comparison_sheet.png`. | **VERIFIED (`13` fonts benchmarked)** |
 | **6. Monolithic `humid1_generate_1bpp.py` (`4,309` lines)** | Single `194 KB` script contained FreeType bindings, ASCII patch parsing, PNG rendering, BDF/LVGL emission, and CLI orchestration. | Modularized into 5 focused modules (`humid1_ft_raster.py`, `humid1_ascii_patches.py`, `humid1_visual_check.py`, `humid1_lvgl_bdf_export.py`, `humid1_generate_1bpp.py`), reducing `humid1_generate_1bpp.py` by **67%** (`4,309 -> 1,426` lines). | **VERIFIED (100% CLI & API compatible)** |
 
 ---
@@ -35,7 +35,7 @@ Inspection of `docs/audits/exhibits/v1.0.12/humid1_font_plex_math_regular_16__lf
 1. **The $1\text{px} \to 2\text{px}$ IOU Paradox**: A pure `1px`-wide curve of $N$ pixels thickened to `2px` ($2N$ pixels) has an exact intersection-over-union of $\text{IOU} = \frac{N}{2N} = 0.50$. Filtering candidates with `base_cand_iou >= 0.62` using `cv2.resize(base_1bit, (5, 16), INTER_NEAREST)` duplicated column `1` (`[0, 1, 1, 2, 3]`), which overlapped left-heavy `(` (`\text{IOU} = 0.68`) while missing right-heavy `)` (`\text{IOU} = 0.48`).
 2. **Symmetric Dilated-Skeleton Containment Gate**: In `v1.0.12`, `_check_dilated_skeleton_containment()` tests all symmetric padding alignments (`pad_left`, `center`, `pad_right`, plus central-spine duplication) against the $3\times 3$ dilated neighborhood $D(B_0)$, requiring $\text{Precision}(C, D(B_0)) \ge 0.85$ and $\text{Recall}(B_0, D(C)) \ge 0.84$.
 3. **Method M8 (`synth_m8_central_spine_expansion`)**: For `$` (`U+0024`), `+`, `±`, `¢`, `¥`, `Φ`, `Ψ`, locates the interior `1px` vertical spine column (`w // 2 - 1` or `w // 2`), duplicates it to `2px` (`##.##.##`), aligns `1px` top/bottom spine tips (`...##...`), and preserves both left and right open counters (`B1 = 2`).
-4. **Bilateral Mirror-Pair Synchronization (`synchronize_mirror_glyph_pairs()`)**: After the per-glyph tournament completes on a strike, enforces exact horizontal mirror symmetry (`np.fliplr` in upright strikes; $180^\circ$ point-reflection `np.flipud(np.fliplr)` in italic strikes to preserve forward slant angle) across all 10 paired glyph tuples:
+4. **Bilateral Mirror-Pair Synchronization (`synchronize_mirror_glyph_pairs()`)**: After the per-glyph multi-method evaluation completes on a strike, enforces exact horizontal mirror symmetry (`np.fliplr` in upright strikes; $180^\circ$ point-reflection `np.flipud(np.fliplr)` in italic strikes to preserve forward slant angle) across all 10 paired glyph tuples:
    - `(` (`U+0028`) $\leftrightarrow$ `)` (`U+0029`)
    - `[` (`U+005B`) $\leftrightarrow$ `]` (`U+005D`)
    - `{` (`U+007B`) $\leftrightarrow$ `}` (`U+007D`)
@@ -83,7 +83,7 @@ In `v1.0.10–v1.0.11`, `normal` was bumped to `Medium (wght=500)` while `bold` 
 | **16px** | `2,299 px` | `2,533 px` | `2,762 px (+9.0%)` | **`3,321 px (+31.1%)`** | `2,426 px` |
 | **20px** | `2,803 px` | `3,262 px` | `4,152 px (+27.3%)` | **`4,839 px (+48.3%)`** | `3,207 px` |
 
-### 3.2 Multi-Typeface Tournament & Minimum Viable Size-Floor Benchmark
+### 3.2 Multi-Typeface Multi-Method Evaluation & Minimum Viable Size-Floor Benchmark
 Running `python tools/fonts/humid1_font_eval.py` (or `scripts\font-eval-suite\01_run_font_eval.bat`) benchmarks 13 font cuts across `10px, 12px, 14px, 16px, 20px`:
 
 | Typeface & Role Label | Source Font File | Weight (`wght`) | Raw Size Floor (`px`) | Tuned Size Floor (`px`) | 14px `>=2px` Stems (`Raw -> Tuned`) | 16px `>=2px` Stems (`Raw -> Tuned`) | 16px Counter Survival | 16px Mean Stem (`px`) |
@@ -111,10 +111,10 @@ Running `python tools/fonts/humid1_font_eval.py` (or `scripts\font-eval-suite\01
 | `build_static_ttf_assets.py` | `998` | Multi-core raw-to-static `.ttf` builder (88 `.ttf` files including `ExtraBold 800` + 24 Terminus cuts). |
 | `generate_char_manifests.py` | `380` | Minimal version-pinned character manifest generator (`char_manifest_*.json`). |
 | `humid1_ft_raster.py` | `840` | FreeType 2 `ctypes` bindings, `GlyphStrike`, FP4 kerning extractor, and 1-BPP scanline rasterizer. |
-| `humid1_bilevel_tuner.py` | `1,464` | Multi-method tournament engine (`M0..M8`), Dilated-Skeleton gate, non-destructive counter punch, and Bilateral Mirror-Pair Synchronization. |
+| `humid1_bilevel_tuner.py` | `1,464` | Multi-method multi-method evaluation engine (`M0..M8`), Dilated-Skeleton gate, non-destructive counter contrast gain, and Bilateral Mirror-Pair Synchronization. |
 | `humid1_ascii_patches.py` | `366` | Full-canvas 1:1 spaced ASCII `.txt` patch dumper, parser, and `font_icon_epd_patches.json` compiler. |
 | `humid1_visual_check.py` | `960` | Auto-wrapped full-strike PNG inspector, single-char blueprint cards, and 188 DPI specimen renderer. |
 | `humid1_lvgl_bdf_export.py` | `894` | LVGL v9 `.c`/`.h` source generator, Adobe BDF 2.1 exporter, metric CSV exporter, and 200x200 screen width auditor. |
 | `humid1_fw_emit.py` | `952` | Standalone Strike Vault (`humid1_epd_vault.json.gz`) to LVGL v9 C/H firmware emitter. |
-| `humid1_font_eval.py` | `384` | Multi-typeface & multi-weight tournament benchmark, size-floor estimator, and visual scorecard generator. |
+| `humid1_font_eval.py` | `384` | Multi-typeface & multi-weight multi-method evaluation benchmark, size-floor estimator, and visual scorecard generator. |
 | `humid1_generate_1bpp.py` | `1,426` | Unified CLI & parallel `ProcessPoolExecutor` strike pipeline orchestrator (reduced from `4,309` lines). |

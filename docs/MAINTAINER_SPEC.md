@@ -1,83 +1,81 @@
-# Formal Typography & Maintainer Specification — `epd-font` (v1.0.17)
+# Formal Developer & Pipeline Specification — `epd-font` (v1.0.19c)
 
-**Document ID**: `HUMIDITRON-SPEC-EPD-FONT-1.0.17`  
-**Repository**: `https://github.com/Humidyne-Labs/epd-font`  
-**License**: MIT License (Tooling & C Emitter) / SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT (Upstream Fonts)
+- **Document ID**: `HUMIDITRON-SPEC-EPD-FONT-1.0.19c`
+- **Project**: A 1-bit EPD font generator and asset pipeline for embedded displays
+- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.19c`)
+- **Authors**: [Humiditron](https://github.com/humiditron) (Humidyne Labs) & AI/LLM Collaborative Development Partner
+- **License**: MIT License (Tooling & C Emitter) / SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT (Upstream Fonts)
 
----
+## 1. Architectural Overview & Source Traceability
 
-## 1. Architectural Overview
+`epd-font` v1.0.19c enforces strict separation between immutable upstream static font archives (`assets/`), intermediate build/evaluation/audit outputs (`build/`), root-tracked manual pixel patches (`font_icon_epd_patches.json`), root hardware schemes (`esp32s3-N8R8-hw_scheme.json`, `genaric_hw.json`), and portable versioned firmware distributions (`dist/`):
+- **Static Source Immutability**: Files in `assets/` (or any custom `--src-dir` font directory) are searched recursively (`os.walk`) and are **never modified in place**, preserving SHA-256 source traceability.
+- **Logical `build/` Subdirectory Tree**:
+  - `build/static_ttfs/` — Standardized static `.ttf` cuts (`113` cuts across IBM Plex, Google Noto, Terminus `10px–40px`, and 4 icon suites) + `licenses/`.
+  - `build/metadata/` — Searchable JSON catalogs and `asset_manifest.json` with SHA-256 digests.
+  - `build/cache/` — Deterministic cache for on-the-fly `.bdf -> .ttf` conversions and intermediate rasters.
+  - `build/evals/` — 8-pipeline evaluation reports (`.md`, `.csv`, `.json`), per-font sheets (`sheets/*_eval.png`), and master scorecards (`font_eval_comparison_sheet.png`).
+  - `build/audits/` — 8-pipeline audit summaries (`audit_8_pipelines_summary.md`).
+  - `build/<scheme>/` — Scheme-specific `fonts/`, `bdf/`, `metrics/`, `ascii_patches/`, `inspect_pages/`, `inspect_chars/`, and `debug_stages/`.
 
-`epd-font` v1.0.17 separates raw upstream font curation (`assets/`), intermediate TrueType & metadata synthesis (`build/static_ttfs/` and `build/metadata/`), optical pixel-grid patching (`font_icon_epd_patches.json` + `build/<workflow>/ascii_patches/`), and zero-dependency firmware emission (`dist/<workflow>_distro/`).
+## 2. Linear Grayscale Conversion, Gamma Correction & the Eight Resolution-Reduction Pipelines
 
-### 1.1 Supported Typeface & Icon Families (56 Static `.ttf` Cuts)
+### 2.1 True sRGB-to-Linear Luminance & Optional Gamma Correction
+Given an input 3-channel sRGB raster $(R, G, B) \in [0, 255]^3$ or single-channel coverage buffer $C \in [0, 255]$, each normalized channel $c_s = C / 255$ is linearized via the piecewise IEC 61966-2-1 sRGB transfer function:
+$$c_{\text{lin}} = \begin{cases} \dfrac{c_s}{12.92}, & c_s \le 0.04045 \\[6pt] \left(\dfrac{c_s + 0.055}{1.055}\right)^{2.4}, & c_s > 0.04045 \end{cases}$$
+For RGB inputs, linear relative luminance is computed via ITU-R BT.709 weights:
+$$Y_{\text{lin}} = 0.2126\,R_{\text{lin}} + 0.7152\,G_{\text{lin}} + 0.0722\,B_{\text{lin}}$$
+followed by optional user-specified gamma adjustment $\gamma \in [0.1, 5.0]$ (default $\gamma = 1.0$):
+$$G_{\text{lin}}(x, y) = \operatorname{round}\!\left(255 \cdot \left(Y_{\text{lin}}(x, y)\right)^{1 / \gamma}\right) \in [0, 255]$$
 
-| Family Key (`scheme.json`) | Upstream Source | Static `.ttf` Cuts (`build/static_ttfs/`) | Recommended 1-BPP Floor | License |
-| :--- | :--- | :--- | :--- | :--- |
-| `"sans"` | IBM Plex Sans v0.2.0 (`wdth=100`) | 13 cuts (`Thin 100` .. `Bold 700` + Italics) | `12 px` (`10 px` min) | SIL OFL 1.1 |
-| `"cond"` | IBM Plex Sans Condensed (`wdth=85`) | 9 cuts (`Light 300` .. `Bold 700` + Italics) | `14 px` (`12 px` min) | SIL OFL 1.1 |
-| `"mono"` | IBM Plex Mono v1.0.0 | 9 cuts (`Light 300` .. `Bold 700` + Italics) | `12 px` (`10 px` min) | SIL OFL 1.1 |
-| `"serif"` | IBM Plex Serif v2.0.0 | 9 cuts (`Light 300` .. `Bold 700` + Italics) | `16 px` (`18 px` rec) | SIL OFL 1.1 |
-| `"math"` | IBM Plex Math v1.1.0 | 1 cut (`IBMPlexMath-Regular.ttf`, 4,382 codepoints) | `14 px` (`16 px` rec) | SIL OFL 1.1 |
-| `"terminus"` | Terminus Font v4.49.1 (`ter-u16n/b.bdf`) | 2 cuts (`Terminus-Regular.ttf`, `Terminus-Bold.ttf`, 1,356 glyphs) | `12 px` (native 12–32px) | SIL OFL 1.1 |
-| `"icon_fa7"` | Font Awesome Free v7.3.1 | 3 cuts (`Solid`, `Regular`, `Brands` — 2,396 icons) | `12 px` (`14 px` rec) | CC-BY-4.0 / OFL-1.1 |
-| `"icon_lucide"` | Lucide Icons v1.16.0 | 1 cut (`Lucide-Regular.ttf` — 2,043 icons) | `12 px` (`14 px` rec) | ISC |
-| `"icon_phosphor"` | Phosphor Icons v2.1.0 | 5 cuts (`Thin`, `Light`, `Regular`, `Bold`, `Fill` — 1,513 icons) | `12 px` (`14 px` rec) | MIT |
-| `"icon_tabler"` | Tabler Icons v3.41.1 | 4 cuts (`Thin200`, `Light300`, `Regular`, `Filled` — 6,257 icons) | `12 px` (`14 px` rec) | MIT |
+### 2.2 Mathematical Specification of the Eight Bilevel (`1-bpp`) Pipelines
+Let $T \in [1, 254]$ denote the configurable binarization threshold (default $T = 128$):
 
----
-
-## 2. PUA Sanitization & Semantic Glyph Naming (`Phosphor-*.ttf`)
-
-Upstream `Phosphor*.ttf` binaries include 30 zero-width (`0×0` bounding box, `0` advance width) ASCII characters (`0x0020..0x007A`, including `0x0069 'i'`) in their `cmap` table to act as OpenType `GSUB` ligature anchors on desktop platforms, while storing all `1,513` real icons in the Private Use Area (`0xE000..0xEE83`) under generic `uniE000` glyph names.
-
-In `v1.0.17`, `build_static_ttf_assets.py` enforces two invariants on all icon `.ttf` binaries:
-1. **Non-PUA Ligature Stub Stripping (`strip_non_pua=True`)**: All `cmap` entries with `cp < 0xE000` are stripped from icon `.ttf` binaries during static asset compilation.
-2. **Self-Describing Semantic Glyph Names**: `build_static_ttf_assets.py` reads `assets/icon_assets/phosphor_icons_v2.1.0/metadata/selection.json` and bakes the human-readable icon names (`"alarm"`, `"wifi-high"`, `"battery-full"`) directly into the `glyf`, `hmtx`, `cmap`, and `post` tables of every `Phosphor-*.ttf` binary as well as `build/metadata/phosphor_catalog.json`.
-
----
-
-## 3. Terminus v4.49.1 BDF-to-TTF Synthesis
-
-To provide an ultra-crisp terminal/console font alongside IBM Plex while maintaining a 100% unified TrueType (`.ttf`) pipeline, `build_static_ttf_assets.py` extracts `ter-u16n.bdf` and `ter-u16b.bdf` from `assets/font_assets/terminus-font-4.49.1.tar.gz` and converts every horizontal pixel run into an exact clockwise quadratic TrueType contour (`UPEM = 1024`, `scale = 64 font units/pixel`, `ascent = +768`, `descent = -256`). When `humid1_generate_1bpp.py` rasterizes `"family": "terminus"`, it automatically selects `bytecode-mono` (unhinted exact grid sampling) so `12, 14, 16, 18, 20, 24, 28, 32` px strikes reproduce bit-exact pixel geometry.
+1. **Pipeline 1 (`raw-unhinted`)**:
+   Renders $G_{\text{unhinted}}(x, y)$ at target resolution $S$ with `FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_NORMAL`, applies linear grayscale + $\gamma$, and thresholds at $T$:
+   $$B_{\text{raw-unhinted}}(x, y) = \mathbb{I}\!\left(G_{\text{lin, unhinted}}(x, y) \ge T\right)$$
+2. **Pipeline 2 (`raw-hinted`)**:
+   Renders $G_{\text{hinted}}(x, y)$ at target resolution $S$ with grid-fitting instructions active (`FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL` or `FT_LOAD_FORCE_AUTOHINT`), applies linear grayscale + $\gamma$, and thresholds at $T$:
+   $$B_{\text{raw-hinted}}(x, y) = \mathbb{I}\!\left(G_{\text{lin, hinted}}(x, y) \ge T\right)$$
+3. **Pipeline 3 (`svg-potrace`)**:
+   Renders high-resolution grayscale $G_{10\times}(u, v)$ at scale $M = 10$, binarizes at $T$, traces the full nested contour hierarchy via `cv2.RETR_TREE` (preserving multi-level interior cutouts and nested islands in filled icons), fits Potrace cubic Bézier splines governed by corner parameter $\alpha_{\max} = 1.0$ ([Potrace Vector Tracing](https://potrace.sourceforge.net/)), applies the $+0.5\text{ px}$ half-pixel center-grid translation, and rasterizes contours in topological tree-depth order using non-antialiased `cv2.LINE_8`.
+4. **Pipeline 4 (`mdf`)**:
+   Renders $G_{12\times}(u, v)$ at scale $M = 12$, applies median filter $\tilde{G}_{12\times} = \operatorname{Median}_{k \times k}(G_{12\times})$, computes isotropic and directional horizontal/vertical morphological signed distance fields ($\text{SDF}_{\text{iso}}, \text{SDF}_H, \text{SDF}_V$), takes $\operatorname{med}(\text{SDF}_{\text{iso}}, \text{SDF}_H, \text{SDF}_V)$, downsamples onto target pixel centers, and thresholds at $T$.
+5. **Pipeline 5 (`msdf`)**:
+   Implements true Multi-Channel Signed Distance Field reconstruction ([Chlumsky/msdfgen](https://github.com/Chlumsky/msdfgen)): decomposes contours into corner-delimited edge segments ($\theta_{\text{turn}} \ge 28^\circ$), cycles 3-channel $(R, G, B)$ edge color masks (`Y=RG`, `C=GB`, `M=RB`) across sequential smooth edges so every sharp corner shares exactly one active channel and differs in the other two, evaluates per-channel signed distance fields $(D_R, D_G, D_B)$ using corner bisector disambiguation, reconstructs the corner-preserving scalar distance via the median operator:
+   $$D_{\text{MSDF}}(x, y) = \operatorname{median}\!\left(D_R(x, y),\, D_G(x, y),\, D_B(x, y)\right)$$
+   and thresholds at $T$.
+6. **Pipeline 6 (`sdf-smoothstep`)**:
+   Computes a `16x` Euclidean Signed Distance Field $d(u, v) = d_{\text{in}}(u, v) - d_{\text{out}}(u, v)$ and applies analytical Hermite `smoothstep` edge reconstruction ([Red Blob Games SDF Typography](https://www.redblobgames.com/articles/sdf-fonts/)):
+   $$\alpha(t) = 3t^2 - 2t^3, \quad t = \operatorname{clamp}\!\left(\frac{d(x, y) + w}{2w},\, 0,\, 1\right)$$
+   followed by thresholding at $T$.
+7. **Pipeline 7 (`adf-biquadratic`)**:
+   Partitions the `16x` Euclidean SDF into an Adaptive Distance Field (`ADF`) quadtree of $4\times 4$ cells per target pixel and reconstructs each target pixel via 9-point biquadratic Lagrange polynomial evaluation $P(u, v)$ centered on the sub-cell grid.
+8. **Pipeline 8 (`otsu-adaptive`)**:
+   Combines global linear-luminance Otsu inter-class variance maximization ($T_{\text{Otsu}}$) with local Sauvola window mean/standard-deviation adaptive thresholding ($T_{\text{Sauvola}}(x, y) = \mu_W(x, y)\,[1 + k(\sigma_W(x, y)/R - 1)]$) to prevent interior counter closure at small pixel sizes.
 
 
-## Authoritative Script Execution Order (`00`–`08` & `99`)
+### 2.3 Modular Mathematical Abstraction & Hardware-Checked GPU/CPU Dispatch (`tools/fonts/math_backends/`)
+In `v1.0.19c`, all resolution-reduction, polynomial root-finding, luminance linearization, and histogram thresholding math is abstracted into `tools/fonts/math_backends/`:
+- `hw_dispatch.py`: Probes available compute hardware at startup (`select_math_backend()`, `describe_math_backend()`) and routes each mathematical call across three tiers:
+  1. **`opencl` (`opencl_kernels.py`)**: PyOpenCL GPU / heterogeneous kernels conforming to the [Khronos OpenCL 3.0 Unified Specification](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/), including `srgb_to_linear_gamma_kernel`, `render_bezier_sdf_yuksel_kernel` (Cem Yüksel degree-5 to degree-2 monotonic polynomial root-finding cascade + cubic ray-crossing winding parity), `sdf_valve_smoothstep_kernel` ($L_2$ screen-space derivative anti-aliasing), `msdf_median3_reconstruct_kernel` ([Chlumsky/msdfgen](https://github.com/Chlumsky/msdfgen)), `adf_biquadratic_9pt_kernel` (Saffron 9-point biquadratic Lagrange quadrature), and `compute_histogram_local_atomic` (`__local uint local_hist[256]` atomic reduction for Otsu $\sigma_B^2(k^*)$). Work-groups are sized to multiples of `64` (`16x8 = 128` or `8x8 = 64`) for optimal wavefront occupancy on AMD GCN/Polaris (`gfx803`) and NVIDIA warp architectures, using `CL_MEM_ALLOC_HOST_PTR` zero-copy pinned transfers.
+  2. **`umat` (`umat_math.py`)**: OpenCV Transparent API (`cv2.ocl` / `cv2.UMat`) OpenCL queue for morphological closing and median filtering when `pyopencl` is absent.
+  3. **`cpu` (`cpu_math.py`)**: Deterministic vectorized `NumPy` / `OpenCV` SIMD fallback with 1:1 function signatures.
+- **Physical Display Resolution (`188.15 DPI`) & 1-Bit Bilevel Justification**:
+  Per the Waveshare 1.54" e-Paper V2 (`SSD1681` / `GDEY0154D67`) mechanical specification (`200 x 200` pixels across a `27.00 mm x 27.00 mm` active area, `0.135 mm x 0.135 mm` square pixel pitch), the exact physical pixel density is:
+  $$\text{DPI} = \frac{25.4\text{ mm/inch}}{0.135\text{ mm/pixel}} = 188.1481\dots\text{ DPI} \approx \mathbf{188.15\text{ DPI}}$$
+  Because 2-bit (4-level) analog grayscale driving on bistable electrophoretic microcapsules suffers from Arrhenius thermal viscosity drift ($\eta(T) \propto e^{E_a / RT}$), steep Kubelka-Munk sigmoidal reflectance, inter-frame hysteresis across the SSD1681 dual 5,000-byte RAM banks (`0x24` and `0x26`), net DC bias degradation, and `1,000–1,500 ms` refresh latency (vs. `250–350 ms` for 1-bit partial updates), all target output strikes remain strictly 1-bit bilevel (`LV_COLOR_FORMAT_I1`) while using continuous distance-field and polynomial math during high-resolution-to-low-resolution downsampling.
 
-Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distro/`, and `scripts/full-audit-build-distro/`) provides numbered Windows `.bat` launchers designed around an **ASCII-Patch-Centric Iterative Tuning Loop**:
+## 3. LVGL `>= 9.6.0` Descriptor & Fallback Chain Specification
 
-```text
-  [00_setup_env.bat]             (One-time Python dependency installation: fonttools, Pillow, freetype-py, numpy, opencv-python)
-          │
-          ▼
-  [01_build_static_ttfs.bat]     (Instantiate 88 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
-          │
-          ▼
-  [04_dump_ascii_patches.bat]    (Dump baseline 1-BPP strikes -> build/<target>/ascii_patches/<symbol>/U+XXXX_<name>.txt)
-          │
-          ▼
-  [08_iterative_auto_repair.bat] (Run 8-Method HQ Typographic Tournament on ascii_patches/ -> rewrite tuned .txt files
-          │                       with `patched: 1` + render Before/After sheets in build/<target>/inspect_repairs/)
-          ▼
-  [05_apply_ascii_patches.bat]   (Compile all modified/tuned .txt files from ascii_patches/ -> root font_icon_epd_patches.json)
-          │
-          ▼
-  [02_build_fonts.bat]           (Compile LVGL .c/.h modules, BDFs, Strike Vault & total_disk_size.txt with patches applied)
-          │
-          ▼
-  [03_visual_check_pngs.bat]     (Render inspect_pages/*.png [with green PATCHED: N/Total banner] & inspect_chars/*/*.png)
-          │
-          ▼
-  [07_package_distro.bat]        (Package drop-in firmware bundle -> dist/<target>_distro/)
-```
+Every emitted `.c` module defines `const lv_font_t <symbol>` with:
+- Validated forward declaration `LV_FONT_DECLARE(<fallback_symbol>);` when a fallback is configured.
+- `.fallback = &<fallback_symbol>` guarded by `#if LV_VERSION_CHECK(9, 6, 0) || LVGL_VERSION_MAJOR >= 9 || LV_VERSION_CHECK(8, 2, 0)`.
+- `.static_bitmap = 0` guarded by `#if LV_VERSION_CHECK(9, 3, 0) || (LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR >= 3) || LVGL_VERSION_MAJOR > 9`.
+- Directed Acyclic Graph (DAG) verification ensuring every `.fallback` target exists in the active scheme's compiled symbol table and never forms a self-loop.
 
-### How to Run (Two Supported Workflows)
+## 4. Single `3 MByte` (`3,145,728` Bytes) Hardware Partition Validation
 
-1. **Automated One-Click Full Pipeline (`99_run_full_pipeline.bat`)**:
-   Double-click or run `99_run_full_pipeline.bat`. It automatically runs `01 -> 04 -> 08 -> 05 -> 02 -> 03 -> 07` in sequence so your `.c`/`.h` files, `font_icon_epd_patches.json`, and `inspect_pages/*.png` banners immediately include all tournament-repaired glyphs.
-2. **Manual Iterative Tuning & Hand-Patching Loop (`04 -> 08 -> 05 -> 02 -> 03`)**:
-   - Run `04_dump_ascii_patches.bat` to populate baseline `.txt` glyph grids in `build\<target>\ascii_patches\`.
-   - Run `08_iterative_auto_repair.bat` to run the 8-method OpenCV/HQ-Master tournament (`tools\fonts\humid1_bilevel_tuner.py`). This rewrites improved `.txt` files in `build\<target>\ascii_patches\` with `patched: 1`, generates Before/After visual comparison sheets in `build\<target>\inspect_repairs\*_repair.png`, and updates `font_icon_epd_patches.json`.
-   - *(Optional)* Open any `build\<target>\ascii_patches\<symbol>\U+XXXX_<name>.txt` in a text editor, tweak `#` / `.` pixels on the 1:1 spaced canvas, and run `05_apply_ascii_patches.bat` to compile your manual edits into `font_icon_epd_patches.json`.
-   - Run `02_build_fonts.bat` followed by `03_visual_check_pngs.bat` to rebuild the `.c`/`.h` font modules and inspect the updated PNG sheets (which display `PATCHED OVERRIDES ACTIVE: N / Total GLYPHS` in the top banner and highlight every patched glyph cell in emerald green).
-
+`load_and_validate_hardware_scheme()` in `humid1_runtime.py` and `write_total_disk_size_report()` in `humid1_lvgl_bdf_export.py` enforce a single `3 MByte` (`3,145,728` bytes) hardware partition constraint loaded from `esp32s3-N8R8-hw_scheme.json` or `genaric_hw.json` and `.scheme.json`, with **zero hardcoded fallback values**. Exact `.rodata` Flash byte footprints are computed via:
+$$\text{ROM}_{\text{strike}} = B_{\text{bitmap}} + 8(N_{\text{glyphs}} + 1) + 20 N_{\text{cmaps}} + 2 N_{\text{sparse}} + 3 N_{\text{kern}} + 60$$
+and reported against the validated `3 MByte` (`3,072 KB` = `3,145,728 B`) hardware partition alongside per-font-pair (`Normal + Bold`) totals.

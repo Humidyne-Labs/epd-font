@@ -1,0 +1,11 @@
+# Core required packages for epd-font (v1.0.19c) asset generation, rasterization & evaluation
+fonttools>=4.40.0
+Pillow>=10.0.0
+freetype-py>=2.4.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+
+# Optional GPU / OpenCL mathematical acceleration backend (tools/fonts/math_backends/opencl_kernels.py)
+# If your system does not have OpenCL headers/ICD installed, omit this line or install core packages above;
+# the pipeline automatically falls back to OpenCV UMat or the vectorized NumPy/OpenCV CPU backend.
+# pyopencl>=2023.1

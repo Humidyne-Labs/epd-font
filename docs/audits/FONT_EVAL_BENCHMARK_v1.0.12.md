@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary & Minimum Viable Pixel Size Floors
 
-Each candidate typeface and weight was evaluated across `10px, 12px, 14px, 16px, 20px` both **Before (`Raw`)** and **After (`Tuned`)** the v1.0.12 Multi-Method Iterative Typographic Tournament (`M0..M8` + Bilateral Mirror Synchronization).
+Each candidate typeface and weight was evaluated across `10px, 12px, 14px, 16px, 20px` both **Before (`Raw`)** and **After (`Tuned`)** the v1.0.12 Multi-Method Iterative Typographic Multi-Method Evaluation (`M0..M8` + Bilateral Mirror Synchronization).
 
 | Typeface & Role Label | Source Font File | Weight (`wght`) | Raw Size Floor (`px`) | Tuned Size Floor (`px`) | 14px `>=2px` Stems (`Raw -> Tuned`) | 16px `>=2px` Stems (`Raw -> Tuned`) | 16px Counter Survival | 16px Mean Stem (`px`) | 16px Total Ink (`px`) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |

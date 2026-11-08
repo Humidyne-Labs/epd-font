@@ -17,14 +17,14 @@
 ## 2. Deep-Dive: Closed-Loop Iterative Bi-Level Auto-Floor & Repair Engine (`humid1_bilevel_tuner.py`)
 
 ### 2.1 Four Selectable Repair Engines (`--repair-engine`)
-1. **`autofloor` (Collinear Outward Stem Dilation + Cavity Re-Punching + Hit-or-Miss Junction Thinning)**:
+1. **`autofloor` (Collinear Outward Stem Dilation + Cavity Re-clearing + Hit-or-Miss Junction Thinning)**:
    - Measures horizontal and vertical stem survival under zero-border morphological erosion (`cv2.erode(..., borderValue=0)`).
    - Expands `1px` leftmost stems **outward-left** and `1px` rightmost stems **outward-right** with scanline-run invariance (`dilate_horizontal_preserving_gaps()`) and vertical stem collinearity snapping. Because expansion is directed away from interior cavities, internal counters (`0, 4, 6, 8, 9, A, B, D, O, P, Q, R, a, b, d, e, g, o, p, q`) and arches (`Ω, u, n, h, m`) are never pinched.
-   - Re-punches exterior-flood-filled counter masks (`find_internal_counters()`), carves hole centroids if needed, applies `cv2.MORPH_HITMISS` acute corner thinning, and enforces a strict **Hole-Count Non-Degradation Guard** (`holes_after >= holes_before`).
+   - Re-emphasizes exterior-flood-filled counter masks (`find_internal_counters()`), opens hole centroids if needed, applies `cv2.MORPH_HITMISS` acute corner thinning, and enforces a strict **Hole-Count Non-Degradation Guard** (`holes_after >= holes_before`).
 2. **`downscale` (High-Resolution Master Sub-Pixel Phase-Shift & Threshold Optimizer)**:
    - Sweeps a `4×4` sub-pixel spatial phase grid ($\Delta x, \Delta y \in \{0.0, 0.25, 0.5, 0.75\}$) via `cv2.warpAffine` + `cv2.INTER_AREA` downsampling and binarization thresholds $T \in \{85, 105, 125, 145, 165\}$, scored by `score_candidate()` (Euler hole invariance + `>= 2px` stem survival + structural IOU).
 3. **`contour` (OpenCV `RETR_CCOMP` Two-Level Polygon Re-Tracing)**:
-   - Extracts outer boundaries and inner hole polygons via `cv2.findContours(..., cv2.RETR_CCOMP)`, smooths staircases with `cv2.approxPolyDP`, enforces `min_stem` stroke thickness on outer contours, and re-carves inner holes.
+   - Extracts outer boundaries and inner hole polygons via `cv2.findContours(..., cv2.RETR_CCOMP)`, smooths staircases with `cv2.approxPolyDP`, enforces `min_stem` stroke thickness on outer contours, and re-opens inner holes.
 4. **`hybrid` (Default)**:
    - Combines `downscale` sub-pixel phase optimization with `autofloor` collinear outward stem dilation and cavity protection.
 

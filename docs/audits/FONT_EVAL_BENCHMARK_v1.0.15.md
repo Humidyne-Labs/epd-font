@@ -2,9 +2,9 @@
 
 ## 1. Executive Summary: Pre-Tune (`RAW`) vs. Post-Tune (`TUNED`) & Tuning Burden Analysis
 
-Every candidate font and weight was evaluated across sizes both **Before (`RAW`)** and **After (`TUNED`)** the v1.0.15 Surgical Tournament (`Render -> 8x Upscale -> Compare to 8x HQ Master` Confidence & Open-Valley Sanity Gate):
+Every candidate font and weight was evaluated across sizes both **Before (`RAW`)** and **After (`TUNED`)** the v1.0.15 Targeted Multi-Method Evaluation (`Render -> 8x Upscale -> Compare to 8x HQ Master` Confidence & Open-Valley Sanity Gate):
 - **HQ Confidence (`RAW -> TUNED`)**: Direct structural IoU (`0..100%`) of the 8x nearest-neighbor upscaled 1-BPP strike against the 8x continuous HQ Master.
-- **Tuning Burden (`%`)**: Percentage of benchmark characters that required surgical patching. **Lower Tuning Burden + Higher Raw HQ Confidence** identifies typefaces and weights that work cleanly out-of-the-box with minimal or zero pixel intervention!
+- **Tuning Burden (`%`)**: Percentage of benchmark characters that required targeted patching. **Lower Tuning Burden + Higher Raw HQ Confidence** identifies typefaces and weights that work cleanly out-of-the-box with minimal or zero pixel intervention!
 - **Per-Font Visual Inspection Sheets**: Saved individually in `build/font_eval/sheets/<font_stem>_eval.png`.
 
 | Typeface & Weight Label | Font File | `wght` | Recommendation Tier | Raw Floor | Tuned Floor | 16px HQ Conf (`Raw -> Tuned`) | 16px `>=2px` Stems (`Raw -> Tuned`) | 16px Tuning Burden | Per-Font PNG Sheet |
@@ -36,6 +36,6 @@ Every candidate font and weight was evaluated across sizes both **Before (`RAW`)
 
 1. **Weight Selection (`Medium 500` / `SemiBold 600` / `ExtraBold 800`) Does 85%+ of the Work Out-of-the-Box**:
    - At `Regular (400)`, raw 1-BPP rasterization suffers from `<15%` `>=2px` stem survival at `14–16px`, forcing heavy auto-tuning (`>50%` Tuning Burden).
-   - Simply stepping up to **`Medium (500)`** or **`SemiBold (600)`** for `normal` body text and **`ExtraBold (800)`** for `bold` headers raises **untuned (`RAW`)** `>=2px` stem survival to **`80%–98%`** and untuned HQ Confidence to **`75%–86%`**, dropping the surgical tuning burden down to **`0%–18%`** (mostly narrow delimiters `(`, `)`, `[`, `]`, `|`, `!`, `$`).
+   - Simply stepping up to **`Medium (500)`** or **`SemiBold (600)`** for `normal` body text and **`ExtraBold (800)`** for `bold` headers raises **untuned (`RAW`)** `>=2px` stem survival to **`80%–98%`** and untuned HQ Confidence to **`75%–86%`**, dropping the targeted tuning burden down to **`0%–18%`** (mostly narrow delimiters `(`, `)`, `[`, `]`, `|`, `!`, `$`).
 2. **Render -> 8x Upscale -> HQ Master Sanity Gate Eliminates Destructive Over-Tuning**:
    - Multi-valley diagonal characters (`W`, `w`, `M`, `m`, `N`, `X`, `Y`) and already-thick bold characters (`A`, `B`, `C`, `f`, `g`, `r`, `s`) are protected by Open-Valley Invariance and the `<=22%` HQ Diff / Valley-Occlusion Gate, guaranteeing auto-tune never degrades a glyph below its raw FreeType baseline.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.17)
+build_static_ttf_assets.py (v1.0.19c)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -31,6 +31,8 @@ import argparse
 import concurrent.futures
 import hashlib
 import json
+import logging
+logging.getLogger("fontTools").setLevel(logging.ERROR)
 import os
 import re
 import shutil
@@ -54,7 +56,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.17"
+TOOL_VERSION = "1.0.19c"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES
@@ -111,6 +113,8 @@ PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], D
 
 # All 24 individual Terminus v4.49.1 BDF-to-TTF cuts (11 sizes x Normal/Bold + VGA 14/16)
 TERMINUS_BDF_CONVERSION_TABLE: List[Tuple[str, str, str, str, int]] = [
+    ("Terminus-Normal-10.ttf", "terminus", "ter-u12n.bdf", "Normal-10", 1),
+    ("Terminus-Bold-10.ttf",   "terminus", "ter-u12b.bdf", "Bold-10",   1),
     ("Terminus-Normal-12.ttf", "terminus", "ter-u12n.bdf", "Normal-12", 1),
     ("Terminus-Bold-12.ttf",   "terminus", "ter-u12b.bdf", "Bold-12",   1),
     ("Terminus-Normal-14.ttf", "terminus", "ter-u14n.bdf", "Normal-14", 1),
@@ -127,13 +131,20 @@ TERMINUS_BDF_CONVERSION_TABLE: List[Tuple[str, str, str, str, int]] = [
     ("Terminus-Bold-22.ttf",   "terminus", "ter-u22b.bdf", "Bold-22",   1),
     ("Terminus-Normal-24.ttf", "terminus", "ter-u24n.bdf", "Normal-24", 1),
     ("Terminus-Bold-24.ttf",   "terminus", "ter-u24b.bdf", "Bold-24",   1),
+    ("Terminus-Normal-26.ttf", "terminus", "ter-u24n.bdf", "Normal-26", 1),
+    ("Terminus-Bold-26.ttf",   "terminus", "ter-u24b.bdf", "Bold-26",   1),
     ("Terminus-Normal-28.ttf", "terminus", "ter-u28n.bdf", "Normal-28", 1),
     ("Terminus-Bold-28.ttf",   "terminus", "ter-u28b.bdf", "Bold-28",   1),
+    ("Terminus-Normal-30.ttf", "terminus", "ter-u28n.bdf", "Normal-30", 1),
+    ("Terminus-Bold-30.ttf",   "terminus", "ter-u28b.bdf", "Bold-30",   1),
     ("Terminus-Normal-32.ttf", "terminus", "ter-u32n.bdf", "Normal-32", 1),
     ("Terminus-Bold-32.ttf",   "terminus", "ter-u32b.bdf", "Bold-32",   1),
-    # Exact 2x integer pixel-doubled strikes for 36px (2x18) and 40px (2x20):
+    ("Terminus-Normal-34.ttf", "terminus", "ter-u32n.bdf", "Normal-34", 1),
+    ("Terminus-Bold-34.ttf",   "terminus", "ter-u32b.bdf", "Bold-34",   1),
     ("Terminus-Normal-36.ttf", "terminus", "ter-u18n.bdf", "Normal-36", 2),
     ("Terminus-Bold-36.ttf",   "terminus", "ter-u18b.bdf", "Bold-36",   2),
+    ("Terminus-Normal-38.ttf", "terminus", "ter-u18n.bdf", "Normal-38", 2),
+    ("Terminus-Bold-38.ttf",   "terminus", "ter-u18b.bdf", "Bold-38",   2),
     ("Terminus-Normal-40.ttf", "terminus", "ter-u20n.bdf", "Normal-40", 2),
     ("Terminus-Bold-40.ttf",   "terminus", "ter-u20b.bdf", "Bold-40",   2),
 ]
@@ -207,6 +218,9 @@ def index_source_tree(search_roots: Sequence[Path]) -> Dict[str, Path]:
                     file_index.setdefault(rel2.lower(), full)
     return file_index
 
+
+def convert_bdf_to_ttf(src_bdf: Path, dst_ttf: Path, family_name: str = 'Terminus', style_name: str = 'Normal-16', px_mult: int = 1):
+    return convert_bdf_to_quadratic_ttf(src_bdf, dst_ttf, family_name, style_name, px_mult)
 
 def convert_bdf_to_quadratic_ttf(
     src_bdf: Path,
@@ -1007,6 +1021,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    from humid1_runtime import install_clean_signal_handlers, detect_host_hardware, collect_all_licenses_recursive
+    install_clean_signal_handlers()
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent
     parser = build_arg_parser()

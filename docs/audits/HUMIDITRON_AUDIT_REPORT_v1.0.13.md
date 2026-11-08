@@ -1,16 +1,16 @@
-# Humiditron `epd-font` v1.0.13 — Formal Engineering & Typographic Audit Report
+# Humiditron `epd-font` v1.0.13 — Formal Technical Design & Typographic Audit Report
 
 - **Repository**: [https://github.com/Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)
 - **Target OS**: [https://github.com/Humidyne-Labs/H1OS](https://github.com/Humidyne-Labs/H1OS) (`humid1-os`)
 - **Audit Scope**: `v1.0.12` $\to$ **`v1.0.13`** (`docs/audits/humid1-audit-v1.0.13.txt` & `docs/audits/exhibits/v1.0.13/`)
 - **Total Static TrueType (`.ttf`) Assets**: **88 Verified `.ttf` Files**
-- **Total Surgical Auto-Repaired Patches**: **651 Verified Patches** (down from `1,816` in `v1.0.12` after purging stale legacy overrides and enforcing the `8x` Upscaled-to-HQ Confidence & Open-Valley Sanity Gate)
+- **Total Targeted Auto-Repaired Patches**: **651 Verified Patches** (down from `1,816` in `v1.0.12` after purging stale legacy overrides and enforcing the `8x` Upscaled-to-HQ Confidence & Open-Valley Sanity Gate)
 
 ---
 
-## 1. Executive Summary of Audit Findings & Engineering Resolutions
+## 1. Executive Summary of Audit Findings & Technical Design Resolutions
 
-| Audit Issue (`humid1-audit-v1.0.13.txt`) | Root Cause Identified | `v1.0.13` Engineering Resolution | Verification Status |
+| Audit Issue (`humid1-audit-v1.0.13.txt`) | Root Cause Identified | `v1.0.13` Technical Design Resolution | Verification Status |
 | :--- | :--- | :--- | :--- |
 | **1. `02_run_font_eval.bat` Benchmarked `0` Fonts on `eval_fonts` (`>700 MB`, 408 Files)** | In `v1.0.12`, `humid1_font_eval.py` checked a hardcoded list of `IBMPlex*` filenames whenever `--fonts` was omitted. Pointing `--src-dir` at `eval_fonts` (`InstrumentSans`, `Inter`, `Iosevka*.ttc`, `Literata`, `NotoSans`, `PublicSans`, `Recursive`, `Roboto`, `SourceSans3`, `SourceSerif4`, `SpaceGrotesk`) matched `0` files. | Upgraded `discover_candidate_fonts()` in `humid1_font_eval.py` to recursively scan any `--src-dir` for all `.ttf`, `.otf`, `.ttc` (TrueType Collection), and `.bdf` files, inspect `cmap` and `OS/2.usWeightClass`, filter out PUA-only icon fonts, and evaluate all discovered fonts in parallel across all CPU cores (`ProcessPoolExecutor`). | **VERIFIED (Scans `.ttf`/`.otf`/`.ttc` recursively)** |
 | **2. Missing Pre-Tune vs. Post-Tune Traceability & Per-Font PNG Sheets** | `v1.0.12` only rendered post-tune specimens in a single combined image, making it hard to see whether auto-tune improved or degraded a font or which fonts needed excessive tuning. | Upgraded `humid1_font_eval.py` to compute and display **both `PRE-TUNE (RAW)` and `POST-TUNE (TUNED)`** metrics (`HQ Confidence %`, `HQ Diff %`, `>=2px Stem %`, `Counter %`, and `Tuning Burden %`), emit **one dedicated PNG sheet per font (`build/font_eval/sheets/<font_stem>_eval.png`)**, and rank fonts into **Tiers 1–3** by natural untuned fitness. | **VERIFIED (`sheets/<font>_eval.png` + Pre/Post rows)** |
@@ -24,7 +24,7 @@
 In `humid1-audit-v1.0.13.txt`, you proposed a critical sanity check:
 > *"if we render, upscale, then compare to HQ, could we not derive a confidence score from that? as at least a sanity check? (oh, xyz char diff's by idk, 20%, etc...)"*
 
-We implemented `compute_upscaled_hq_metrics(bitmap_1bit, hq_master)` in `tools/fonts/humid1_bilevel_tuner.py` (`v1.0.13`) and measured the exact Pre-Tune (`RAW`) vs. `v1.0.12` Patched vs. `v1.0.13` Surgical output on every single exhibit from `docs/audits/exhibits/v1.0.13/`:
+We implemented `compute_upscaled_hq_metrics(bitmap_1bit, hq_master)` in `tools/fonts/humid1_bilevel_tuner.py` (`v1.0.13`) and measured the exact Pre-Tune (`RAW`) vs. `v1.0.12` Patched vs. `v1.0.13` Targeted output on every single exhibit from `docs/audits/exhibits/v1.0.13/`:
 
 | Exhibit Strike & Glyph | `v1.0.12` Failure Mode | Raw FreeType `HQConf` (`Diff%`) | `v1.0.12` Valley Occlusion (`Raw -> v1.0.12`) | `v1.0.12` Ink Mass Error (`Raw -> v1.0.12`) | `v1.0.13` Action & Verified Result |
 | :--- | :--- | :---: | :---: | :---: | :--- |
@@ -66,9 +66,9 @@ The `v1.0.13` Pre-Tune (`RAW`) vs. Post-Tune (`TUNED`) benchmark across 20 inter
 1. **Weight Selection Does 90%+ of the Work Naturally**:
    - At `Regular (400)`, `75%–78%` of glyphs at `16px` have `1px` stems (`21.7%` raw `>=2px` survival). Trying to force a `Regular (400)` font to have `2px` stems via post-raster morphological tuning requires modifying almost every glyph (`78%` Tuning Burden), which inevitably distorts complex multi-stroke characters (`W`, `w`, `M`, `m`, `s`).
    - Simply choosing **`Medium (500)`** or **`SemiBold (600)`** for `normal` and **`ExtraBold (800)`** for `bold` gives **`93.3%–100.0%` `>=2px` stems right out of FreeType (`RAW`)** with **`74%–84%` HQ Confidence**!
-2. **Surgical Auto-Tune Should Only Touch the `3%–10%` Outliers**:
+2. **Targeted Auto-Tune Should Only Touch the `3%–10%` Outliers**:
    - Even in `Medium (500)` or `SemiBold (600)`, a handful of punctuation/symbol glyphs (`$`, `(`, `)`, `[`, `]`, `|`, `!`, `/`, `\`) are still drawn with `1px` lines by type designers.
-   - With `v1.0.13`'s **Conservative Surgical Trigger + $8\times$ Upscaled-to-HQ Sanity Gate**, `90%–97%` of glyphs in `Medium (500)` and `ExtraBold (800)` are left **100% untouched (`M0_verified`)**, while only the `3%–10%` thin delimiters (`$`, `(`, `)`, `|`) are surgically thickened and mirror-synced!
+   - With `v1.0.13`'s **Conservative Targeted Trigger + $8\times$ Upscaled-to-HQ Sanity Gate**, `90%–97%` of glyphs in `Medium (500)` and `ExtraBold (800)` are left **100% untouched (`M0_verified`)**, while only the `3%–10%` thin delimiters (`$`, `(`, `)`, `|`) are precisely thickened and mirror-synced!
 
 ---
 

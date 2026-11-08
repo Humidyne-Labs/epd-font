@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-char_info.py (v1.0.17) — Agent-First Deterministic Character & Icon Metric Inspector
+char_info.py (v1.0.19c) — Agent-First Deterministic Character & Icon Metric Inspector
 ===================================================================================
 Queries exact 1-bpp glyph metrics (advance width, bounding box, bearing offsets,
 UTF-8 C literal, and 1:1 ASCII bitmap) from a compiled Strike Vault (`dist/*/*.json.gz`),
 metrics CSV (`build/*/metrics/`), or directly from `build/metadata/*_catalog.json`.
 
-Zero guesswork: AI agents and firmware engineers must run this tool to inspect
+Zero guesswork: AI agents and firmware developers must run this tool to inspect
 exact pixel dimensions and bitmaps of characters or icons before hardcoding offsets.
 """
 
@@ -84,7 +84,7 @@ def cp_to_c_utf8_escape(cp: int) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="char_info.py",
-        description="Deterministic 1-bpp character & icon metric inspector for AI agents and engineers.",
+        description="Deterministic 1-bpp character & icon metric inspector for AI agents and developers.",
     )
     parser.add_argument("--strike", "-s", type=str, default="humid1_font_plex_sans_normal_14", help="Strike symbol (e.g. plex_sans_normal_14, plex_icon_phosphor_fill_20)")
     parser.add_argument("--char", "-c", type=str, required=True, help="Character ('A', '@'), hex ('0x0040', 'U+E006'), or icon name ('alarm', 'wifi-high')")

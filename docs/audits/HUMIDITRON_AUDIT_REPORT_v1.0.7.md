@@ -1,4 +1,4 @@
-# Formal Engineering & Audit Report — `epd-font` v1.0.6 Revved to v1.0.7
+# Formal Technical Design & Audit Report — `epd-font` v1.0.6 Revved to v1.0.7
 
 **Audit Reference**: `docs/audits/humiditron_audit_1.0.6-revved-to-1.0.7.txt`  
 **Exhibit Analyzed**: `docs/audits/exhibits/U+0069_i.txt`  
@@ -12,7 +12,7 @@
 
 Every requirement in `humiditron_audit_1.0.6-revved-to-1.0.7.txt` has been diagnosed, resolved, and verified in `v1.0.7`:
 
-| # | Audit Item (`humiditron_audit_1.0.6-revved-to-1.0.7.txt`) | Root Cause / Engineering Analysis | `v1.0.7` Resolution & Verification |
+| # | Audit Item (`humiditron_audit_1.0.6-revved-to-1.0.7.txt`) | Root Cause / Technical Design Analysis | `v1.0.7` Resolution & Verification |
 | :--- | :--- | :--- | :--- |
 | **1** | **`plex_icon_phosphor_fill_20` fails to populate in `ascii_patches` (dumps `U+0069_i.txt` `0×0` stub)** | 1. Upstream `Phosphor*.ttf` maps 30 empty (`0×0`, `adv=0`) ASCII ligature anchor glyphs (`0x0020..0x007A`, including `0x0069 'i'`) in its `cmap` alongside its 1,513 PUA icons (`0xE000..0xEE83`).<br>2. `assets/icon_assets/phosphor_icons_v2.1.0/metadata/selection.json` was missing in `v1.0.6`, so `phosphor_catalog.json` indexed `uniE000` instead of `"alarm"`, `"wifi-high"`.<br>3. When `"icons"` matched 0 names, `load_plan_from_scheme_json()` fell back to `RANGE_UI_STR` (`0x0020-0x007E`), rasterizing the 30 empty ASCII ligature stubs (`U+0069_i.txt`)! | 1. Restored `metadata/selection.json` in `assets/icon_assets/phosphor_icons_v2.1.0/metadata/`.<br>2. Updated `sanitize_and_unwrap_ttf(..., strip_non_pua=True)` in `build_static_ttf_assets.py` to strip all `cp < 0xE000` ASCII ligature anchors and bake all 1,513 semantic names into `Phosphor-*.ttf`.<br>3. Hardened `generate_plex_1bpp.py` so `icon_*` never falls back to `RANGE_UI_STR` and skips `0×0` non-space stubs.<br>4. **Verified**: `plex_icon_phosphor_fill_20` now dumps all 129 real PUA icons (`U+E000_pulse.txt`, `U+E006_alarm.txt`, etc.) and `0` `U+0069_i.txt` files. |
 | **2** | **General-Purpose Repo Branding (`Humiditron` / `humid1`) & MIT License** | `v1.0.6` scripts and default schemes contained hardcoded `H1OS` and `200x200 SSD1681 @ 188 DPI` references and `Apache-2.0` headers. | 1. Licensed repository under **MIT License** (`LICENSE`).<br>2. Branded core tools and general schemes as **Humidyne Labs / Humiditron** (`humid1` reference allowed; `H1OS` removed from general tools/schemes).<br>3. Moved `h1os_full.scheme.json` and `h1os_lite.scheme.json` to `scripts/h1os-build-distro/`.<br>4. Added `--dpi`, `--screen-width`, `--screen-height`, and `--safe-margin` CLI flags and scheme JSON config. |

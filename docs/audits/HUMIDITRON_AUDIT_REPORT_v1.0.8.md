@@ -1,4 +1,4 @@
-# Formal Engineering & Audit Report — `epd-font` v1.0.7 Revved to v1.0.8
+# Formal Technical Design & Audit Report — `epd-font` v1.0.7 Revved to v1.0.8
 
 **Audit Reference**: `docs/audits/humid1_bump_v1.0.8.txt`  
 **Exhibits Analyzed**: `docs/audits/exhibits/v1.0.8/` (`11-03-2026-04-48-pm.log`, `11-03-2026-04-51-pm.log`, `U+03B4_uni03B4.txt`, `U+0048_H.png`, `plex_icon_tabler_filled_12.png`, `plex_terminus_normal_12.png`, etc.)  
@@ -11,7 +11,7 @@
 
 Every issue documented in `docs/audits/humid1_bump_v1.0.8.txt` and captured in `docs/audits/exhibits/v1.0.8/` has been root-caused, resolved, and verified in **`v1.0.8`**:
 
-| # | Issue in `humid1_bump_v1.0.8.txt` | Root Cause Identified from Logs & Exhibits | `v1.0.8` Engineering Fix & Verification |
+| # | Issue in `humid1_bump_v1.0.8.txt` | Root Cause Identified from Logs & Exhibits | `v1.0.8` Technical Design Fix & Verification |
 | :--- | :--- | :--- | :--- |
 | **1** | **Terminus 12–14pt looked poor & 18–40pt had horizontal white CRT scanline lines passing through every char** | 1. `v1.0.7` only converted `ter-u16n.bdf` and `ter-u16b.bdf`, forcing 12–14pt and 18–40pt to scale from the 16px bitmap instead of using Terminus's 20 hand-drawn BDF strikes.<br>2. Each pixel row was emitted as a separate horizontal rectangle contour `[y_bot, y_top]`, and `bytecode-mono` omitted `FT_LOAD_NO_HINTING` (`0x2`), causing FreeType's Auto-Hinter to separate adjacent pixel rows into white horizontal scanline gaps (seen in `U+03B4_uni03B4.txt`). | 1. Hosted all 20 Terminus `.bdf` files + `OFL.TXT` directly in `assets/font_assets/terminus_v4.49.1/` (removed `.tar.gz`).<br>2. Synthesized **24 individual Terminus `.ttf` files** (`Terminus-Normal-{12..40}.ttf`, `Terminus-Bold-{12..40}.ttf`, `Terminus-VGA-{14,16}.ttf`) using a **2D connected rectilinear polygon contour tracer** where shared internal edges cancel out 100%.<br>3. Added `exact-mono` (`FT_LOAD_NO_HINTING`) so FreeType never autohints Terminus.<br>4. **Verified**: All Terminus strikes 12–40pt render with 100% solid stems and zero horizontal scanline gaps. |
 | **2** | **Host CPU Idle During Conversion ("The Need for Speed!")** | Both `build_static_ttf_assets.py` and the main generator ran single-threaded `for` loops on 1 CPU core. | Added multi-process `concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count())` (with `-j / --jobs` CLI override) to both `build_static_ttf_assets.py` and `humid1_generate_1bpp.py`, saturating all host CPU cores across TTF synthesis, FreeType rasterization, C/BDF/CSV emission, ASCII dumping, and PNG rendering. |

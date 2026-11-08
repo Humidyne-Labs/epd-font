@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-humid1_visual_check.py (v1.0.17)
+humid1_visual_check.py (v1.0.19c)
 ================================
 Humidyne Labs / Humiditron `epd-font` Visual Diagnostic Inspection Sheet,
-Single-Character Blueprint & 188 DPI E-Ink Specimen Renderer Module.
+Multi-Method Comparison Sheet, Single-Character Blueprint & 188.15 DPI E-Ink Specimen Renderer Module.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
+from humid1_bilevel_pipelines import PIPELINE_LABELS
 from humid1_ft_raster import (
     GlyphStrike,
     TROUBLE_15_CODEPOINTS,
@@ -21,24 +22,19 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.17"
-
-# =============================================================================
-# 8. WORKFLOW 3: CHECK (AUTO-WRAPPED PAGE CHECK PNGS & CHAR-BY-CHAR BLUEPRINTS)
-# =============================================================================
+TOOL_VERSION = "1.0.19c"
 
 _UI_FONTS_CACHE: Dict[str, dict] = {}
+
 
 def _load_ui_fonts(static_dir: Optional[Path] = None):
     """Load crisp TrueType UI fonts from static_ttfs/ (cached in memory per worker process)."""
     cache_key = str(static_dir) if static_dir else "default"
     if cache_key in _UI_FONTS_CACHE:
         return _UI_FONTS_CACHE[cache_key]
-    from PIL import ImageFont
     candidates = []
     if static_dir:
         candidates.append(static_dir)
-    candidates.append(Path("/tmp/plex_v2_extracted/ibm_plex_epd_toolchain_v2.0/tools/fonts/static_assets"))
 
     sans_bold = None
     sans_reg = None
@@ -70,6 +66,7 @@ def _load_ui_fonts(static_dir: Optional[Path] = None):
 
 
 MAX_GLYPHS_PER_PNG_PAGE = 256
+
 
 def render_full_font_inspection_png(
     out_png: Path,
@@ -138,13 +135,11 @@ def _render_single_page_inspection_png(
     """
     Render a crisp, minimal, auto-wrapped Page Check PNG (`inspect_pages/<strike_symbol>.png`):
       1. Specimen strings automatically word-wrap within the safe page width so large fonts
-         (24px, 32px, 36px, 48px) never clip off the right edge or collide with the status badge.
+         (24px, 32px, 36px, 40px) never clip off the right edge or collide with the status badge.
       2. Uses crisp TrueType vector typography for all cell headers and metric tags (zero bitmap blur).
       3. Renders each glyph cell at high integer pixel zoom (6x for <=16px, 5x for 18-20px, 4x for 24-32px)
          inside its full vertical frame with color-coded Cap-Height, X-Height, and Baseline guides.
     """
-    from PIL import Image, ImageDraw
-
     ui_fonts = _load_ui_fonts(static_dir)
     valid_glyphs = [g for g in glyphs if g.codepoint > 0]
     n_glyphs = len(valid_glyphs)
@@ -180,7 +175,6 @@ def _render_single_page_inspection_png(
             else:
                 if cur:
                     lines_out.append(cur)
-                # If a single word is wider than max_w, split character-by-character
                 if measure_strike_word(word, scale) > max_w:
                     chunk = ""
                     for ch in word:
@@ -252,7 +246,6 @@ def _render_single_page_inspection_png(
             cx += ((g.adv_w_fp4 + 8) >> 4) * scale
         return cx
 
-    # Top Title Bar
     draw.rectangle([0, 0, W, 60], fill=(16, 22, 31))
     patched_cnt = sum(1 for g in valid_glyphs if g.patched)
     draw.text(
@@ -267,20 +260,18 @@ def _render_single_page_inspection_png(
         draw.rectangle([bx0, 12, W - 24, 48], fill=(18, 128, 82), outline=(88, 224, 162), width=1)
         draw.text((bx0 + 14, 21), badge_txt, fill=(255, 255, 255), font=ui_fonts["label"])
     pt_96 = size_px * 72.0 / 96.0
-    pt_188 = size_px * 72.0 / 188.3
+    pt_188 = size_px * 72.0 / 188.15
     draw.text(
         (24, 34),
-        f"Em: {size_px}px ({pt_96:.1f}pt@96dpi / {pt_188:.1f}pt@188dpi)  |  LineHt: {line_height}px (Asc:+{asc_y} Base:-{base_line})  |  Glyphs: {n_glyphs} ({patched_cnt} patched)  |  Mode: {raster_mode}  |  ROM: {rom_bytes:,} B ({rom_bytes/1024:.2f} KB)",
+        f"Em: {size_px}px ({pt_96:.1f}pt@96dpi / {pt_188:.1f}pt@188.15dpi)  |  LineHt: {line_height}px (Asc:+{asc_y} Base:-{base_line})  |  Glyphs: {n_glyphs} ({patched_cnt} patched)  |  Mode: {raster_mode}  |  ROM: {rom_bytes:,} B ({rom_bytes/1024:.2f} KB)",
         fill=(176, 196, 218),
         font=ui_fonts["subtitle"],
     )
 
-    # Auto-Wrapped Specimen Strip Card
     draw.rectangle([24, 72, W - 24, header_h - 14], fill=(255, 255, 255), outline=(202, 210, 222), width=1)
     y_cursor = 84
-    draw.text((38, y_cursor + 2), "1:1 Native (188 DPI):", fill=(85, 98, 114), font=ui_fonts["label"])
+    draw.text((38, y_cursor + 2), "1:1 Native (188.15 DPI):", fill=(85, 98, 114), font=ui_fonts["label"])
 
-    # Inverted EPD Badge on top-right (never overlapped because safe_s1_w reserves space)
     pill_h = max(30, line_height + 10)
     px0, py0 = W - 24 - pill_w - 14, 82
     draw.rectangle([px0, py0, px0 + pill_w, py0 + pill_h], fill=(14, 18, 24))
@@ -297,7 +288,6 @@ def _render_single_page_inspection_png(
         draw_strike_line(220, y_cursor, ln, scale=2, fg=(12, 16, 22))
         y_cursor += line_height * 2 + 6
 
-    # Glyph Cell Matrix Grid
     for idx, g in enumerate(valid_glyphs):
         r_idx = idx // cols
         c_idx = idx % cols
@@ -324,7 +314,6 @@ def _render_single_page_inspection_png(
             font=ui_fonts["mono_sm"],
         )
 
-        # 1:1 native preview in top-right of cell
         if g.box_w > 0 and g.box_h > 0:
             nx0 = cx1 - g.box_w - 8
             ny0 = cy0 + 7
@@ -333,7 +322,6 @@ def _render_single_page_inspection_png(
                     if px == "#":
                         draw.point((nx0 + cc, ny0 + rr), fill=(12, 16, 22))
 
-        # Full em-cell reference lines inside cell
         grid_top = cy0 + 26
         baseline_y = grid_top + asc_y * zoom
         cap_line_y = baseline_y - cap_y * zoom
@@ -363,6 +351,124 @@ def _render_single_page_inspection_png(
     img.save(str(out_png))
 
 
+def render_multi_method_comparison_sheet_png(
+    out_png: Path,
+    font_symbol_name: str,
+    family: str,
+    role: str,
+    size_px: int,
+    threshold: int,
+    gamma: float,
+    method_strikes: Dict[str, Tuple[Sequence[GlyphStrike], int, int]],
+    method_stats: Dict[str, dict],
+    static_dir: Optional[Path] = None,
+) -> Path:
+    """
+    Render a side-by-side Multi-Method Comparison Sheet (`inspect_pages/compare_methods/<symbol>_all_methods.png`)
+    when `pipeline="all"` (or `all-debug`) is active, allowing direct visual comparison of every offered
+    resolution-reduction conversion pipeline (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `mdf`, `msdf`,
+    `sdf-smoothstep`, `adf-biquadratic`, `otsu-adaptive`) on the exact same strike.
+    """
+    ui_fonts = _load_ui_fonts(static_dir)
+    methods = list(method_strikes.keys())
+    n_methods = len(methods)
+    row_h = max(136, size_px * 5 + 56)
+    W = 1560
+    H = 96 + n_methods * row_h + 28
+    img = Image.new("RGB", (W, H), (244, 246, 250))
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle([0, 0, W, 68], fill=(16, 22, 31))
+    draw.text(
+        (24, 12),
+        f"HUMIDYNE LABS MULTI-METHOD COMPARISON  |  {font_symbol_name} ({family.upper()} {role.upper()} {size_px}px)  |  {n_methods} PIPELINES",
+        fill=(255, 255, 255),
+        font=ui_fonts["title"],
+    )
+    draw.text(
+        (24, 38),
+        f"Side-by-side comparison across all {n_methods} resolution-reduction conversion methods (Threshold={threshold}, Gamma={gamma:.2f})",
+        fill=(176, 196, 218),
+        font=ui_fonts["subtitle"],
+    )
+
+    y = 84
+    for idx, m_key in enumerate(methods):
+        glyphs, lh, bl = method_strikes[m_key]
+        gmap = {g.codepoint: g for g in glyphs if g.codepoint > 0}
+        st = method_stats.get(m_key, {})
+        bg = (255, 255, 255) if (idx % 2 == 0) else (248, 250, 254)
+        draw.rectangle([20, y, W - 20, y + row_h - 8], fill=bg, outline=(206, 214, 224), width=1)
+
+        m_label = PIPELINE_LABELS.get(m_key, m_key)
+        draw.text((34, y + 10), m_label, fill=(20, 28, 40), font=ui_fonts["section"])
+        stat_str = (
+            f"Mean Stem: {st.get('mean_stem_px', 0.0):.2f}px  |  >=2px Stems: {st.get('stem_2px_pct', 0.0):.1f}%  |  "
+            f"Open Counters: {st.get('counter_pct', 100.0):.1f}%  |  Ink: {st.get('ink_px', 0)}px"
+        )
+        draw.text((34, y + 32), stat_str, fill=(85, 98, 114), font=ui_fonts["mono_sm"])
+
+        # Draw 1:1 and 2x specimen text or icon strip on left
+        is_icon = family.startswith("icon_") or (ord("A") not in gmap)
+        if is_icon:
+            sample_cps = [g.codepoint for g in glyphs if g.codepoint > 0][:18]
+            sample_str = " ".join(chr(c) for c in sample_cps)
+            zoom_cps = sample_cps[:8]
+        else:
+            sample_str = "HUMIDYNE 72.4°F 46.8% @%#$&80_easy AaBbGgQqWw"
+            zoom_cps = [ord(c) for c in ("@", "%", "#", "8", "0", "a", "e", "g", "s", "W")]
+
+        def _draw_line(px_x: int, px_y: int, txt: str, sc: int):
+            cx = px_x
+            by = px_y + (lh - bl) * sc
+            for ch in txt:
+                g = gmap.get(ord(ch))
+                if not g:
+                    cx += (size_px // 2) * sc
+                    continue
+                if g.box_w > 0 and g.box_h > 0 and cx + g.box_w * sc < 760:
+                    gx0 = cx + g.ofs_x * sc
+                    gy0 = by - (g.ofs_y + g.box_h) * sc
+                    for rr, r_s in enumerate(g.rows):
+                        for cc, px in enumerate(r_s):
+                            if px == "#":
+                                if sc == 1:
+                                    draw.point((gx0 + cc, gy0 + rr), fill=(12, 16, 22))
+                                else:
+                                    draw.rectangle([gx0 + cc * sc, gy0 + rr * sc, gx0 + (cc + 1) * sc - 1, gy0 + (rr + 1) * sc - 1], fill=(12, 16, 22))
+                cx += ((g.adv_w_fp4 + 8) >> 4) * sc
+
+        _draw_line(34, y + 54, sample_str, 1)
+        _draw_line(34, y + 58 + lh, sample_str[:28], 2)
+
+        # Right side: 4x/5x zoomed pixel grid of key characters/icons
+        zx = 780
+        z_scale = 4 if size_px <= 18 else 3
+        for cp in zoom_cps:
+            g = gmap.get(cp)
+            if not g or g.box_w <= 0 or g.box_h <= 0:
+                continue
+            if zx + g.box_w * z_scale + 16 > W - 28:
+                break
+            ch_lbl = chr(cp) if 0x20 <= cp <= 0x7E else f"U+{cp:04X}"
+            draw.text((zx, y + 10), ch_lbl, fill=(65, 78, 94), font=ui_fonts["mono_sm"])
+            gy0 = y + 28
+            for rr, r_s in enumerate(g.rows):
+                for cc, px in enumerate(r_s):
+                    rx = zx + cc * z_scale
+                    ry = gy0 + rr * z_scale
+                    if ry + z_scale < y + row_h - 12:
+                        col = (14, 18, 24) if px == "#" else (236, 240, 246)
+                        draw.rectangle([rx, ry, rx + z_scale - 1, ry + z_scale - 1], fill=col)
+            zx += max(44, g.box_w * z_scale + 14)
+
+        y += row_h
+
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(out_png))
+    return out_png
+
+
 def render_single_char_inspection_png(
     out_png: Path,
     font_symbol_name: str,
@@ -377,28 +483,9 @@ def render_single_char_inspection_png(
     static_dir: Optional[Path] = None,
 ) -> None:
     """
-    Render a dedicated, high-resolution Char-by-Char Engineering Blueprint PNG
-    (`inspect_chars/<strike_symbol>/U+XXXX_<name>.png`):
-      - Uses 18x-22x integer pixel zoom on the full coordinate grid so viewing at 100%
-        in Windows Photos / macOS Preview has ZERO bilinear blur.
-      - Plots the glyph inside its full vertical (y = +ascender .. -descender) and
-        horizontal (x = min(0, ofs_x)-1 .. max(adv_px, ofs_x+box_w)+1) coordinate grid
-        with explicit X/Y pixel rulers and color-coded typographic reference lines:
-          * ASCENDER (slate)
-          * CAP_HEIGHT (teal)
-          * X_HEIGHT (purple)
-          * BASELINE y=0 (crimson, 2px)
-          * DESCENDER (amber)
-          * ORIGIN x=0 & ADVANCE WIDTH x=adv_w (blue vertical markers)
-      - Right sidebar includes:
-          1. 1:1, 2x, and 4x solid previews (Normal White-Paper & Inverted Black-Paper).
-          2. Live 4x Context Word Preview ('H [char] p' and '0 [char] 0') on the baseline
-             so punctuation like '_' (underscore), '.' (period), and '-' (hyphen) are
-             visually anchored against capital H, lowercase p descender, and digits.
-          3. Complete LVGL v9 `lv_font_fmt_txt_glyph_dsc_t` metric & C hex byte dump table.
+    Render a dedicated, high-resolution Char-by-Char Technical Design Blueprint PNG
+    (`inspect_chars/<strike_symbol>/U+XXXX_<name>.png`).
     """
-    from PIL import Image, ImageDraw
-
     ui_fonts = _load_ui_fonts(static_dir)
     asc_y = line_height - base_line
     desc_y = -base_line
@@ -416,7 +503,6 @@ def render_single_char_inspection_png(
     x_right = max(adv_px + 1, (g.ofs_x + g.box_w) if g.box_w > 0 else adv_px + 1)
     total_cols = x_right - x_left + 1
 
-    # Choose integer pixel zoom so grid fits cleanly in ~560x620 px
     zoom = max(12, min(24, int(min(520 // max(total_cols, 1), 580 // max(total_rows, 1)))))
 
     grid_w = total_cols * zoom
@@ -432,7 +518,6 @@ def render_single_char_inspection_png(
     char_disp = chr(g.codepoint) if 0x20 <= g.codepoint <= 0x7E else f"U+{g.codepoint:04X}"
     gname = get_semantic_glyph_name(g.codepoint, family)
 
-    # Top Title Banner
     draw.rectangle([0, 0, W, 62], fill=(16, 22, 31))
     draw.text(
         (24, 10),
@@ -440,7 +525,7 @@ def render_single_char_inspection_png(
         fill=(255, 255, 255),
         font=ui_fonts["title"],
     )
-    state_str = "PATCHED (Custom Override)" if g.patched else "BASELINE (FreeType2 autohint-mono)"
+    state_str = "PATCHED (Custom Override)" if g.patched else f"PIPELINE ({raster_mode})"
     draw.text(
         (24, 35),
         f"State: {state_str}   |   Strike: {size_px}px (LineHeight: {line_height}px, Base: {base_line}px)   |   Grid Scale: {zoom}x Integer Zoom (Zero Blur)",
@@ -448,7 +533,6 @@ def render_single_char_inspection_png(
         font=ui_fonts["subtitle"],
     )
 
-    # Left Card: Full Em-Canvas Coordinate Grid
     lx0, ly0 = 20, 76
     lx1, ly1 = left_panel_w, H - 20
     draw.rectangle([lx0, ly0, lx1, ly1], fill=(255, 255, 255), outline=(202, 210, 222), width=1)
@@ -456,7 +540,6 @@ def render_single_char_inspection_png(
     gx0 = lx0 + 62
     gy0 = ly0 + 44
 
-    # Draw X coordinate ruler along top
     for c_i in range(total_cols):
         x_val = x_left + c_i
         cx = gx0 + c_i * zoom
@@ -464,12 +547,10 @@ def render_single_char_inspection_png(
         col_color = (200, 30, 45) if x_val == 0 else ((25, 95, 200) if x_val == adv_px else (110, 120, 135))
         draw.text((cx + max(1, zoom // 2 - 4), gy0 - 20), col_txt, fill=col_color, font=ui_fonts["mono_sm"])
 
-    # Draw grid cells & Y coordinate ruler
     for r_i in range(total_rows):
         y_val = y_top - r_i
         ry = gy0 + r_i * zoom
 
-        # Y coordinate label on left
         y_color = (200, 30, 45) if y_val == 0 else (95, 108, 124)
         draw.text((lx0 + 12, ry + max(0, zoom // 2 - 7)), f"y={y_val:+03d}", fill=y_color, font=ui_fonts["mono_sm"])
 
@@ -490,7 +571,6 @@ def render_single_char_inspection_png(
             if is_ink:
                 draw.rectangle([rx, ry, rx + zoom - 1, ry + zoom - 1], fill=(14, 18, 24), outline=(45, 55, 68))
                 if zoom >= 16:
-                    # Subtle center crosshair dot on active pixels
                     mcx, mcy = rx + zoom // 2, ry + zoom // 2
                     draw.point((mcx, mcy), fill=(90, 105, 125))
             else:
@@ -499,7 +579,6 @@ def render_single_char_inspection_png(
                     cell_bg = (242, 252, 246)
                 draw.rectangle([rx, ry, rx + zoom - 1, ry + zoom - 1], fill=cell_bg, outline=(226, 232, 240))
 
-    # Draw Horizontal Typographic Landmark Lines (at bottom edge of the respective y row, except baseline which is bottom of y=0 row)
     def draw_h_guide(y_target: int, color: Tuple[int, int, int], label_text: str, width: int = 2, top_edge: bool = False):
         if y_bot <= y_target <= y_top:
             r_idx = y_top - y_target
@@ -513,7 +592,6 @@ def render_single_char_inspection_png(
     draw_h_guide(0, (210, 35, 45), "BASE (y=0)", width=3, top_edge=False)
     draw_h_guide(desc_y, (195, 120, 25), f"DESC ({desc_y})", width=1, top_edge=False)
 
-    # Draw Vertical Origin (x=0) and Advance Width (x=adv_px) Lines
     if x_left <= 0 <= x_right:
         ox_px = gx0 + (0 - x_left) * zoom
         draw.line([(ox_px, gy0 - 4), (ox_px, gy0 + grid_h + 4)], fill=(210, 35, 45), width=2)
@@ -522,7 +600,6 @@ def render_single_char_inspection_png(
         draw.line([(ax_px, gy0 - 4), (ax_px, gy0 + grid_h + 4)], fill=(25, 95, 210), width=2)
         draw.text((ax_px - 18, gy0 + grid_h + 6), f"adv={adv_px}px", fill=(25, 95, 210), font=ui_fonts["mono_sm"])
 
-    # Highlight tight bounding box (ofs_x, ofs_y, box_w, box_h) in emerald green
     if g.box_w > 0 and g.box_h > 0:
         bx0 = gx0 + (g.ofs_x - x_left) * zoom
         by0 = gy0 + (y_top - glyph_y_top) * zoom
@@ -530,11 +607,9 @@ def render_single_char_inspection_png(
         by1 = by0 + g.box_h * zoom - 1
         draw.rectangle([bx0, by0, bx1, by1], outline=(16, 160, 95), width=2)
 
-    # Right Sidebar Panels
     rx0 = left_panel_w + 16
     rx1 = W - 20
 
-    # Panel 1: Multi-Scale Solid Previews (1:1, 2x, 4x on Paper & Inverted)
     p1_y0, p1_y1 = 76, 256
     draw.rectangle([rx0, p1_y0, rx1, p1_y1], fill=(255, 255, 255), outline=(202, 210, 222), width=1)
     draw.text((rx0 + 14, p1_y0 + 10), "1. MULTI-SCALE SOLID PREVIEWS", fill=(24, 32, 44), font=ui_fonts["section"])
@@ -552,21 +627,18 @@ def render_single_char_inspection_png(
                         else:
                             draw.rectangle([ox + cc * sc, oy + rr * sc, ox + (cc + 1) * sc - 1, oy + (rr + 1) * sc - 1], fill=fg)
 
-    # Normal Paper Previews
-    draw.text((rx0 + 16, p1_y0 + 38), "1:1 (188 DPI)", fill=(95, 108, 124), font=ui_fonts["mono_sm"])
+    draw.text((rx0 + 16, p1_y0 + 38), "1:1 (188.15 DPI)", fill=(95, 108, 124), font=ui_fonts["mono_sm"])
     draw_single_glyph_at(rx0 + 36, p1_y0 + 62, g, 1, fg=(14, 18, 24))
 
     draw.text((rx0 + 130, p1_y0 + 38), "2x Scale", fill=(95, 108, 124), font=ui_fonts["mono_sm"])
     draw_single_glyph_at(rx0 + 142, p1_y0 + 58, g, 2, fg=(14, 18, 24))
 
-    # Inverted Dark Badge Previews
     inv_x0 = rx0 + 245
     draw.rectangle([inv_x0, p1_y0 + 34, rx1 - 14, p1_y1 - 14], fill=(14, 18, 24))
     draw.text((inv_x0 + 10, p1_y0 + 40), "Inverted 1:1 & 2x", fill=(180, 195, 215), font=ui_fonts["mono_sm"])
     draw_single_glyph_at(inv_x0 + 24, p1_y0 + 66, g, 1, fg=(255, 255, 255))
     draw_single_glyph_at(inv_x0 + 84, p1_y0 + 62, g, 2, fg=(255, 255, 255))
 
-    # Panel 2: Context Word Alignment Preview ("H [char] p" and "0 [char] 0")
     p2_y0, p2_y1 = 272, 468
     draw.rectangle([rx0, p2_y0, rx1, p2_y1], fill=(255, 255, 255), outline=(202, 210, 222), width=1)
     draw.text((rx0 + 14, p2_y0 + 10), "2. BASELINE & NEIGHBOR CONTEXT (3x)", fill=(24, 32, 44), font=ui_fonts["section"])
@@ -603,7 +675,6 @@ def render_single_char_inspection_png(
                         )
         cx_cursor += c_adv
 
-    # Panel 3: Complete LVGL v9 Descriptor & Hex Dump Table
     p3_y0, p3_y1 = 484, H - 20
     draw.rectangle([rx0, p3_y0, rx1, p3_y1], fill=(255, 255, 255), outline=(202, 210, 222), width=1)
     draw.text((rx0 + 14, p3_y0 + 10), "3. LVGL v9 GLYPH DESCRIPTOR & HEX BITMAP", fill=(24, 32, 44), font=ui_fonts["section"])
@@ -630,7 +701,6 @@ def render_single_char_inspection_png(
     draw.line([(rx0 + 14, ty - 4), (rx1 - 14, ty - 4)], fill=(228, 232, 240), width=1)
     draw.text((rx0 + 16, ty), "Packed 1-BPP C Hex Array:", fill=(95, 108, 124), font=ui_fonts["mono"])
     ty += 20
-    # Wrap hex dump across lines of 48 chars
     for i in range(0, len(hex_dump), 48):
         if ty < p3_y1 - 18:
             draw.text((rx0 + 16, ty), hex_dump[i : i + 48], fill=(20, 90, 160), font=ui_fonts["mono_sm"])
@@ -653,14 +723,9 @@ def render_char_by_char_folder(
     char_filter: str = "trouble",
     static_dir: Optional[Path] = None,
 ) -> int:
-    """
-    Render Char-by-Char Deep Inspection PNG cards into `strike_char_dir/U+XXXX_<name>.png`.
-    `char_filter` can be:
-      - 'trouble' : Trouble 15 + key punctuation ('_', '.', '-', '0', '8', '@', '%', '#', '$', '&', 'a', 'e', 'g', 's', 'B')
-      - 'patched' : Only patched glyphs
-      - 'ascii'   : All printable ASCII (0x20..0x7E)
-      - 'all'     : Every glyph in the strike
-    """
+    """Render Char-by-Char Deep Inspection PNG cards into `strike_char_dir/U+XXXX_<name>.png`."""
+    if char_filter == "none":
+        return 0
     gmap = {g.codepoint: g for g in glyphs if g.codepoint > 0}
     diagnostic_set = set(TROUBLE_15_CODEPOINTS) | {
         ord("_"), ord("."), ord("-"), ord(":"), ord(";"), ord("/"), ord("("), ord(")"),
@@ -669,7 +734,6 @@ def render_char_by_char_folder(
     count = 0
     is_icon_fam = family.startswith("icon_")
     valid_list = [g for g in glyphs if g.codepoint > 0]
-    # For full-catalog icon strikes (> 300 glyphs), select up to 150 representative icons unless 'full' is requested
     icon_cap_cps = {g.codepoint for g in valid_list[:150]} if (is_icon_fam and len(valid_list) > 300) else {g.codepoint for g in valid_list}
     for g in valid_list:
         if char_filter == "patched" and not g.patched:
@@ -706,12 +770,7 @@ def render_specimen_sheet(
     preview_path: Path,
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]],
 ) -> None:
-    """Render master 188-DPI 1-bpp specimen contact sheet & simulated 200x200 SSD1681 panel."""
-    try:
-        from PIL import Image, ImageDraw
-    except ImportError:
-        return
-
+    """Render master 188.15-DPI 1-bpp specimen contact sheet & simulated 200x200 SSD1681 panel."""
     W, H = 1420, 1020
     img = Image.new("RGB", (W, H), (246, 247, 249))
     draw = ImageDraw.Draw(img)
@@ -751,6 +810,21 @@ def render_specimen_sheet(
         icon_fb_14 = icon_fb_20
     if not icon_fb_20 and icon_fb_14:
         icon_fb_20 = icon_fb_14
+
+    # Ensure droplet (0xF043) and battery (0xF240) on the 200x200 panel always map to a valid icon
+    # even when the active scheme only builds Phosphor, Lucide, or Tabler
+    for cp_target, alt_candidates in [
+        (0xF043, [0xF043, 0xE20A, 0xE1B4, 0xE073, 0xEA98, 0xEE80]),
+        (0xF240, [0xF240, 0xE0DA, 0xE14E, 0xE053, 0xEA2F, 0xF668]),
+    ]:
+        for imap in (icon_fb_14, icon_fb_20):
+            if cp_target not in imap and imap:
+                for alt in alt_candidates:
+                    if alt in imap:
+                        imap[cp_target] = imap[alt]
+                        break
+                if cp_target not in imap:
+                    imap[cp_target] = next(iter(imap.values()))
 
     def draw_strike_text(
         x0: int,
@@ -797,8 +871,8 @@ def render_specimen_sheet(
         return cx
 
     draw.rectangle([0, 0, W, 68], fill=(18, 22, 28))
-    draw_strike_text(28, 16, "HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v1.0.17 (188 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
-    draw_strike_text(28, 44, "Engine: FreeType 1-BPP + Terminus Exact-Mono + Full-Canvas ASCII Patch Pipeline  •  200x200 Reference Panel", "humid1_font_plex_mono_normal_14", fg=(180, 195, 210))
+    draw_strike_text(28, 16, f"HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v{TOOL_VERSION} (188.15 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
+    draw_strike_text(28, 44, "Engine: 8-Pipeline Resolution-Reduction + Linear Grayscale + Full-Canvas ASCII Patching  •  200x200 Panel", "humid1_font_plex_mono_normal_14", fg=(180, 195, 210))
 
     panel_x, panel_y = 28, 90
     draw.rectangle([panel_x - 4, panel_y - 4, panel_x + 404, panel_y + 404], fill=(40, 45, 52), outline=(18, 22, 28), width=2)
@@ -836,14 +910,13 @@ def render_specimen_sheet(
                             epd_draw.point((gx0 + c_idx, gy0 + r_idx), fill=fg)
             cx += (g.adv_w_fp4 + 8) >> 4
 
-    # Simulated 200x200 SSD1681 Panel: Crisp 1px Normal stems + 2px Bold stems!
     draw_epd_text(6, 4, "HUMIDYNE LABS", "humid1_font_plex_sans_bold_14")
     epd_draw.rectangle([200 - 4 - 36, 2, 200 - 4, 2 + 17], fill=(0, 0, 0))
     draw_epd_text(200 - 4 - 28, 3, "1/5", "humid1_font_plex_mono_bold_14", fg=(255, 255, 255))
     epd_draw.line([(4, 22), (196, 22)], fill=(0, 0, 0), width=1)
 
     draw_epd_text(6, 30, "72.4°F", "humid1_font_plex_sans_bold_20")
-    draw_epd_text(0, 30, " 46.8%", "humid1_font_plex_sans_bold_20", align_right_x=194)
+    draw_epd_text(0, 30, "\uf043 46.8%", "humid1_font_plex_sans_bold_20", align_right_x=194)
     draw_epd_text(6, 58, "(22.4°C ambient • Td 10.4°C)", "humid1_font_plex_sans_normal_14")
     epd_draw.line([(4, 84), (196, 84)], fill=(0, 0, 0), width=1)
 
@@ -856,18 +929,17 @@ def render_specimen_sheet(
 
     epd_draw.line([(4, 166), (196, 166)], fill=(0, 0, 0), width=1)
     draw_epd_text(6, 174, "Cycle #142", "humid1_font_plex_sans_normal_14")
-    draw_epd_text(0, 174, " 4.12V • 18:52", "humid1_font_plex_sans_normal_14", align_right_x=194)
+    draw_epd_text(0, 174, "\uf240 4.12V • 18:52", "humid1_font_plex_sans_normal_14", align_right_x=194)
 
     epd_zoomed = epd.resize((400, 400), resample=Image.NEAREST)
     img.paste(epd_zoomed, (panel_x, panel_y))
     draw_strike_text(panel_x, panel_y + 412, "Simulated 200x200 SSD1681 Panel (2x Nearest-Neighbor Zoom)", "humid1_font_plex_sans_bold_14")
-    draw_strike_text(panel_x, panel_y + 432, "Keys: Sans Normal 14 (1px stems)  |  Values: Sans Bold 14 (2px stems)  |  Hero: Bold 20", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
+    draw_strike_text(panel_x, panel_y + 432, "Keys: Sans Normal 14  |  Values: Sans Bold 14  |  Hero: Bold 20 + Filled Icons", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
 
-    # Bottom Left: 6x Zoomed Micro-Glyph Grid Verification
     box_y = 552
     draw.rectangle([28, box_y, 642, 992], fill=(255, 255, 255), outline=(200, 208, 218), width=1)
     draw_strike_text(44, box_y + 14, "1-BIT MONOCHROME ENGINE + ASCII PATCH VERIFICATION (6x Pixel Grid)", "humid1_font_plex_sans_bold_14")
-    draw_strike_text(44, box_y + 36, "FT_LOAD_TARGET_MONO + font_icon_epd_patches.json resolve counter-fill and preserve 1px/2px hierarchy:", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
+    draw_strike_text(44, box_y + 36, "8-Pipeline Resolution-Reduction + font_icon_epd_patches.json:", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
 
     showcase_glyphs = [
         ("humid1_font_plex_sans_normal_14", 0x0040, "Sans 14 '@'"),
@@ -895,18 +967,25 @@ def render_specimen_sheet(
                 draw.rectangle([rx, ry, rx + cell - 2, ry + cell - 2], fill=fill_c)
         px_x += 83
 
-    draw_strike_text(44, box_y + 196, "1:1 Native 188 DPI Readout (>=2px Medium Stems + Closed-Loop Auto-Floor):", "humid1_font_plex_sans_bold_14")
+    draw_strike_text(44, box_y + 196, "1:1 Native 188.15 DPI Readout (8-Pipeline Bilevel + Manual ASCII Patching):", "humid1_font_plex_sans_bold_14")
     draw_strike_text(44, box_y + 222, "Sans 12px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y ± µ °", "humid1_font_plex_sans_normal_12")
     draw_strike_text(44, box_y + 246, "Sans 14px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y", "humid1_font_plex_sans_normal_14")
     draw_strike_text(44, box_y + 272, "Term 12px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s g y", "humid1_font_terminus_normal_12")
     draw_strike_text(44, box_y + 296, "Mono 14px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", "humid1_font_plex_mono_normal_14")
     draw_strike_text(44, box_y + 324, "Math 16px:  ΔT = +0.15°C  •  ∀x ∈ ℝ : ∑ f(x) ≈ √π ± ∞  •  α β γ δ ε θ λ μ π σ ω Ω", "humid1_font_plex_math_regular_16")
 
-    icon_strip_str = "               "
+    icon_strip_str = "\uf043 \uf021 \uf240 \uf241 \uf242 \uf243 \uf244 \uf287 \uf0e7 \uf013 \uf071 \uf058 \uf00c \uf00d \uf1eb \uf2db"
     icon_strip_sym = "humid1_icon_fa7_solid_16"
     if icon_strip_sym not in strike_cache:
-        for cand_ic in ("humid1_icon_phosphor_regular_16", "humid1_icon_lucide_regular_16", "humid1_icon_tabler_regular_16"):
-            if cand_ic in strike_cache:
+        for cand_ic in (
+            "humid1_icon_tabler_filled_16",
+            "humid1_icon_phosphor_fill_16",
+            "humid1_icon_phosphor_fill_20",
+            "humid1_icon_phosphor_regular_16",
+            "humid1_icon_lucide_regular_16",
+            "humid1_icon_tabler_regular_16",
+        ):
+            if cand_ic in strike_cache and strike_cache[cand_ic][0]:
                 icon_strip_sym = cand_ic
                 sample_cps = sorted(c for c in strike_cache[cand_ic][0].keys() if c >= 0xE000)[:16]
                 icon_strip_str = " ".join(chr(c) for c in sample_cps)
@@ -914,24 +993,32 @@ def render_specimen_sheet(
     draw_strike_text(44, box_y + 354, "Icons 16px:", "humid1_font_plex_sans_bold_14")
     draw_strike_text(132, box_y + 354, icon_strip_str, icon_strip_sym)
 
-    # Right Column: Complete Sub-Family & Size Ladder Showcase
+    # Also render Filled Icon Showcase Strip if Tabler-Filled or Phosphor-Fill is in strike_cache
+    for filled_cand in ("humid1_icon_tabler_filled_16", "humid1_icon_phosphor_fill_16", "humid1_icon_phosphor_fill_20"):
+        if filled_cand in strike_cache and strike_cache[filled_cand][0]:
+            f_cps = sorted(c for c in strike_cache[filled_cand][0].keys() if c >= 0xE000)[:16]
+            f_str = " ".join(chr(c) for c in f_cps)
+            draw_strike_text(44, box_y + 382, "Filled Icons:", "humid1_font_plex_sans_bold_14")
+            draw_strike_text(142, box_y + 382, f_str, filled_cand)
+            break
+
     rx0 = 664
     draw.rectangle([rx0, 90, 1392, 992], fill=(255, 255, 255), outline=(200, 208, 218), width=1)
-    draw_strike_text(rx0 + 20, 106, "HUMID1 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS @ 188 DPI)", "humid1_font_plex_sans_bold_16")
+    draw_strike_text(rx0 + 20, 106, "HUMID1 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS @ 188.15 DPI)", "humid1_font_plex_sans_bold_16")
 
     ladder_rows = [
-        ("Sans Normal 12px (4.6pt@188dpi, >=2px Auto-Floored)", "humid1_font_plex_sans_normal_12", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
-        ("Sans Normal 14px (5.4pt@188dpi, Default UI)", "humid1_font_plex_sans_normal_14", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
-        ("Sans Bold 14px (5.4pt@188dpi, 2px stems)", "humid1_font_plex_sans_bold_14", "PSYCHROMETRICS  •  SYSTEM HEALTH  •  SETTLED (99%)"),
+        ("Sans Normal 12px (4.6pt@188.15dpi, Manual Patch Ready)", "humid1_font_plex_sans_normal_12", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
+        ("Sans Normal 14px (5.4pt@188.15dpi, Default UI)", "humid1_font_plex_sans_normal_14", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
+        ("Sans Bold 14px (5.4pt@188.15dpi, 2px stems)", "humid1_font_plex_sans_bold_14", "PSYCHROMETRICS  •  SYSTEM HEALTH  •  SETTLED (99%)"),
         ("Sans Italic 14px (Metadata)", "humid1_font_plex_sans_italic_14", "(22.4°C ambient  •  TriNode thermal equilibrium active)"),
-        ("Sans Normal 16px (6.1pt@188dpi, Body MD)", "humid1_font_plex_sans_normal_16", "TriNode ΔT: +0.1°C  |  Vapor Pressure: 12.6 hPa"),
-        ("Sans Bold 16px (6.1pt@188dpi, Modal Title)", "humid1_font_plex_sans_bold_16", "ENVIRONMENTAL TELEMETRY & DEW POINT"),
-        ("Sans Bold 20px (7.6pt@188dpi, Section Hero)", "humid1_font_plex_sans_bold_20", "72.4°F    46.8% RH    4.12V"),
-        ("Sans Bold 24px (9.2pt@188dpi, Primary Readout)", "humid1_font_plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
-        ("Sans Bold 32px (12.2pt@188dpi, Jumbo Metric)", "humid1_font_plex_sans_bold_32", "72.4°F   46.8%"),
-        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", "boot: humid1-os v1.0.17  |  SPI0 40MHz  |  0x0040 @%#08"),
+        ("Sans Normal 16px (6.1pt@188.15dpi, Body MD)", "humid1_font_plex_sans_normal_16", "TriNode ΔT: +0.1°C  |  Vapor Pressure: 12.6 hPa"),
+        ("Sans Bold 16px (6.1pt@188.15dpi, Modal Title)", "humid1_font_plex_sans_bold_16", "ENVIRONMENTAL TELEMETRY & DEW POINT"),
+        ("Sans Bold 20px (7.6pt@188.15dpi, Section Hero)", "humid1_font_plex_sans_bold_20", "72.4°F   \uf043 46.8% RH   \uf240 4.12V"),
+        ("Sans Bold 24px (9.2pt@188.15dpi, Primary Readout)", "humid1_font_plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
+        ("Sans Bold 32px (12.2pt@188.15dpi, Jumbo Metric)", "humid1_font_plex_sans_bold_32", "72.4°F   46.8%"),
+        (f"Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", f"boot: humid1-os v{TOOL_VERSION}  |  SPI0 40MHz  |  0x0040 @%#08"),
         ("Terminus Normal 16px (8x16 Native Console)", "humid1_font_terminus_normal_16", "root@humid1:~# dmesg | grep epd -> 200x200 OK"),
-        ("Mono Normal 14px (Telemetry Log)", "humid1_font_plex_mono_normal_14", "2026-11-03 20:24:55  |  328K Free  |  @%#08"),
+        ("Mono Normal 14px (Telemetry Log)", "humid1_font_plex_mono_normal_14", "2026-11-08 20:24:55  |  328K Free  |  @%#08"),
         ("Mono Bold 20px (Tabular Readout)", "humid1_font_plex_mono_bold_20", "72.4°F   46.8% RH   12.6 hPa"),
         ("Mono Bold 24px (Tabular Hero)", "humid1_font_plex_mono_bold_24", "72.4°F  |  46.8% RH"),
         ("Condensed Normal 16px (Narrow Dock)", "humid1_font_plex_cond_normal_16", "NARROW DOCK:  SHTC3 22.4°C  |  SSD1681 22.5°C  |  MCU 22.6°C"),
@@ -955,6 +1042,64 @@ def render_specimen_sheet(
 
     preview_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(str(preview_path))
-    print(f"[+] Rendered master 188-DPI visual specimen sheet to {preview_path}")
+    print(f"[+] Rendered master 188.15-DPI visual specimen sheet to {preview_path}")
 
 
+def render_master_char_icon_map_png(
+    out_png: Path,
+    strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]],
+    scheme_id: str = "epd-font",
+    pipeline_name: str = "raw-hinted",
+    static_dir: Optional[Path] = None,
+) -> Path:
+    """
+    Render a combined full-scheme Master Character & Icon Map PNG (`master_char_icon_map.png`)
+    summarizing all built font and icon strikes in a single overview sheet.
+    """
+    ui_fonts = _load_ui_fonts(static_dir)
+    strikes_sorted = sorted(strike_cache.items(), key=lambda x: x[0])
+    row_h = 44
+    W = 1480
+    H = max(360, 110 + len(strikes_sorted) * row_h + 32)
+    img = Image.new("RGB", (W, H), (246, 248, 252))
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle([0, 0, W, 68], fill=(18, 24, 34))
+    draw.text(
+        (24, 14),
+        f"HUMIDYNE LABS / HUMIDITRON epd-font v{TOOL_VERSION}  |  MASTER CHARACTER & ICON MAP ({scheme_id})",
+        fill=(255, 255, 255),
+        font=ui_fonts["title"],
+    )
+    draw.text(
+        (24, 40),
+        f"A 1-bit EPD font generator and asset pipeline for embedded displays  •  Pipeline: {pipeline_name}  •  Total Strikes: {len(strikes_sorted)}",
+        fill=(180, 198, 220),
+        font=ui_fonts["subtitle"],
+    )
+
+    y = 84
+    for idx, (sym, (gmap, lh, bl)) in enumerate(strikes_sorted):
+        bg = (255, 255, 255) if (idx % 2 == 0) else (240, 244, 250)
+        draw.rectangle([20, y, W - 20, y + row_h - 4], fill=bg, outline=(216, 224, 234), width=1)
+        draw.text((32, y + 12), f"{sym:<40} ({len(gmap):>4d} glyphs, lh={lh}px)", fill=(24, 32, 44), font=ui_fonts["mono"])
+
+        cx = 540
+        by = y + 8 + min(28, lh - bl)
+        sample_cps = sorted(c for c in gmap.keys() if c > 0x20)[:36]
+        for cp in sample_cps:
+            g = gmap[cp]
+            if g.box_w > 0 and g.box_h > 0 and cx + g.box_w < W - 36:
+                gx0 = cx + max(0, g.ofs_x)
+                gy0 = by - (g.ofs_y + g.box_h)
+                gy0 = max(y + 4, min(y + row_h - 8 - g.box_h, gy0))
+                for rr, r_str in enumerate(g.rows):
+                    for cc, px in enumerate(r_str):
+                        if px == "#":
+                            draw.point((gx0 + cc, gy0 + rr), fill=(12, 16, 22))
+            cx += max(g.box_w + 4, ((g.adv_w_fp4 + 8) >> 4) + 2)
+        y += row_h
+
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(out_png))
+    return out_png

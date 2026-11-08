@@ -1,128 +1,78 @@
-# Complete How-To Guide — `epd-font` (v1.0.17)
+# Complete How-To Guide — `epd-font` (v1.0.19c)
 
-**Repository**: `https://github.com/Humidyne-Labs/epd-font`  
-**Organization**: Humidyne Labs / Humiditron  
-**License**: MIT License (Upstream fonts retain SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT)
-
----
+- **Project**: A 1-bit EPD font generator and asset pipeline for embedded displays
+- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.19c`)
+- **Authors**: [Humiditron](https://github.com/humiditron) (Humidyne Labs) & AI/LLM Collaborative Development Partner
+- **Supported Platforms**: Windows (Primary) and Linux (Optional). *(Note: unsupported Apple OS is not supported.)*
+- **License**: MIT License (Pipeline & Tooling) / SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT (Upstream Fonts)
 
 ## 1. Host Prerequisites & Dependency Installation
 
-`epd-font` has two distinct execution environments:
-1. **Maintainer / Developer Host (`build_static_ttf_assets.py` & `humid1_generate_1bpp.py`)**: Requires Python 3.9+, `fonttools`, `Pillow`, and `freetype-py` (or system `libfreetype`).
-2. **Downstream Firmware / CMake Build (`humid1_fw_emit.py`)**: Requires **ONLY** the standard Python 3 library (`0` pip packages, `0` native C libraries, `< 0.15s` execution time).
+`epd-font` v1.0.19c supports two operational modes:
+1. **Full Pipeline & Asset Builder (`build_static_ttf_assets.py`, `humid1_generate_1bpp.py`, `humid1_font_eval.py`)**: Requires Python 3.9+, `fonttools`, `Pillow`, `numpy`, `opencv-python`, and `freetype-py` (`freetype.dll` on Windows or `libfreetype.so.6` on Linux).
+2. **Downstream Firmware / CMake Vault Emitter (`humid1_fw_emit.py`)**: Requires **ONLY** the standard Python 3 library (`0` third-party packages, `< 0.15s` execution time).
 
-### Install Maintainer Python Dependencies:
 ```bash
 python -m pip install --upgrade pip
-python -m pip install "fonttools>=4.40.0" "Pillow>=10.0.0" "freetype-py>=2.4.0"
-```
-*(Or on Windows, double-click `00_setup_env.bat` inside any `scripts\*\` folder.)*
-
----
-
-## 2. Understanding the `build/`, `dist/`, and Root Patch Architecture
-
-To keep the Git repository lightweight while preserving every pixel-level customization:
-- **`assets/` (Tracked in Git)**: Contains raw upstream variable `.ttf` fonts, `.otf` icon fonts, and `terminus-font-4.49.1.tar.gz`.
-- **`font_icon_epd_patches.json` (Tracked in Git Root)**: The authoritative optical pixel patch manifest. Whenever you edit a Full-Canvas 1:1 ASCII `.txt` glyph inside `build/<workflow>/ascii_patches/` and run `--workflow patch --apply` (or `05_apply_ascii_patches.bat`), your edits are compiled into `font_icon_epd_patches.json` at the repository root.
-- **`build/` (Gitignored)**: Holds all generated intermediate files:
-  - `build/static_ttfs/` — All 56 static `.ttf` binaries (`41` IBM Plex + `2` Terminus + `13` Icon TTFs) and `licenses/`.
-  - `build/metadata/` — Searchable JSON catalogs (`fa7_catalog.json`, `lucide_catalog.json`, `phosphor_catalog.json`, `tabler_catalog.json`, `terminus_catalog.json`, `plex_catalog.json`, `unified_icon_names.json`, `asset_manifest.json`).
-  - `build/<workflow>/ascii_patches/` — Dumped Full-Canvas 1:1 Spaced ASCII `.txt` glyph files.
-  - `build/<workflow>/fonts/` — Generated LVGL v9 `.c` files, `epd_fonts.h`, `plex_fonts.h`, and optional `h1os_fonts.h`.
-  - `build/<workflow>/inspect_pages/` & `build/<workflow>/inspect_chars/` — Visual inspection PNGs.
-- **`dist/` (Gitignored)**: Holds self-contained distribution bundles (`dist/example_distro/`, `dist/audit_distro/`, `dist/h1os_distro/`) ready to drop into any firmware project.
-
----
-
-## 3. Running the 4 Self-Contained Windows Batch Workflows (`scripts/*`)
-
-Each subdirectory under `scripts/` contains its own `.scheme.json` and numbered `.bat` pipeline (`00` through `99`):
-
-| Workflow Subdirectory | Scheme File(s) | Build Output | Dist Output | Purpose |
-| :--- | :--- | :--- | :--- | :--- |
-| `scripts/example-build-distro/` | `example.scheme.json` | `build/example/` | `dist/example_distro/` | General-purpose embedded project template (Sans, Mono, Terminus, Lucide, Phosphor) |
-| `scripts/full-audit-build-dev/` | `full_audit.scheme.json` | `build/audit_dev/` | `dist/audit_dev_distro/` | Exhaustive 12–40pt developer audit (all fonts & icons + every char PNG & ASCII dump) |
-| `scripts/full-audit-build-distro/` | `full_audit_distro.scheme.json` | `build/audit/` | `dist/audit_distro/` | Exhaustive 12–40pt master distribution bundle & Strike Vault |
-| `scripts/h1os-build-distro/` | `h1os_full.scheme.json`, `h1os_lite.scheme.json` | `build/h1os/` | `dist/h1os_distro/` | Dedicated H1OS & `humid1-os` firmware deployment bundle |
-
----
-
-## 4. Customizing Display Geometry & Schemes (`tools/fonts/schemes/*.json`)
-
-You can configure any display resolution, DPI, and safe margin either in your `.scheme.json` under `"target_display"` or on the command line:
-
-```bash
-python tools/fonts/humid1_generate_1bpp.py --workflow check \
-  --scheme tools/fonts/schemes/weather_station_epd.scheme.json \
-  --dpi 112.0 --screen-width 296 --screen-height 128 --safe-margin 6 \
-  --out-dir build/weather --dist-dir dist/weather_distro --audit-screens
+python -m pip install "fonttools>=4.40.0" "Pillow>=10.0.0" "freetype-py>=2.4.0" "numpy>=1.24.0" "opencv-python>=4.8.0"
 ```
 
----
+## 2. Selecting Between the 8 Resolution-Reduction Pipelines, Linear Grayscale & Gamma
 
-## 5. Using the Agent-First Tooling Suite (`tools/agent/`)
+Pass `--pipeline <method>` (or set `"pipeline"` inside `"raster_config"` in your `.scheme.json` file), optional `--threshold <1..254>` (default `128`), and optional `--gamma <0.1..5.0>` (default `1.0`):
 
-Never guess character widths, string pixel lengths, or icon codepoints:
+| Pipeline Key | Mathematical Resolution-Reduction Method | Hinting State | Best Suited For |
+| :--- | :--- | :--- | :--- |
+| `raw-unhinted` | Direct FreeType `8-bit` linear luminance render + gamma + binary threshold (`default 128`) | Unhinted (`FT_LOAD_NO_HINTING`) | Display sizes (`>= 20 px`) and fonts with irregular bytecode hints |
+| `raw-hinted` | Grid-fitted FreeType `8-bit` linear luminance render + gamma + binary threshold (`default 128`) | Hinted (`fpgm`/`prep` or symmetric autohint) | Well-hinted UI/Telemetry fonts (`IBM Plex`, `Google Noto`) at `12 px–18 px` |
+| `svg-potrace` | `10x` high-res render -> binary threshold -> hierarchical `RETR_TREE` Potrace `.svg` trace -> `+0.5 px` offset -> aliased `LINE_8` fill | Vector center-line traced | Smooth organic curves, serifs, and multi-island filled icons (`Tabler-Filled`, `Phosphor-Fill`) |
+| `mdf` | `12x` super-sampled median filter + directional morphological Signed Distance Field -> center-sampled threshold | Continuous distance field | Global stroke-weight tuning via `--threshold` (`116..140`) |
+| `msdf` | `12x` Multi-Channel Signed Distance Field ([Chlumsky/msdfgen](https://github.com/Chlumsky/msdfgen)) with 3-channel $(R,G,B)$ corner edge coloring and $\text{median}(R,G,B)$ reconstruction | Multi-channel corner-preserving SDF | Preserving sharp apexes, diagonals (`W`, `M`, `N`, `A`), and technical icons at low ppem |
+| `sdf-smoothstep` | `16x` Euclidean Signed Distance Field + Hermite `smoothstep` edge reconstruction ([Red Blob Games SDF Typography](https://www.redblobgames.com/articles/sdf-fonts/)) | Analytical SDF reconstruction | Uniform optical stroke density across mixed sizes |
+| `adf-biquadratic` | `16x` Adaptive Distance Field (`ADF`) quadtree ($4\times 4$ cells) with biquadratic surface interpolation $P(u,v)$ | Quadtree biquadratic ADF | High-curvature glyphs and complex mathematical/scientific symbols |
+| `otsu-adaptive` | Linear-luminance Otsu global threshold blended with Sauvola local mean/variance adaptive thresholding | Local adaptive threshold | Protecting tight interior counters (`a`, `e`, `8`, `B`, `@`) at small pixel sizes |
 
-```bash
-# 1. Inspect exact pixel metrics and 1:1 ASCII art for any character or icon:
-python tools/agent/tools/char_info.py --strike humid1_icon_phosphor_fill_20 --char alarm
+### Multi-Method Sheet Dumping (`"pipeline": "all"` or `"all-debug"`) & Debug Gating (`char_debug`, `sheet_debug`)
+- When `"char_debug": false` in `.scheme.json` (or `--no-char-debug`), individual character PNG generation (`inspect_chars/`) is completely disabled.
+- When `"sheet_debug": false` in `.scheme.json` (or `--no-sheet-debug`), character map sheet PNG generation (`inspect_pages/`) is completely disabled.
+- When `"pipeline": "all"` (or `"all-debug"`) is selected and `sheet_debug` is enabled, `humid1_generate_1bpp.py` runs all 8 conversion pipelines and dumps:
+  - Per-method full character sheets in `build/<workflow>/inspect_pages/<method>/<symbol>.png`
+  - Side-by-side 8-method visual comparison sheets in `build/<workflow>/inspect_pages/compare_methods/<symbol>_all_methods.png`
 
-# 2. Compute exact kerning-aware string width and screen clearance:
-python tools/agent/tools/string_info.py --strike humid1_font_plex_sans_normal_14 --text "Vapor Pressure" \
-  --right-text "42.8 hPa" --right-strike humid1_font_plex_mono_bold_14 --screen-width 200 --safe-margin 6
+## 3. Hardware Partition Schemes (`esp32s3-N8R8-hw_scheme.json` & `genaric_hw.json`)
 
-# 3. Search 12,200+ icons across FA7, Lucide, Phosphor, and Tabler:
-python tools/agent/tools/icon_search.py --query battery --vendor icon_phosphor
-
-# 4. List all 56 static TTFs, catalogs, and 16 built-in schemes:
-python tools/agent/tools/font_catalog_info.py
+Every `.scheme.json` references a hardware scheme (`"hardware_scheme": "esp32s3-N8R8-hw_scheme.json"` or `"genaric_hw.json"`) and specifies the single `3 MByte` (`3,145,728` bytes) partition constraint:
+```json
+"hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
+"target_display": {
+  "chip_name": "ESP32-S3-N8R8",
+  "partition_1": "3 MBytes",
+  "target_partition_bytes": 3145728
+}
 ```
+All hardcoded partition fallback defaults have been removed in `v1.0.19c`: if `"partition_1"` / `"target_partition_bytes"` is removed or does not equal `3 MBytes` (`3,145,728` bytes), the generator immediately exits with a descriptive configuration error.
 
+## 4. Closed-Loop Manual ASCII Patching Workflow
 
-## Authoritative Script Execution Order (`00`–`08` & `99`)
+In `v1.0.19c`, all pixel-level modifications are controlled directly by the developer:
+1. **Step 1 — Generate Static Assets**: Run `01_build_static_ttfs.bat` and `02_build_fonts.bat` to generate static `.ttf` binaries and baseline `.c`/`.h` font strikes using `font_icon_epd_patches.json`.
+2. **Step 2 — Dump Visual Inspection PNGs**: Run `03_visual_check_pngs.bat` (`--sheet-debug`) to render per-strike character map sheets (`build/<workflow>/inspect_pages/*.png`) and `master_char_icon_map.png`.
+3. **Step 3 — Dump Editable ASCII Files**: Run `04_dump_ascii_patches.bat` (`--workflow patch --dump`) to export Full-Canvas `1:1` Spaced ASCII `.txt` files into `build/<workflow>/ascii_patches/<strike>/`.
+4. **Step 4 — Edit ASCII Files**: Open any `U+XXXX_<name>.txt` file in a text editor and toggle `# ` (active ink) and `. ` (background canvas) or `- ` (baseline $y=0$).
+5. **Step 5 — Ingest ASCII & Write Patch JSON**: Run `05_apply_ascii_patches.bat` (`--workflow patch --apply`) to compile modified `.txt` files into `font_icon_epd_patches.json`.
+6. **Step 6 — Closed-Loop Rebuild**: Run `02_build_fonts.bat` and `03_visual_check_pngs.bat` to regenerate all `.c`/`.h` sources, `.bdf` files, Strike Vault, and verification PNGs with your manual patches applied.
 
-Each workflow folder (`scripts/h1os-build-distro/`, `scripts/example-build-distro/`, and `scripts/full-audit-build-distro/`) provides numbered Windows `.bat` launchers designed around an **ASCII-Patch-Centric Iterative Tuning Loop**:
+## 5. ESP-IDF & External CMake Build Integration
 
-```text
-  [00_setup_env.bat]             (One-time Python dependency installation: fonttools, Pillow, freetype-py, numpy, opencv-python)
-          │
-          ▼
-  [01_build_static_ttfs.bat]     (Instantiate 88 static .ttf files -> build/static_ttfs/ + JSON catalogs -> build/metadata/)
-          │
-          ▼
-  [04_dump_ascii_patches.bat]    (Dump baseline 1-BPP strikes -> build/<target>/ascii_patches/<symbol>/U+XXXX_<name>.txt)
-          │
-          ▼
-  [08_iterative_auto_repair.bat] (Run 8-Method HQ Typographic Tournament on ascii_patches/ -> rewrite tuned .txt files
-          │                       with `patched: 1` + render Before/After sheets in build/<target>/inspect_repairs/)
-          ▼
-  [05_apply_ascii_patches.bat]   (Compile all modified/tuned .txt files from ascii_patches/ -> root font_icon_epd_patches.json)
-          │
-          ▼
-  [02_build_fonts.bat]           (Compile LVGL .c/.h modules, BDFs, Strike Vault & total_disk_size.txt with patches applied)
-          │
-          ▼
-  [03_visual_check_pngs.bat]     (Render inspect_pages/*.png [with green PATCHED: N/Total banner] & inspect_chars/*/*.png)
-          │
-          ▼
-  [07_package_distro.bat]        (Package drop-in firmware bundle -> dist/<target>_distro/)
+Use `tools/fonts/humid1_cmake_font_builder.py` or `tools/fonts/cmake/epd_font_esp_idf.cmake` inside any ESP-IDF project:
+
+```cmake
+include(${CMAKE_CURRENT_LIST_DIR}/tools/fonts/cmake/epd_font_esp_idf.cmake)
+
+epd_font_generate_lvgl_target(
+    TARGET_NAME humid1_epd_fonts
+    SCHEME      "${CMAKE_CURRENT_LIST_DIR}/scripts/h1os-build-distro/h1os_full.scheme.json"
+    VAULT       "${CMAKE_CURRENT_LIST_DIR}/dist/h1os_distro/humid1_epd_vault.json.gz"
+    OUT_DIR     "${CMAKE_CURRENT_BINARY_DIR}/generated_fonts"
+)
 ```
-
-### How to Run (Two Supported Workflows)
-
-1. **Automated One-Click Full Pipeline (`99_run_full_pipeline.bat`)**:
-   Double-click or run `99_run_full_pipeline.bat`. It automatically runs `01 -> 04 -> 08 -> 05 -> 02 -> 03 -> 07` in sequence so your `.c`/`.h` files, `font_icon_epd_patches.json`, and `inspect_pages/*.png` banners immediately include all tournament-repaired glyphs.
-2. **Manual Iterative Tuning & Hand-Patching Loop (`04 -> 08 -> 05 -> 02 -> 03`)**:
-   - Run `04_dump_ascii_patches.bat` to populate baseline `.txt` glyph grids in `build\<target>\ascii_patches\`.
-   - Run `08_iterative_auto_repair.bat` to run the 8-method OpenCV/HQ-Master tournament (`tools\fonts\humid1_bilevel_tuner.py`). This rewrites improved `.txt` files in `build\<target>\ascii_patches\` with `patched: 1`, generates Before/After visual comparison sheets in `build\<target>\inspect_repairs\*_repair.png`, and updates `font_icon_epd_patches.json`.
-   - *(Optional)* Open any `build\<target>\ascii_patches\<symbol>\U+XXXX_<name>.txt` in a text editor, tweak `#` / `.` pixels on the 1:1 spaced canvas, and run `05_apply_ascii_patches.bat` to compile your manual edits into `font_icon_epd_patches.json`.
-   - Run `02_build_fonts.bat` followed by `03_visual_check_pngs.bat` to rebuild the `.c`/`.h` font modules and inspect the updated PNG sheets (which display `PATCHED OVERRIDES ACTIVE: N / Total GLYPHS` in the top banner and highlight every patched glyph cell in emerald green).
-
-
-
-### v1.0.17 `--tune-mode {off,wart-only,surgical,full}` & Realistic Size Floor Calibration
-- Use `--tune-mode off` for 100% untouched native FreeType weights, `--tune-mode wart-only` for 4-directional 1px outline-wart shaving (`M0_wart_shaved`) + mirror-pair bracket sync with zero stem thickening, or `--tune-mode surgical` (default).
-- `humid1_font_eval.py` (`02_run_font_eval.bat`) now supports multi-face `.ttc` TrueType Collections via `open_ttfont_safe()`, isolates worker exceptions, and enforces `hole_px >= 2` counter cavity checks for realistic pixel size floor estimates.

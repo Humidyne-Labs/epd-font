@@ -1,31 +1,38 @@
 {
-  "schema_version": "1.0.17",
+  "schema_version": "1.0.19c",
   "scheme_id": "h1os_epd_v1_lite",
   "project_brand": "Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite",
-  "description": "Compact v1.0.17 H1OS & humid1-os Lite Division-of-Labor Scheme (Hinted IBM Plex Sans/Mono + Hinted Noto SemiCondensed/Math + Native Terminus + FA7/Phosphor Core).",
+  "description": "Compact v1.0.19cc H1OS & humid1-os Lite Division-of-Labor Scheme (Hinted IBM Plex Sans/Mono + Hinted Noto SemiCondensed/Math + Native Terminus + FA7/Phosphor Core).",
   "spdx_license": "MIT AND OFL-1.1",
   "target_display": {
     "panel": "Waveshare 1.54in V2 EPD (SSD1681)",
     "width_px": 200,
     "height_px": 200,
-    "dpi": 188.3,
+    "dpi": 188.15,
     "safe_margin_px": 6,
     "usable_width_px": 188,
     "color_depth_bpp": 1,
-    "lvgl_color_format": "LV_COLOR_FORMAT_I1"
+    "lvgl_color_format": "LV_COLOR_FORMAT_I1",
+    "target_partition_bytes": 3145728,
+    "target_soc": "ESP32-S3-N8R8",
+    "chip_name": "ESP32-S3-N8R8",
+    "partition_1": "3 MBytes"
   },
   "raster_config": {
-    "raster_mode": "autohint-mono",
+    "raster_mode": "raw-hinted",
     "normal_weight": 500,
     "bold_weight": 800,
     "condensed_width": 85,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/h1os/ascii_patches",
-    "min_stem_px": 2,
-    "auto_floor": true,
-    "repair_engine": "hybrid",
     "italic_weight": 600,
-    "tune_mode": "surgical"
+    "pipeline": "raw-hinted",
+    "threshold": 128,
+    "debug_stages": false,
+    "gamma": 1.0,
+    "char_debug": false,
+    "sheet_debug": false,
+    "math_backend": "auto"
   },
   "output_branding": {
     "symbol_prefix": "humid1_",
@@ -63,7 +70,7 @@
       "ranges": "0x0020,0x002B,0x002D-0x003A,0x0043,0x0046,0x0056,0x006D,0x00B0,0x00B2,0x00B3,0x00B5"
     },
     "latin1_units": {
-      "description": "Engineering & Environmental Units (\u00b0, \u00b1, \u00b2, \u00b3, \u00b5, \u00b7, \u00d7, \u00f7)",
+      "description": "Scientific & Technical & Environmental Units (\u00b0, \u00b1, \u00b2, \u00b3, \u00b5, \u00b7, \u00d7, \u00f7)",
       "ranges": "0x00B0,0x00B1,0x00B2,0x00B3,0x00B5,0x00B7,0x00D7,0x00F7"
     },
     "greek_scientific": {
@@ -133,7 +140,7 @@
       "icons": [
         "activity",
         "alert-triangle",
-        "Award",
+        "award",
         "battery",
         "battery-charging",
         "battery-full",
@@ -173,7 +180,7 @@
         "server",
         "settings",
         "shield",
-        "Sliders",
+        "sliders",
         "sun",
         "terminal",
         "thermometer",
@@ -208,7 +215,7 @@
         "battery-warning",
         "bell",
         "bluetooth",
-        " Broadcast",
+        "broadcast",
         "calendar",
         "chart-bar",
         "chart-line",
@@ -218,7 +225,7 @@
         "cloud",
         "cloud-rain",
         "cloud-sun",
-        "Compass",
+        "compass",
         "cpu",
         "database",
         "drop",
@@ -227,7 +234,7 @@
         "fan",
         "fire",
         "flask",
-        "Funnel",
+        "funnel",
         "gauge",
         "gear",
         "globe",
@@ -257,7 +264,7 @@
         "scales",
         "shield-check",
         "sign-in",
-        "Sliders",
+        "sliders",
         "snowflake",
         "sun",
         "table",
@@ -383,7 +390,7 @@
         "circle-x",
         "clock",
         "cloud",
-        "Compass",
+        "compass",
         "copy",
         "cpu",
         "credit-card",
@@ -416,9 +423,9 @@
         "hourglass",
         "info-circle",
         "key",
-        "layers- linked",
+        "layers-linked",
         "layout-dashboard",
-        "Location",
+        "location",
         "lock",
         "mail",
         "map-pin",
@@ -713,5 +720,6 @@
       "kerning": false,
       "fallback": null
     }
-  ]
+  ],
+  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json"
 }

@@ -44,19 +44,19 @@ from typing import Dict, List, Optional, Tuple
 
 from fontTools.ttLib import TTFont
 
-TOOL_VERSION = "1.0.17"
+TOOL_VERSION = "1.0.19c"
 
 MASTER_FAMILIES_SPEC = [
     {
         "family_id": "ibm_plex_sans",
         "version": "0.2.0",
         "category": "font_assets",
-        "rel_dir": "assets/font_assets/ibm-plex-font/sans_v0.2.0",
+        "rel_dir": "assets/font_assets/ibm-plex-font",
         "manifest_name": "char_manifest_ibm_plex_sans_v0.2.0.json",
         "upstream_name": "IBM Plex Sans Variable (also source for Condensed wdth=85)",
         "upstream_url": "https://github.com/IBM/plex",
         "spdx_license": "OFL-1.1",
-        "master_files": ["IBM Plex Sans Var-Roman.ttf", "IBM Plex Sans Var-Italic.ttf"],
+        "master_files": ["IBMPlexSans-Regular.ttf", "IBMPlexSans-Italic.ttf"],
         "min_cp": 0x0020,
         "max_cp": 0xFFFF,
         "cmap_aliases": {},
@@ -65,12 +65,12 @@ MASTER_FAMILIES_SPEC = [
         "family_id": "ibm_plex_mono",
         "version": "1.0.0",
         "category": "font_assets",
-        "rel_dir": "assets/font_assets/ibm-plex-font/mono_v1.0.0",
+        "rel_dir": "assets/font_assets/ibm-plex-font",
         "manifest_name": "char_manifest_ibm_plex_mono_v1.0.0.json",
         "upstream_name": "IBM Plex Mono Variable",
         "upstream_url": "https://github.com/IBM/plex",
         "spdx_license": "OFL-1.1",
-        "master_files": ["IBM Plex Mono Var-Roman.ttf", "IBM Plex Mono Var-Italic.ttf"],
+        "master_files": ["IBMPlexMono-Regular.ttf", "IBMPlexMono-Italic.ttf"],
         "min_cp": 0x0020,
         "max_cp": 0xFFFF,
         "cmap_aliases": {"0x0394": "Delta", "0x03A9": "Omega", "0x03BC": "mu"},
@@ -79,12 +79,12 @@ MASTER_FAMILIES_SPEC = [
         "family_id": "ibm_plex_serif",
         "version": "2.0.0",
         "category": "font_assets",
-        "rel_dir": "assets/font_assets/ibm-plex-font/serif_v2.0.0",
+        "rel_dir": "assets/font_assets/ibm-plex-font",
         "manifest_name": "char_manifest_ibm_plex_serif_v2.0.0.json",
         "upstream_name": "IBM Plex Serif Variable",
         "upstream_url": "https://github.com/IBM/plex",
         "spdx_license": "OFL-1.1",
-        "master_files": ["IBM Plex Serif Var-Roman.ttf", "IBM Plex Serif Var-Italic.ttf"],
+        "master_files": ["IBMPlexSerif-Regular.ttf", "IBMPlexSerif-Italic.ttf"],
         "min_cp": 0x0020,
         "max_cp": 0xFFFF,
         "cmap_aliases": {},
@@ -93,7 +93,7 @@ MASTER_FAMILIES_SPEC = [
         "family_id": "ibm_plex_math",
         "version": "1.1.0",
         "category": "font_assets",
-        "rel_dir": "assets/font_assets/ibm-plex-font/math_v1.1.0",
+        "rel_dir": "assets/font_assets/ibm-plex-font",
         "manifest_name": "char_manifest_ibm_plex_math_v1.1.0.json",
         "upstream_name": "IBM Plex Math Static",
         "upstream_url": "https://github.com/IBM/plex",
@@ -222,7 +222,9 @@ def build_char_manifest_for_spec(
     clean_legacy_metadata_dirs: bool = False,
 ) -> Tuple[Path, dict]:
     folder = repo_root / spec["rel_dir"]
-    manifest_path = folder / spec["manifest_name"]
+    out_dir = repo_root / "build" / "metadata" / "char_manifests"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = out_dir / spec["manifest_name"]
     min_cp = int(spec["min_cp"])
     max_cp = int(spec["max_cp"])
     fam_id = spec["family_id"]
@@ -312,7 +314,7 @@ def build_char_manifest_for_spec(
     by_name = {name: hex_cp for hex_cp, name in sorted(by_codepoint.items(), key=lambda x: x[1])}
 
     manifest_payload = {
-        "manifest_schema": "epd-font-char-manifest-v1.0.17",
+        "manifest_schema": "epd-font-char-manifest-v1.0.19c",
         "generator": f"tools/fonts/generate_char_manifests.py (v{TOOL_VERSION})",
         "family_id": fam_id,
         "upstream_name": spec["upstream_name"],
@@ -332,8 +334,7 @@ def build_char_manifest_for_spec(
 
     manifest_path.write_text(json.dumps(manifest_payload, indent=2) + "\n", encoding="utf-8")
 
-    if clean_legacy_metadata_dirs and meta_sub.is_dir():
-        shutil.rmtree(meta_sub)
+    # Static files in assets/ are strictly read-only
 
     return manifest_path, manifest_payload
 

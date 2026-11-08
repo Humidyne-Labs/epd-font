@@ -1,107 +1,95 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.17)
+humid1_generate_1bpp.py (v1.0.19c)
 =================================
-Humidyne Labs / Humiditron `epd-font` Modular 1-BPP Font Foundry Orchestrator.
-
+A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
-Target OS  : https://github.com/Humidyne-Labs/H1OS
+Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Modular Architecture (v1.0.17):
--------------------------------
-- `humid1_ft_raster.py`     : FreeType 2 ctypes bindings, glyph strike model, kerning & 1-BPP rasterizer.
-- `humid1_bilevel_tuner.py` : Iterative Multi-Method Typographic Tournament (`M0..M8`) + Bilateral Mirror Sync.
-- `humid1_ascii_patches.py` : Full-canvas 1:1 spaced ASCII patch dumper, parser & JSON compiler.
-- `humid1_visual_check.py`  : Diagnostic page sheets, char-by-char blueprints & 188 DPI e-ink specimen renderer.
-- `humid1_fw_emit.py`       : LVGL v9 C/H emitter, Adobe BDF 2.1 exporter, Strike Vault & ROM/disk auditor.
-- `humid1_font_eval.py`     : Multi-typeface & multi-weight legibility benchmark & size-floor evaluator.
+Modular 1-BPP Font & Asset Pipeline Orchestrator (v1.0.19c):
+  - Eight selectable resolution-reduction bilevel conversion methods (`--pipeline` / `--raster-mode`):
+      1. `raw-unhinted`   : Raw Threshold without Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
+      2. `raw-hinted`     : Raw Threshold with Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
+      3. `svg-potrace`    : High-Res (10x) Hierarchical RETR_TREE Potrace B-Spline SVG + Aliased Fill
+      4. `mdf`            : High-Res (12x) Median Filter + Directional Signed Distance Field
+      5. `msdf`           : Multi-Channel Signed Distance Field (Chlumsky msdfgen 3-Ch RGB Corner SDF)
+      6. `sdf-smoothstep` : High-Res (16x) Euclidean SDF + L2 Jacobian Gradient Smoothstep (Valve / Boesch)
+      7. `adf-biquadratic`: MERL Saffron Bi-Quadratic 9-Point Lagrange Adaptively Sampled Distance Field
+      8. `otsu-adaptive`  : Otsu (1979) Nonparametric Cumulative-Moment Linear Grayscale Thresholding
+      *  `all`            : Run every offered conversion method and dump per-method sheets/chars when enabled
+      *  `all-debug`      : Run every offered conversion method with `sheet_debug=true` and `char_debug=true`
+  - Strict `char_debug` and `sheet_debug` boolean gating (`false` disables char/sheet PNG generation)
+  - Strict Target Hardware Scheme validation (`esp32s3-N8R8-hw_scheme.json` & `genaric_hw.json`, 3 MByte partition, zero hard defaults)
+  - Manual Closed-Loop ASCII Patching Workflow & LVGL >= 9.6.0 Validated Fallback Font Pointers.
 """
 
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
-import ctypes
 import gzip
 import json
-import math
-import os
 import re
-import shutil
 import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from fontTools.ttLib import TTFont
-from fontTools.varLib import instancer
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from humid1_ascii_patches import (
+    build_patches_json_from_ascii_root,
+    dump_strike_to_ascii_folder,
+)
+from math_backends import describe_math_backend, select_math_backend
+from humid1_bilevel_pipelines import (
+    CANONICAL_PIPELINES,
+    compute_betti_numbers,
+    measure_stem_metrics,
+    normalize_pipeline_name,
+    rows_to_binary_array,
+)
 from humid1_ft_raster import (
-    open_ttfont_safe,
-    FT_Bitmap,
-    FT_BBox,
-    FT_FaceRec,
-    FT_Glyph_Metrics,
-    FT_GlyphSlotRec,
-    FT_LOAD_FORCE_AUTOHINT,
-    FT_LOAD_MONOCHROME,
-    FT_LOAD_NO_HINTING,
-    FT_LOAD_RENDER,
-    FT_LOAD_TARGET_MONO,
-    FT_LOAD_TARGET_NORMAL,
-    FT_Vector,
     GlyphStrike,
-    HOMOGLYPH_EQUIVALENTS,
     ICON_NAME_REGISTRY,
-    RANGE_MATH_STR,
     RANGE_UI_STR,
-    TROUBLE_15_CODEPOINTS,
-    _synthesize_new_line_glyph,
-    extract_kerning_pairs_fp4,
     format_strike_symbol,
     get_semantic_glyph_name,
     load_freetype,
     load_icon_name_registry,
     parse_unicode_range,
     rasterize_font_strike,
-    resolve_freetype_flags,
-    safe_glyph_filename,
-)
-from humid1_ascii_patches import (
-    build_patches_json_from_ascii_root,
-    dump_strike_to_ascii_folder,
-    parse_ascii_glyph_folder,
-)
-from humid1_visual_check import (
-    _load_ui_fonts,
-    _render_single_page_inspection_png,
-    render_char_by_char_folder,
-    render_full_font_inspection_png,
-    render_single_char_inspection_png,
-    render_specimen_sheet,
 )
 from humid1_lvgl_bdf_export import (
-    build_cmaps_partitions,
     copy_licenses,
     emit_lvgl_c_file,
     export_bdf_strike,
     export_metric_csvs,
     generate_headers,
-    measure_lvgl_string_px,
     run_screen_width_audit,
     write_total_disk_size_report,
 )
-
-TOOL_VERSION = "1.0.17"
-
-# =============================================================================
-# 2. SUB-FAMILY REGISTRY, SIZE FLOORS & BUILD PROFILES
-# =============================================================================
+from humid1_runtime import (
+    PROJECT_TAGLINE,
+    TOOL_VERSION,
+    detect_host_hardware,
+    fail_gracefully,
+    index_font_files_recursive,
+    install_clean_signal_handlers,
+    load_and_validate_hardware_scheme,
+    require_valid_path,
+    resolve_font_file_recursive,
+    run_parallel_tasks,
+)
+from humid1_visual_check import (
+    render_char_by_char_folder,
+    render_full_font_inspection_png,
+    render_master_char_icon_map_png,
+    render_multi_method_comparison_sheet_png,
+    render_specimen_sheet,
+)
 
 SUBFAMILY_FLOORS = {
     "sans": 10,
@@ -110,84 +98,27 @@ SUBFAMILY_FLOORS = {
     "mono": 10,
     "plex_mono": 10,
     "noto_mono": 10,
-    "cond": 12,
-    "plex_cond": 12,
-    "noto_cond": 12,
-    "serif": 14,
-    "plex_serif": 16,
-    "noto_serif": 14,
-    "math": 14,
-    "plex_math": 14,
-    "noto_math": 14,
+    "cond": 10,
+    "plex_cond": 10,
+    "noto_cond": 10,
+    "serif": 10,
+    "plex_serif": 10,
+    "noto_serif": 10,
+    "math": 10,
+    "plex_math": 10,
+    "noto_math": 10,
     "terminus": 10,
-    "unifont": 16,
+    "unifont": 10,
     "custom": 10,
-    "icon_fa7": 12,
-    "icon_lucide": 12,
-    "icon_phosphor": 12,
-    "icon_tabler": 12,
+    "icon_fa7": 10,
+    "icon_lucide": 10,
+    "icon_phosphor": 10,
+    "icon_tabler": 10,
 }
-
-# Upstream Variable -> Static instantiation table (includes Regular 400, Text 450, Medium 500, Bold 700)
-VARIABLE_INSTANTIATION_MAP = [
-    # Sans (wdth=100) — Full Weight Ladder (100..700) + Italics
-    ("IBMPlexSans-Thin.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 100.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-ExtraLight.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 200.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Light.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 300.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Regular.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 400.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Text.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 450.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Medium.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-SemiBold.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Bold.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Italic.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-TextItalic.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 450.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-MediumItalic.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-SemiBoldItalic.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-BoldItalic.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
-    # Condensed (wdth=85 extracted from Sans Var)
-    ("IBMPlexSansCondensed-Light.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 300.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Regular.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Text.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 450.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Medium.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-SemiBold.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Bold.ttf", "sans/IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Italic.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-MedItal.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-BoldItalic.ttf", "sans/IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
-    # Mono (with cmap normalization for U+0394 Delta, U+03A9 Omega, U+03BC mu)
-    ("IBMPlexMono-Light.ttf", "mono/IBM Plex Mono Var-Roman.ttf", {"wght": 300.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-Regular.ttf", "mono/IBM Plex Mono Var-Roman.ttf", {"wght": 400.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-Text.ttf", "mono/IBM Plex Mono Var-Roman.ttf", {"wght": 450.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-Medium.ttf", "mono/IBM Plex Mono Var-Roman.ttf", {"wght": 500.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-SemiBold.ttf", "mono/IBM Plex Mono Var-Roman.ttf", {"wght": 600.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-Bold.ttf", "mono/IBM Plex Mono Var-Roman.ttf", {"wght": 700.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-Italic.ttf", "mono/IBM Plex Mono Var-Italic.ttf", {"wght": 400.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-MediumItalic.ttf", "mono/IBM Plex Mono Var-Italic.ttf", {"wght": 500.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    ("IBMPlexMono-BoldItalic.ttf", "mono/IBM Plex Mono Var-Italic.ttf", {"wght": 700.0}, {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}),
-    # Serif
-    ("IBMPlexSerif-Light.ttf", "serif/IBM Plex Serif Var-Roman.ttf", {"wght": 300.0}, {}),
-    ("IBMPlexSerif-Regular.ttf", "serif/IBM Plex Serif Var-Roman.ttf", {"wght": 400.0}, {}),
-    ("IBMPlexSerif-Text.ttf", "serif/IBM Plex Serif Var-Roman.ttf", {"wght": 450.0}, {}),
-    ("IBMPlexSerif-Medium.ttf", "serif/IBM Plex Serif Var-Roman.ttf", {"wght": 500.0}, {}),
-    ("IBMPlexSerif-SemiBold.ttf", "serif/IBM Plex Serif Var-Roman.ttf", {"wght": 600.0}, {}),
-    ("IBMPlexSerif-Bold.ttf", "serif/IBM Plex Serif Var-Roman.ttf", {"wght": 700.0}, {}),
-    ("IBMPlexSerif-Italic.ttf", "serif/IBM Plex Serif Var-Italic.ttf", {"wght": 400.0}, {}),
-    ("IBMPlexSerif-MediumItalic.ttf", "serif/IBM Plex Serif Var-Italic.ttf", {"wght": 500.0}, {}),
-    ("IBMPlexSerif-BoldItalic.ttf", "serif/IBM Plex Serif Var-Italic.ttf", {"wght": 700.0}, {}),
-]
 
 
 def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_weight: int = 600) -> Dict[str, Dict[str, str]]:
-    """
-    Map semantic roles (thin, extralight, light, normal, text, medium, semibold, bold, extrabold, italic, bold_italic)
-    to instantiated static TTF filenames.
-    In v1.0.17, the Tri-Role Visual Contrast Hierarchy enforces:
-      - `normal` : `Medium (500)` (`~2.17px` stem, `1.00x` baseline ink)
-      - `bold`   : `ExtraBold (800)` (`~3.13px` stem, `+35.7%` to `+40.1%` ink punch over `normal`!)
-      - `italic` : `SemiBoldItalic (600)` on Sans/Cond (`+1.3%` iso-weight ink vs `normal`, `96.7%` >=2px stems)
-                   and `MediumItalic (500)` on Mono/Serif (`-3.1%` iso-weight ink vs `normal`) so Italic
-                   remains a subtle cursive emphasis (`>=25%` lighter than Bold!).
-    """
+    """Map semantic roles to instantiated static TTF filenames."""
     tag = {100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular", 450: "Text", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold"}.get(normal_weight, "Medium")
     b_tag = {600: "SemiBold", 700: "Bold", 800: "ExtraBold"}.get(bold_weight, "ExtraBold" if normal_weight >= 500 else "Bold")
     b_ital_tag = "ExtraBoldItalic" if b_tag == "ExtraBold" else "BoldItalic"
@@ -262,8 +193,6 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_we
         "medium_italic": "NotoSans-MediumItalic.ttf",
         "bold_italic": "NotoSans-SemiBoldItalic.ttf",
     }
-    # v1.0.17 Best-of-the-Best Division of Labor:
-    # `cond` maps to Hinted NotoSans-SemiCondensed (Triad Score 90.4..93.0, 14px/12px/14px floors, +49.3% Bold punch)
     noto_cond_map = {
         "normal": "NotoSans-SemiCondensedMedium.ttf",
         "regular": "NotoSans-SemiCondensedMedium.ttf",
@@ -288,7 +217,6 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_we
         "italic": "IBMPlexMono-MediumItalic.ttf",
         "bold_italic": "IBMPlexMono-ExtraBoldItalic.ttf",
     }
-    # `serif` maps to Hinted NotoSerif (Triad Score 89.3, 16px/16px/16px floors, +37.4% Bold punch, -2.0% iso-weight Italic)
     noto_serif_map = {
         "normal": "NotoSerif-Medium.ttf",
         "regular": "NotoSerif-Medium.ttf",
@@ -299,7 +227,6 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_we
         "semibold_italic": "NotoSerif-SemiBoldItalic.ttf",
         "bold_italic": "NotoSerif-SemiBoldItalic.ttf",
     }
-    # `math` maps to Hinted NotoSansMath-Regular.ttf (with secondary fallback to IBMPlexMath-Regular.ttf)
     noto_math_map = {
         "regular": "NotoSansMath-Regular.ttf",
         "normal": "NotoSansMath-Regular.ttf",
@@ -361,138 +288,39 @@ def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_we
     }
 
 
-PROFILES = {
-    "h1os": [
-        ("sans", "normal", [14, 16, 18, 20, 24, 32], RANGE_UI_STR, True, None),
-        ("sans", "bold",   [14, 16, 18, 20, 24, 32], RANGE_UI_STR, True, "plex_sans_normal_{size}"),
-        ("mono", "normal", [14, 16, 20, 24],         RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("mono", "bold",   [14, 16, 20, 24, 32],     RANGE_UI_STR, False, "plex_sans_bold_{size}"),
-        ("math", "regular", [16],                    RANGE_MATH_STR, False, "plex_sans_normal_{size}"),
-    ],
-    "humid1": [
-        ("sans", "normal", [12, 14, 16, 18, 20, 24, 32], RANGE_UI_STR, True, None),
-        ("sans", "bold",   [12, 14, 16, 18, 20, 24, 32], RANGE_UI_STR, True, "plex_sans_normal_{size}"),
-        ("sans", "italic", [12, 14, 16, 18],             RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("mono", "normal", [12, 14, 16, 18, 20, 24, 32], RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("mono", "bold",   [12, 14, 16, 18, 20, 24, 32], RANGE_UI_STR, False, "plex_sans_bold_{size}"),
-        ("mono", "italic", [12, 14, 16],                 RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("cond", "normal", [16, 18, 20, 24],             RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("cond", "bold",   [16, 18, 20, 24],             RANGE_UI_STR, False, "plex_sans_bold_{size}"),
-        ("serif", "normal", [18, 20, 24],                RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("serif", "bold",   [18, 20, 24],                RANGE_UI_STR, False, "plex_sans_bold_{size}"),
-        ("math", "regular", [16, 20, 24],                RANGE_MATH_STR, False, "plex_sans_normal_{size}"),
-    ],
-    "full": [
-        ("sans", "normal", [12, 14, 16, 18, 20, 24, 28, 32, 36], RANGE_UI_STR, True, None),
-        ("sans", "bold",   [12, 14, 16, 18, 20, 24, 28, 32, 36], RANGE_UI_STR, True, "plex_sans_normal_{size}"),
-        ("sans", "italic", [12, 14, 16, 18, 20, 24, 28, 32, 36], RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("mono", "normal", [12, 14, 16, 18, 20, 24, 28, 32, 36], RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("mono", "bold",   [12, 14, 16, 18, 20, 24, 28, 32, 36], RANGE_UI_STR, False, "plex_sans_bold_{size}"),
-        ("mono", "italic", [12, 14, 16, 18, 20, 24, 28, 32, 36], RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("cond", "normal", [16, 18, 20, 24, 28, 32],             RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("cond", "bold",   [16, 18, 20, 24, 28, 32],             RANGE_UI_STR, False, "plex_sans_bold_{size}"),
-        ("cond", "italic", [16, 18, 20, 24, 28, 32],             RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("serif", "normal", [18, 20, 24, 28, 32, 36],            RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("serif", "bold",   [18, 20, 24, 28, 32, 36],            RANGE_UI_STR, False, "plex_sans_bold_{size}"),
-        ("serif", "italic", [18, 20, 24, 28, 32, 36],            RANGE_UI_STR, False, "plex_sans_normal_{size}"),
-        ("math", "regular", [16, 20, 24, 32],                    RANGE_MATH_STR, False, "plex_sans_normal_{size}"),
-    ],
+DEFAULT_ICON_FALLBACK_RANGES = {
+    "icon_fa7": "0xF00C,0xF00D,0xF013,0xF015,0xF017,0xF021,0xF023,0xF043,0xF058,0xF071,0xF0E7,0xF1EB,0xF240-0xF244,0xF2C9,0xF2DB",
+    "icon_lucide": "0xE01D,0xE053,0xE054,0xE070,0xE0B4,0xE17C,0xE1A1,0xE1AA,0xE1D8,0xE1FB",
+    "icon_phosphor": "0xE002,0xE026,0xE06A,0xE094,0xE13E,0xE14E,0xE1F4,0xE208,0xE270,0xE482,0xE4EA,0xE60C",
+    "icon_tabler": "0xEA02,0xEA08,0xEA30,0xEA31,0xEA32,0xEA34,0xEA38,0xEA52,0xEB3D,0xEB52",
+    "icon_tabler_filled": "0xEE80,0xF357,0xF667-0xF69F,0xF6A0-0xF6BF",
 }
 
 
-
-# =============================================================================
-# 4. WORKFLOW 1: GEN-ASSETS (VARIABLE TTF INSTANTIATION & WOFF->TTF CONVERSION)
-# =============================================================================
-
-def ensure_static_plex_assets(
-    plex_dir: Optional[Path],
-    static_dir: Path,
-    fa_woff_src: Optional[Path] = None,
-    force: bool = False,
-) -> Path:
-    """
-    Ensure all static IBM Plex TTFs AND FontAwesome5-Solid+Brands+Regular.ttf exist in static_dir.
-    Standardizes 100% of source assets in static_dir to native TrueType (.ttf) format.
-    Returns path to FontAwesome5-Solid+Brands+Regular.ttf (or .woff fallback).
-    """
-    static_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Convert FontAwesome5 WOFF -> native TTF so all source binaries are consistent .ttf files
-    fa_ttf_dst = static_dir / "FontAwesome5-Solid+Brands+Regular.ttf"
-    fa_woff_dst = static_dir / "FontAwesome5-Solid+Brands+Regular.woff"
-    if not fa_ttf_dst.is_file() or force:
-        woff_cand = fa_woff_src if (fa_woff_src and fa_woff_src.is_file()) else (
-            fa_woff_dst if fa_woff_dst.is_file() else None
-        )
-        if woff_cand:
-            fa_tt = open_ttfont_safe(woff_cand)
-            fa_tt.flavor = None  # Strip WOFF wrapper -> pure uncompressed TrueType (.ttf)
-            fa_tt.save(str(fa_ttf_dst))
-            print(f"    [+] Converted {woff_cand.name} -> {fa_ttf_dst.name} ({fa_ttf_dst.stat().st_size:,} B, pure TTF)")
-
-    # 2. Instantiate static IBM Plex cuts from Variable TTFs
-    all_exist = all((static_dir / item[0]).is_file() for item in VARIABLE_INSTANTIATION_MAP) and (
-        static_dir / "IBMPlexMath-Regular.ttf"
-    ).is_file()
-
-    if not all_exist or force:
-        if plex_dir is not None and plex_dir.is_dir():
-            print(f"[*] Synthesizing static TTF cuts from Variable TTFs in {plex_dir}...")
-            for target_name, rel_src, coords, cmap_aliases in VARIABLE_INSTANTIATION_MAP:
-                dst_path = static_dir / target_name
-                if dst_path.is_file() and not force:
-                    continue
-                src_path = plex_dir / rel_src
-                if not src_path.is_file():
-                    continue
-                tt = open_ttfont_safe(src_path)
-                inst = instancer.instantiateVariableFont(tt, coords)
-                if cmap_aliases and "cmap" in inst:
-                    for table in inst["cmap"].tables:
-                        if table.isUnicode():
-                            for codepoint, glyph_name in cmap_aliases.items():
-                                if codepoint not in table.cmap and glyph_name in inst.getGlyphOrder():
-                                    table.cmap[codepoint] = glyph_name
-                inst.save(str(dst_path))
-                print(f"    [+] Instantiated {target_name:<34} ({dst_path.stat().st_size:>7,} B) @ {coords}")
-
-            math_src = plex_dir / "math/IBMPlexMath-Regular.ttf"
-            math_dst = static_dir / "IBMPlexMath-Regular.ttf"
-            if math_src.is_file() and (not math_dst.is_file() or force):
-                shutil.copy2(math_src, math_dst)
-                print(f"    [+] Copied IBMPlexMath-Regular.ttf              ({math_dst.stat().st_size:>7,} B)")
-
-    return fa_ttf_dst if fa_ttf_dst.is_file() else fa_woff_dst
-
-
-
-# =============================================================================
-# 12. UNIFIED CLI, JSON SCHEME LOADER & 4-WORKFLOW PIPELINE ORCHESTRATION (v1.0.17)
-# =============================================================================
-
-def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "", style: str = "") -> str:
-    """
-    Convert a character_set entry from a scheme JSON into a comma-separated hex/dec range string.
-    Supports three ways of scoping characters/icons in `schemes/*.json`:
-      1. `"ranges": "0x0020-0x007E,0x00B0"` (hex/decimal codepoints or ranges)
-      2. `"icons": ["wifi", "battery-full", "thermometer"]` (human-readable semantic icon names!)
-      3. `"scope": "all"` (includes every icon in the vendor catalog)
-    """
+def resolve_charset_spec_to_range_str(
+    cs_entry: dict,
+    default_vendor: str = "",
+    style: str = "",
+    full_icon_catalog: bool = False,
+) -> str:
     parts: List[str] = []
     if "ranges" in cs_entry and cs_entry["ranges"]:
         parts.append(str(cs_entry["ranges"]).strip())
 
     vendor = cs_entry.get("vendor", default_vendor)
-    if vendor == "icon_tabler" and style == "filled" and "icon_tabler_filled" in ICON_NAME_REGISTRY.get("by_name", {}):
+    if vendor == "icon_tabler" and style == "filled":
         vendor = "icon_tabler_filled"
     by_name_map = ICON_NAME_REGISTRY.get("by_name", {}).get(vendor, {})
     if not by_name_map and vendor in ICON_NAME_REGISTRY and isinstance(ICON_NAME_REGISTRY[vendor], dict):
-        # Build reverse name -> hex lookup from cp -> name map
         by_name_map = {v: k for k, v in ICON_NAME_REGISTRY[vendor].items()}
 
     if cs_entry.get("scope", "").lower() == "all" and by_name_map:
-        parts.extend(sorted(set(by_name_map.values())))
+        all_hex = sorted(set(by_name_map.values()), key=lambda x: int(str(x), 16))
+        if not full_icon_catalog and len(all_hex) > 128:
+            # Select 128 evenly spaced representative icons across the full PUA range unless --full-icon-catalog is set
+            step = max(1, len(all_hex) // 128)
+            all_hex = all_hex[::step][:128]
+        parts.extend(all_hex)
 
     if "icons" in cs_entry and isinstance(cs_entry["icons"], list):
         for icon_name in cs_entry["icons"]:
@@ -502,7 +330,6 @@ def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "", 
             elif iname in by_name_map:
                 parts.append(by_name_map[iname])
             else:
-                # Case-insensitive fallback
                 iname_low = iname.lower()
                 for k, hex_v in by_name_map.items():
                     if k.lower() == iname_low:
@@ -512,20 +339,10 @@ def resolve_charset_spec_to_range_str(cs_entry: dict, default_vendor: str = "", 
     return ",".join(p for p in parts if p)
 
 
-DEFAULT_ICON_FALLBACK_RANGES = {
-    "icon_fa7": "0xF00C,0xF00D,0xF013,0xF015,0xF017,0xF021,0xF023,0xF043,0xF058,0xF071,0xF0E7,0xF1EB,0xF240-0xF244,0xF2C9,0xF2DB",
-    "icon_lucide": "0xE01D,0xE053,0xE054,0xE070,0xE0B4,0xE17C,0xE1A1,0xE1AA,0xE1D8,0xE1FB",
-    "icon_phosphor": "0xE002,0xE026,0xE06A,0xE094,0xE13E,0xE14E,0xE1F4,0xE208,0xE270,0xE482,0xE4EA,0xE60C",
-    "icon_tabler": "0xEA02,0xEA08,0xEA30,0xEA31,0xEA32,0xEA34,0xEA38,0xEA52,0xEB3D,0xEB52",
-    "icon_tabler_filled": "0xEE80,0xF327,0xF667,0xF668,0xF669,0xF66A,0xF66B,0xF66C,0xF66D,0xF66E",
-}
-
-def load_plan_from_scheme_json(scheme_path: Path) -> Tuple[dict, List[Tuple[str, str, List[int], str, bool, Optional[str], str]]]:
-    """
-    Parse a declarative JSON scheme file (`schemes/*.json`) into a normalized strike plan.
-    Supports both hex `ranges` and human-readable `icons` name lists, and prevents `icon_*`
-    families from ever falling back to ASCII `RANGE_UI_STR`.
-    """
+def load_plan_from_scheme_json(
+    scheme_path: Path,
+    full_icon_catalog: bool = False,
+) -> Tuple[dict, List[Tuple[str, str, List[int], str, bool, Optional[str], str]]]:
     scheme = json.loads(scheme_path.read_text(encoding="utf-8"))
     char_sets = scheme.get("character_sets", {})
     plan_out = []
@@ -541,11 +358,18 @@ def load_plan_from_scheme_json(scheme_path: Path) -> Tuple[dict, List[Tuple[str,
         u_ranges = []
         for cn in cset_names:
             if cn in char_sets:
-                r_str = resolve_charset_spec_to_range_str(char_sets[cn], default_vendor=fam, style=style)
+                r_str = resolve_charset_spec_to_range_str(
+                    char_sets[cn],
+                    default_vendor=fam,
+                    style=style,
+                    full_icon_catalog=full_icon_catalog,
+                )
                 if r_str:
                     u_ranges.append(r_str)
         if u_ranges:
             combined_u_range = ",".join(u_ranges)
+        elif fam == "icon_tabler" and style == "filled":
+            combined_u_range = DEFAULT_ICON_FALLBACK_RANGES["icon_tabler_filled"]
         elif fam.startswith("icon_"):
             combined_u_range = DEFAULT_ICON_FALLBACK_RANGES.get(fam, "0xE000-0xE03F")
         else:
@@ -554,7 +378,11 @@ def load_plan_from_scheme_json(scheme_path: Path) -> Tuple[dict, List[Tuple[str,
         fa_ranges = []
         for iname in iset_names:
             if iname in char_sets:
-                r_str = resolve_charset_spec_to_range_str(char_sets[iname], default_vendor="icon_fa7")
+                r_str = resolve_charset_spec_to_range_str(
+                    char_sets[iname],
+                    default_vendor="icon_fa7",
+                    full_icon_catalog=full_icon_catalog,
+                )
                 if r_str:
                     fa_ranges.append(r_str)
         combined_fa_range = ",".join(fa_ranges)
@@ -566,8 +394,6 @@ def load_plan_from_scheme_json(scheme_path: Path) -> Tuple[dict, List[Tuple[str,
 
 
 def export_strike_vault(vault_path: Path, vault_data: dict) -> int:
-    """Export pre-rasterized, patch-applied Strike Vault (.json.gz or .json) for humid1_fw_emit.py."""
-    import gzip
     vault_path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(vault_data, separators=(",", ":"))
     if vault_path.name.endswith(".gz"):
@@ -580,89 +406,139 @@ def export_strike_vault(vault_path: Path, vault_data: dict) -> int:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     epilog_text = """
-Unified Directory Architecture (1 Input Dir, 1 Output Dir):
------------------------------------------------------------
-  --src-dir <dir> : Points to your static TTF folder (default: <repo>/assets/static_ttfs).
-                    If <repo>/assets is passed, it automatically locates `static_ttfs/`
-                    (or invokes `build_static_ttf_assets.py` if not yet built).
-  --out-dir <dir> : Single root output directory (default: <repo>/build).
-                    Automatically organizes generated outputs into clean subfolders:
-                      <out-dir>/fonts/          -> LVGL v9 .c modules, plex_fonts.h, h1os_fonts.h, licenses/
-                      <out-dir>/dist/           -> Pre-rasterized Strike Vault (humid1_epd_vault.json.gz)
-                      <out-dir>/bdf/            -> Adobe BDF 2.1 bitmap font strikes
-                      <out-dir>/metrics/        -> Per-strike glyph width & kerning CSV tables
-                      <out-dir>/inspect_pages/  -> Auto-wrapped Page Check PNGs + 188-DPI Specimen PNG
-                      <out-dir>/inspect_chars/  -> 18x-24x Char-by-Char Deep-Check Blueprint PNGs
-
-Examples:
----------
-  1. Build C/H Fonts, BDFs, CSVs, and Strike Vault into `<repo>/build`:
-     python tools/fonts/humid1_generate_1bpp.py --workflow build
-
-  2. Run Visual Check (Page Check PNGs + Char Blueprint PNGs + 200x200 Screen Audit):
-     python tools/fonts/humid1_generate_1bpp.py --workflow check
-
-  3. Dump Editable Full-Canvas 1:1 Spaced ASCII Patch Files:
-     python tools/fonts/humid1_generate_1bpp.py --workflow patch --dump
-
-  4. Compile Edited ASCII Patch Files into `font_icon_epd_patches.json`:
-     python tools/fonts/humid1_generate_1bpp.py --workflow patch --apply
-
-  5. Execute Entire Pipeline End-to-End (`all`):
-     python tools/fonts/humid1_generate_1bpp.py --workflow all
+Eight Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
+--------------------------------------------------------------------------
+  1. raw-unhinted   : Direct FreeType unhinted rendering -> sRGB-to-Linear Gray -> gamma -> threshold
+  2. raw-hinted     : Grid-fitted hinted FreeType rendering -> sRGB-to-Linear Gray -> gamma -> threshold
+  3. svg-potrace    : High-res (10x) linear gray -> threshold -> RETR_TREE Potrace SVG -> aliased fill
+  4. mdf            : High-res (12x) median filter + directional Signed Distance Field -> threshold
+  5. msdf           : Multi-Channel Signed Distance Field (Chlumsky msdfgen 3-Ch RGB corner SDF)
+  6. sdf-smoothstep : High-res (16x) Euclidean SDF + L2 Jacobian gradient smoothstep (Valve / Boesch)
+  7. adf-biquadratic: MERL Saffron bi-quadratic 9-point Lagrange Adaptively Sampled Distance Field
+  8. otsu-adaptive  : Otsu (1979) cumulative-moment between-class variance threshold on linear gray
+  *  all            : Run every offered conversion method (respects char_debug & sheet_debug)
+  *  all-debug      : Run every offered conversion method and force dump of all method sheets & chars
 """
     parser = argparse.ArgumentParser(
         prog="humid1_generate_1bpp.py",
         description=(
-            "Humidyne Labs / Humiditron `epd-font` v1.0.17 — General-Purpose 1-BPP Font & Modular Icon Studio.\n"
-            "Supports 4 workflows: 'gen-assets', 'patch', 'check', and 'build' (plus 'all')."
+            f"Humidyne Labs / Humiditron `epd-font` v{TOOL_VERSION} — {PROJECT_TAGLINE}.\n"
+            "Supports workflows: 'gen-assets', 'patch', 'check', 'build', 'audit', and 'all'."
         ),
         epilog=epilog_text,
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
         "-w", "--workflow",
-        choices=["gen-assets", "patch", "check", "build", "repair", "all"],
-        default="build",
+        choices=["gen-assets", "patch", "check", "build", "audit", "all"],
+        required=True,
         help=(
-            "Select workflow stage (default: build):\n"
+            "Select workflow stage (required):\n"
             "  gen-assets : Build static .ttf files & metadata JSONs from raw assets\n"
             "  patch      : Dump (--dump) or compile (--apply) Full-Canvas 1:1 ASCII .txt glyph patches\n"
-            "  repair     : Closed-loop OpenCV auto-floor (>=2px stem) & counter-protection repair + diff PNGs\n"
             "  check      : Render Page Check PNGs, Char-by-Char Blueprint PNGs & 200x200 screen audit\n"
-            "  build      : Emit LVGL v9 1-bpp .c/.h files, BDFs, CSV metrics & Strike Vault\n"
-            "  all        : Run gen-assets -> repair -> patch -> build -> check in sequence"
+            "  build      : Emit LVGL >= 9.6.0 1-bpp .c/.h files, BDFs, CSV metrics & Strike Vault\n"
+            "  audit      : Ingest audit scheme, evaluate all 8 pipelines, and generate all assets\n"
+            "  all        : Run gen-assets -> patch -> build -> check in sequence"
         ),
     )
     parser.add_argument(
         "-S", "--scheme",
         type=str,
         default=None,
-        help="Path to declarative JSON scheme file (default: tools/fonts/schemes/h1os_epd_scheme.json)",
+        help="Path to declarative JSON scheme file (required for build/check/audit/dump workflows)",
+    )
+    parser.add_argument(
+        "-H", "--hw-scheme",
+        type=str,
+        default=None,
+        help="Path to target hardware scheme JSON (e.g. esp32s3-N8R8-hw_scheme.json or genaric_hw.json)",
     )
     parser.add_argument(
         "-s", "--src-dir",
         type=str,
         default=None,
-        help="Single input directory containing static .ttf assets (default: <repo>/assets/static_ttfs)",
+        help="Input directory containing static .ttf/.otf/.ttc/.bdf assets (searched recursively)",
     )
     parser.add_argument(
-        "-o", "--out-dir",
+        "-o", "--out-dir", "--build-dir",
+        dest="out_dir",
         type=str,
         default=None,
-        help="Single output root directory for all generated artifacts (default: <repo>/build)",
+        help="Output build directory for generated files (e.g. build/h1os)",
+    )
+    parser.add_argument(
+        "-d", "--dist-dir",
+        type=str,
+        default=None,
+        help="Output distribution directory for Strike Vault & portable zip bundle (e.g. dist/h1os_distro)",
     )
     parser.add_argument(
         "-p", "--patches",
         type=str,
         default=None,
-        help="Path to JSON optical patch manifest (default: tools/fonts/font_icon_epd_patches.json)",
+        help="Path to JSON manual patch manifest (e.g. font_icon_epd_patches.json)",
     )
     parser.add_argument(
         "-a", "--ascii-dir",
         type=str,
         default=None,
-        help="Directory for Full-Canvas 1:1 Spaced ASCII .txt glyph folders (default: tools/fonts/ascii_patches)",
+        help="Directory for Full-Canvas 1:1 Spaced ASCII .txt glyph folders (e.g. build/h1os/ascii_patches)",
+    )
+    parser.add_argument(
+        "--pipeline", "--raster-mode",
+        dest="pipeline",
+        choices=[
+            "raw-unhinted", "raw-hinted", "svg-potrace", "mdf",
+            "msdf", "sdf-smoothstep", "adf-biquadratic", "otsu-adaptive",
+            "all", "all-debug",
+            "autohint-mono", "bytecode-mono", "gray-threshold", "dynamic-threshold",
+        ],
+        default=None,
+        help="Select bilevel conversion pipeline: raw-unhinted, raw-hinted, svg-potrace, mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive, all, or all-debug",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=int,
+        default=None,
+        help="Binarization threshold override in 1..254 (default: 128 or from scheme JSON)",
+    )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=None,
+        help="Linear grayscale gamma/contrast power factor (default: 1.0 or from scheme JSON; e.g. 1.1 for Saffron body contrast)",
+    )
+    parser.add_argument(
+        "--char-debug",
+        dest="char_debug",
+        action="store_true",
+        default=None,
+        help="Enable Char-by-Char Blueprint PNG generation (`inspect_chars/`)",
+    )
+    parser.add_argument(
+        "--no-char-debug",
+        dest="char_debug",
+        action="store_false",
+        help="Disable Char-by-Char Blueprint PNG generation (`char_debug = false`)",
+    )
+    parser.add_argument(
+        "--sheet-debug",
+        dest="sheet_debug",
+        action="store_true",
+        default=None,
+        help="Enable Page Check Sheet PNG generation (`inspect_pages/`)",
+    )
+    parser.add_argument(
+        "--no-sheet-debug",
+        dest="sheet_debug",
+        action="store_false",
+        help="Disable Page Check Sheet PNG generation (`sheet_debug = false`)",
+    )
+    parser.add_argument(
+        "--full-icon-catalog",
+        action="store_true",
+        help="When a scheme uses `scope: all`, rasterize all 18,578 PUA icons instead of the 128-icon audit sample",
     )
     parser.add_argument(
         "--dump",
@@ -677,7 +553,7 @@ Examples:
     parser.add_argument(
         "--trouble-only",
         action="store_true",
-        help="When dumping ASCII .txt files, export only the 15 high-density 'trouble' characters per strike",
+        help="When dumping ASCII .txt files, export only the 15 complex characters per strike",
     )
     parser.add_argument(
         "--unicode-preview",
@@ -688,14 +564,14 @@ Examples:
         "--inspect-chars-filter",
         choices=["all", "trouble", "patched", "ascii", "none"],
         default="all",
-        help="Which characters to render in <out-dir>/inspect_chars/ (default: all)",
+        help="Which characters to render in <out-dir>/inspect_chars/ when char_debug=true (default: all)",
     )
     parser.add_argument(
         "--sizes",
         type=int,
         nargs="+",
         default=None,
-        help="Optional pixel sizes filter (e.g. --sizes 14 16 20 24)",
+        help="Optional pixel sizes filter (e.g. --sizes 10 12 14 16 18 20 24 32 40)",
     )
     parser.add_argument(
         "--families",
@@ -709,69 +585,21 @@ Examples:
         type=int,
         choices=[100, 200, 300, 400, 450, 500, 600, 700],
         default=500,
-        help="OpenType weight for 'normal' slot (default: 500 Medium for ~2.15px EPD stem legibility)",
+        help="OpenType weight for 'normal' slot (default: 500 Medium)",
     )
     parser.add_argument(
         "--bold-weight",
         type=int,
         choices=[600, 700, 800],
         default=800,
-        help="OpenType weight for 'bold' slot (default: 800 ExtraBold for +35%%..+40%% ink punch over normal)",
+        help="OpenType weight for 'bold' slot (default: 800 ExtraBold)",
     )
     parser.add_argument(
         "--italic-weight",
         type=int,
         choices=[400, 450, 500, 600, 700, 800],
         default=600,
-        help="OpenType weight for 'italic' slot (default: 600 SemiBoldItalic iso-weight subtle emphasis)",
-    )
-    parser.add_argument(
-        "--min-stem",
-        type=int,
-        default=2,
-        help="Minimum stem thickness in pixels enforced by closed-loop auto-floor (default: 2)",
-    )
-    parser.add_argument(
-        "--auto-floor",
-        dest="auto_floor",
-        action="store_true",
-        default=True,
-        help="Enable closed-loop OpenCV >=2px stem auto-floor & counter protection (default: enabled)",
-    )
-    parser.add_argument(
-        "--no-auto-floor",
-        dest="auto_floor",
-        action="store_false",
-        help="Disable closed-loop morphological stem auto-floor",
-    )
-    parser.add_argument(
-        "--repair-engine",
-        choices=["hybrid", "autofloor", "downscale", "contour"],
-        default="hybrid",
-        help="Closed-loop glyph repair engine (default: hybrid)",
-    )
-    parser.add_argument(
-        "--tune-mode",
-        choices=["off", "wart-only", "surgical", "full"],
-        default="surgical",
-        help="Auto-tune intervention level: off (native weights only), wart-only (4-dir wart shaving + mirror sync), surgical (default), or full",
-    )
-    parser.add_argument(
-        "--save-repaired-patches",
-        action="store_true",
-        help="Save auto-repaired glyphs into --patches JSON during --workflow repair",
-    )
-    parser.add_argument(
-        "--raster-mode",
-        choices=["autohint-mono", "bytecode-mono", "gray-threshold", "dynamic-threshold"],
-        default="autohint-mono",
-        help="FreeType 1-bpp rasterizer mode (default: autohint-mono)",
-    )
-    parser.add_argument(
-        "--threshold",
-        type=int,
-        default=128,
-        help="Grayscale threshold (1-255, or 0 for weight/size/Otsu dynamic threshold)",
+        help="OpenType weight for 'italic' slot (default: 600 SemiBoldItalic)",
     )
     parser.add_argument(
         "--audit-screens",
@@ -782,31 +610,31 @@ Examples:
         "--dpi",
         type=float,
         default=None,
-        help="Target display pixel density in DPI (default: from scheme JSON or 188.3)",
+        help="Target display pixel density override in DPI",
+    )
+    parser.add_argument(
+        "--accel",
+        choices=["auto", "opencl", "umat", "cpu"],
+        default=None,
+        help="Hardware math acceleration backend (default: auto -> OpenCL GPU / UMat / CPU)",
     )
     parser.add_argument(
         "--screen-width",
         type=int,
         default=None,
-        help="Target display horizontal width in pixels (default: from scheme JSON or 200)",
+        help="Target display horizontal width override in pixels",
     )
     parser.add_argument(
         "--screen-height",
         type=int,
         default=None,
-        help="Target display vertical height in pixels (default: from scheme JSON or 200)",
+        help="Target display vertical height override in pixels",
     )
     parser.add_argument(
         "--safe-margin",
         type=int,
         default=None,
-        help="Horizontal safe margin in pixels on each side (default: from scheme JSON or 6)",
-    )
-    parser.add_argument(
-        "--dist-dir",
-        type=str,
-        default=None,
-        help="Output directory for distributable Strike Vault & firmware bundle (default: <repo>/dist)",
+        help="Horizontal safe margin override in pixels on each side",
     )
     parser.add_argument(
         "--keep-noop-kern",
@@ -814,28 +642,22 @@ Examples:
         help="Retain sub-pixel GPOS kerning pairs that round to 0px at target strike size",
     )
     parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose terminal debug output per strike and pipeline stage",
+    )
+    parser.add_argument(
+        "--debug-stages",
+        action="store_true",
+        help="Emit intermediate stage debug images (10x linear gray, 10x binary, Potrace .svg, MSDF RGB, 8-pipeline grid) to <out-dir>/debug_stages/",
+    )
+    parser.add_argument(
         "-j", "--jobs",
         type=int,
         default=None,
-        help="Number of parallel CPU worker processes (default: all host CPU cores)",
+        help="Number of parallel CPU worker processes (default: auto-detected from host CPU/RAM)",
     )
-
-    # Hidden legacy flags for 100% backward compatibility with older scripts/commands
-    parser.add_argument("--profile", choices=["h1os", "humid1", "full"], default="h1os", help=argparse.SUPPRESS)
-    parser.add_argument("--plex-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--font-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--dump-ascii-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--build-ascii-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--ascii-patch-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--inspect-png-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--inspect-chars-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--export-vault", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--export-bdf", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--metrics-dir", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--render-preview", type=str, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--montserrat-metrics-dir", type=str, default=None, help=argparse.SUPPRESS)
     return parser
-
 
 
 _WORKER_FT = None
@@ -843,8 +665,39 @@ _WORKER_FT_LIB = None
 _WORKER_FONT_DIR = None
 
 
+def _compute_strike_method_stats(glyphs: Sequence[GlyphStrike]) -> dict:
+    ink_sum = 0
+    stems_w = []
+    ge2_sum = 0.0
+    cnt_ok = 0
+    cnt_tot = 0
+    for pg in glyphs:
+        if not pg.rows:
+            continue
+        arr = rows_to_binary_array(pg.rows)
+        ink_sum += int(arr.sum())
+        _, _, mw, gr = measure_stem_metrics(arr)
+        if mw > 0:
+            stems_w.append(mw)
+            ge2_sum += gr
+        ch = chr(pg.codepoint) if 0x20 <= pg.codepoint <= 0x7E else ""
+        if ch in ("0", "4", "6", "8", "9", "A", "B", "D", "O", "P", "Q", "R", "a", "b", "d", "e", "g", "o", "p", "q"):
+            cnt_tot += 1
+            _, b1 = compute_betti_numbers(arr)
+            exp_b1 = 2 if ch in ("8", "B") else 1
+            if b1 >= exp_b1:
+                cnt_ok += 1
+    n_st = max(1, len(stems_w))
+    return {
+        "ink_px": ink_sum,
+        "mean_stem_px": round(sum(stems_w) / n_st, 2),
+        "stem_2px_pct": round((ge2_sum / n_st) * 100.0, 1),
+        "counter_pct": round((cnt_ok / max(1, cnt_tot)) * 100.0, 1) if cnt_tot > 0 else 100.0,
+    }
+
+
 def _execute_strike_worker_task(task: dict) -> dict:
-    """ProcessPoolExecutor worker that rasterizes and emits all artifacts for a single strike."""
+    """ProcessPoolExecutor worker that rasterizes and emits all files for a single strike."""
     global _WORKER_FT, _WORKER_FT_LIB, _WORKER_FONT_DIR
     font_dir = Path(task["font_dir"])
     if _WORKER_FT is None:
@@ -859,10 +712,13 @@ def _execute_strike_worker_task(task: dict) -> dict:
     sz = task["sz"]
     ttf_path = Path(task["ttf_path"])
     effective_raster_m = task["effective_raster_m"]
+    gamma = float(task.get("gamma", 1.0))
     strike_ascii_dir = Path(task["strike_ascii_dir"]) if task["strike_ascii_dir"] else None
+    debug_stages_dir = Path(task["debug_stages_dir"]) if task.get("debug_stages_dir") else None
+    run_all_methods = bool(task.get("run_all_methods", False))
+    sheet_debug = bool(task.get("sheet_debug", False))
+    char_debug = bool(task.get("char_debug", False))
 
-    # Rasterize strike (ingesting existing patches unless running a fresh repair tournament)
-    is_repair_run = bool(task.get("inspect_repairs_root"))
     glyphs, line_h, base_l, upos, uthk, kern_pairs = rasterize_font_strike(
         ft=_WORKER_FT,
         ft_lib=_WORKER_FT_LIB,
@@ -871,149 +727,23 @@ def _execute_strike_worker_task(task: dict) -> dict:
         codepoints=task["codepoints"],
         raster_mode=effective_raster_m,
         threshold=task["threshold"],
+        gamma=gamma,
         fa_path=None,
         fa_codepoints=None,
-        patch_dict={} if is_repair_run else task["strike_patches"],
-        ascii_override_dir=None if is_repair_run else strike_ascii_dir,
+        patch_dict=task["strike_patches"],
+        ascii_override_dir=strike_ascii_dir,
         enable_kerning=task["enable_kern"],
         prune_noop_kern=task["prune_noop_kern"],
-        auto_floor=False,
-        min_stem=task.get("min_stem", 2),
-        repair_engine=task.get("repair_engine", "hybrid"),
+        debug_stages_dir=debug_stages_dir,
+        strike_symbol=sym_name,
+        family=family,
+        verbose=task.get("verbose", False),
     )
 
-    repair_sheet_written = 0
-    repaired_glyph_cnt = 0
     orig_sigs_map: Dict[int, str] = {}
     for g0 in glyphs:
         m_lines = g0.rows if (g0.box_w > 0 and g0.box_h > 0 and g0.rows) else []
         orig_sigs_map[g0.codepoint] = f"{g0.box_w},{g0.box_h},{g0.ofs_x},{g0.ofs_y}|" + ("/".join(m_lines) if m_lines else ".")
-
-    # Execute Multi-Method Iterative Typographic Tournament when `--workflow repair` (08) is active
-    # Skip hand-authored pixel fonts (`terminus`) and icon fonts (`icon_*`) so native pixel art is never distorted
-    if is_repair_run and family not in ("terminus", "unifont") and not family.startswith("icon_"):
-        try:
-            import humid1_bilevel_tuner as _bt
-            import numpy as _np
-
-            # Open 8x HQ Continuous Grayscale Master Face + 12px Smallest-Strike Base Reference Face
-            hq_face = ctypes.POINTER(FT_FaceRec)()
-            base12_face = ctypes.POINTER(FT_FaceRec)()
-            has_hq = (_WORKER_FT.FT_New_Face(_WORKER_FT_LIB, str(ttf_path).encode("utf-8"), 0, ctypes.byref(hq_face)) == 0)
-            if has_hq:
-                _WORKER_FT.FT_Set_Pixel_Sizes(hq_face, 0, sz * 8)
-            has_b12 = (_WORKER_FT.FT_New_Face(_WORKER_FT_LIB, str(ttf_path).encode("utf-8"), 0, ctypes.byref(base12_face)) == 0)
-            if has_b12:
-                _WORKER_FT.FT_Set_Pixel_Sizes(base12_face, 0, 12)
-
-            def _render_hq_gray(cp_val: int) -> Optional[_np.ndarray]:
-                if not has_hq:
-                    return None
-                gidx = _WORKER_FT.FT_Get_Char_Index(hq_face, cp_val)
-                if gidx == 0 and cp_val in HOMOGLYPH_EQUIVALENTS:
-                    for alt_c in HOMOGLYPH_EQUIVALENTS[cp_val]:
-                        gidx = _WORKER_FT.FT_Get_Char_Index(hq_face, alt_c)
-                        if gidx != 0:
-                            break
-                if gidx == 0:
-                    return None
-                if _WORKER_FT.FT_Load_Glyph(hq_face, gidx, FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_NORMAL) != 0:
-                    return None
-                slot = hq_face.contents.glyph.contents
-                bmp = slot.bitmap
-                if bmp.rows <= 0 or bmp.width <= 0:
-                    return None
-                arr = _np.zeros((bmp.rows, bmp.width), dtype=_np.uint8)
-                for r_i in range(bmp.rows):
-                    for c_i in range(bmp.width):
-                        arr[r_i, c_i] = bmp.buffer[r_i * bmp.pitch + c_i]
-                ys, xs = _np.nonzero(arr > 16)
-                if len(xs) == 0:
-                    return None
-                return arr[int(ys.min()):int(ys.max())+1, int(xs.min()):int(xs.max())+1]
-
-            def _render_base12_upscaled(cp_val: int, target_w: int, target_h: int) -> Optional[_np.ndarray]:
-                if not has_b12 or not _bt.HAS_CV2:
-                    return None
-                gidx = _WORKER_FT.FT_Get_Char_Index(base12_face, cp_val)
-                if gidx == 0:
-                    return None
-                flags12 = FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME
-                if _WORKER_FT.FT_Load_Glyph(base12_face, gidx, flags12) != 0:
-                    return None
-                slot = base12_face.contents.glyph.contents
-                bmp = slot.bitmap
-                if bmp.rows <= 0 or bmp.width <= 0:
-                    return None
-                arr12 = _np.zeros((bmp.rows, bmp.width), dtype=_np.uint8)
-                for r_i in range(bmp.rows):
-                    for c_i in range(bmp.width):
-                        byte_v = bmp.buffer[r_i * bmp.pitch + (c_i >> 3)]
-                        if (byte_v >> (7 - (c_i & 7))) & 1:
-                            arr12[r_i, c_i] = 255
-                ys, xs = _np.nonzero(arr12 > 0)
-                if len(xs) == 0:
-                    return None
-                cropped12 = arr12[int(ys.min()):int(ys.max())+1, int(xs.min()):int(xs.max())+1]
-                return _bt.cv2.resize(cropped12, (max(1, target_w), max(1, target_h)), interpolation=_bt.cv2.INTER_NEAREST)
-
-            recs = []
-            is_mono_f = family in ("mono", "plex_mono", "noto_mono", "terminus", "unifont")
-            is_ital_or_ser = ("italic" in role.lower()) or (family in ("serif", "plex_serif", "noto_serif"))
-
-            for g_item in glyphs:
-                if not g_item.rows or g_item.codepoint <= 0x0020:
-                    continue
-                w_orig = g_item.box_w
-                arr_bef = _bt.rows_to_binary_array(g_item.rows)
-                hq_img = _render_hq_gray(g_item.codepoint)
-                up12_img = _render_base12_upscaled(g_item.codepoint, g_item.box_w, g_item.box_h)
-                max_w = (g_item.adv_w_fp4 >> 4) if is_mono_f else ((g_item.adv_w_fp4 >> 4) + 1)
-
-                rep_arr, rec = _bt.inspect_and_repair_glyph_bitmap(
-                    arr_bef,
-                    codepoint=g_item.codepoint,
-                    min_stem=task.get("min_stem", 2),
-                    master_hi=hq_img,
-                    upscaled_small_ref=up12_img,
-                    max_width_ceiling=max_w,
-                    engine=task.get("repair_engine", "hybrid"),
-                    is_italic_or_serif=is_ital_or_ser,
-                    is_bold_role=("bold" in role.lower()),
-                    tune_mode=task.get("tune_mode", "surgical"),
-                )
-                recs.append(rec)
-                if rec.repaired:
-                    trimmed, bw, bh, nox, noy = _bt.trim_binary_array(rep_arr, g_item.ofs_x, g_item.ofs_y)
-                    if bw > 0 and bh > 0:
-                        g_item.rows = _bt.binary_array_to_rows(trimmed)
-                        g_item.box_w = bw
-                        g_item.box_h = bh
-                        g_item.ofs_x = nox
-                        g_item.ofs_y = noy
-                        g_item.patched = True
-                        if not is_mono_f and bw > w_orig:
-                            g_item.adv_w_fp4 += (bw - w_orig) * 16
-                        repaired_glyph_cnt += 1
-
-            # Enforce Bilateral Mirror-Pair Synchronization across upright strikes (`(` <-> `)`, `[` <-> `]`, `{` <-> `}`, `<` <-> `>`, `/` <-> `\`, arrows)
-            repaired_glyph_cnt += _bt.synchronize_mirror_glyph_pairs(
-                glyphs,
-                recs,
-                is_italic=("italic" in role.lower()),
-                is_monospace=is_mono_f,
-            )
-
-            if has_hq:
-                _WORKER_FT.FT_Done_Face(hq_face)
-            if has_b12:
-                _WORKER_FT.FT_Done_Face(base12_face)
-
-            rep_png = Path(task["inspect_repairs_root"]) / f"{sym_name}_repair.png"
-            _bt.render_repair_comparison_sheet(rep_png, sym_name, sz, recs)
-            repair_sheet_written = 1
-        except Exception as e:
-            print(f"[!] Repair tournament warning on {sym_name}: {e}", file=sys.stderr)
 
     if task["do_build_c"] and task["c_out_dir"]:
         out_file = Path(task["c_out_dir"]) / f"{sym_name}.c"
@@ -1038,8 +768,6 @@ def _execute_strike_worker_task(task: dict) -> dict:
     ascii_dumped = 0
     if task["dump_ascii_root"]:
         s_dump_dir = Path(task["dump_ascii_root"]) / sym_name
-        if is_repair_run and s_dump_dir.is_dir():
-            shutil.rmtree(s_dump_dir)
         ascii_dumped = dump_strike_to_ascii_folder(
             s_dump_dir,
             sym_name,
@@ -1054,9 +782,9 @@ def _execute_strike_worker_task(task: dict) -> dict:
         )
 
     png_pages = 0
-    if task["inspect_png_root"]:
+    if sheet_debug and task["inspect_png_root"]:
         png_file = Path(task["inspect_png_root"]) / f"{sym_name}.png"
-        png_pages = render_full_font_inspection_png(
+        png_pages += render_full_font_inspection_png(
             out_png=png_file,
             font_symbol_name=sym_name,
             family=family,
@@ -1071,9 +799,9 @@ def _execute_strike_worker_task(task: dict) -> dict:
         )
 
     char_pngs = 0
-    if task["inspect_chars_root"]:
+    if char_debug and task["inspect_chars_root"] and task["inspect_chars_filter"] != "none":
         s_char_dir = Path(task["inspect_chars_root"]) / sym_name
-        char_pngs = render_char_by_char_folder(
+        char_pngs += render_char_by_char_folder(
             strike_char_dir=s_char_dir,
             font_symbol_name=sym_name,
             family=family,
@@ -1087,9 +815,85 @@ def _execute_strike_worker_task(task: dict) -> dict:
             static_dir=font_dir,
         )
 
+    # Multi-method execution when `pipeline="all"` / `"all-debug"` or `--workflow audit`
+    all_method_stats: Dict[str, dict] = {}
+    if run_all_methods and family not in ("terminus", "unifont"):
+        method_strikes_for_sheet: Dict[str, Tuple[Sequence[GlyphStrike], int, int]] = {}
+        eval_cps = task["codepoints"]
+        for p_method in CANONICAL_PIPELINES:
+            if p_method == effective_raster_m:
+                p_glyphs, p_lh, p_bl = glyphs, line_h, base_l
+            else:
+                p_glyphs, p_lh, p_bl, _, _, _ = rasterize_font_strike(
+                    ft=_WORKER_FT,
+                    ft_lib=_WORKER_FT_LIB,
+                    font_path=ttf_path,
+                    size_px=sz,
+                    codepoints=eval_cps,
+                    raster_mode=p_method,
+                    threshold=task["threshold"],
+                    gamma=gamma,
+                    patch_dict=task["strike_patches"],
+                    ascii_override_dir=strike_ascii_dir,
+                    enable_kerning=False,
+                )
+            all_method_stats[p_method] = _compute_strike_method_stats(p_glyphs)
+            method_strikes_for_sheet[p_method] = (p_glyphs, p_lh, p_bl)
+
+            # When `pipeline="all"` (or `all-debug`) and `sheet_debug=true`, dump EACH method's sheet
+            if task.get("dump_each_method_outputs") and sheet_debug and task["inspect_png_root"]:
+                m_png_dir = Path(task["inspect_png_root"]) / p_method
+                m_png_file = m_png_dir / f"{sym_name}.png"
+                png_pages += render_full_font_inspection_png(
+                    out_png=m_png_file,
+                    font_symbol_name=f"{sym_name} [{p_method}]",
+                    family=family,
+                    role=role,
+                    size_px=sz,
+                    raster_mode=p_method,
+                    line_height=p_lh,
+                    base_line=p_bl,
+                    glyphs=p_glyphs,
+                    rom_bytes=rom_b,
+                    static_dir=font_dir,
+                )
+
+            # When `pipeline="all"` (or `all-debug`) and `char_debug=true`, dump EACH method's char cards
+            if task.get("dump_each_method_outputs") and char_debug and task["inspect_chars_root"] and task["inspect_chars_filter"] != "none":
+                m_char_dir = Path(task["inspect_chars_root"]) / p_method / sym_name
+                char_pngs += render_char_by_char_folder(
+                    strike_char_dir=m_char_dir,
+                    font_symbol_name=f"{sym_name} [{p_method}]",
+                    family=family,
+                    role=role,
+                    size_px=sz,
+                    raster_mode=p_method,
+                    line_height=p_lh,
+                    base_line=p_bl,
+                    glyphs=p_glyphs,
+                    char_filter=task["inspect_chars_filter"],
+                    static_dir=font_dir,
+                )
+
+        if task.get("dump_each_method_outputs") and sheet_debug and task["inspect_png_root"]:
+            cmp_png = Path(task["inspect_png_root"]) / "compare_methods" / f"{sym_name}_all_methods.png"
+            render_multi_method_comparison_sheet_png(
+                out_png=cmp_png,
+                font_symbol_name=sym_name,
+                family=family,
+                role=role,
+                size_px=sz,
+                threshold=task["threshold"],
+                gamma=gamma,
+                method_strikes=method_strikes_for_sheet,
+                method_stats=all_method_stats,
+                static_dir=font_dir,
+            )
+            png_pages += 1
+
     if task["bdf_out_dir"]:
         bdf_path = Path(task["bdf_out_dir"]) / f"{sym_name}.bdf"
-        export_bdf_strike(bdf_path, sym_name, sz, 188, line_h, base_l, glyphs)
+        export_bdf_strike(bdf_path, sym_name, sz, 188.15, line_h, base_l, glyphs)
 
     if task["metrics_out_dir"]:
         export_metric_csvs(Path(task["metrics_out_dir"]), sym_name, glyphs, kern_pairs)
@@ -1099,6 +903,9 @@ def _execute_strike_worker_task(task: dict) -> dict:
         "style": role,
         "size_px": sz,
         "source_ttf": task["ttf_name"],
+        "pipeline": effective_raster_m,
+        "threshold": task["threshold"],
+        "gamma": gamma,
         "line_height": line_h,
         "base_line": base_l,
         "glyphs": [
@@ -1129,9 +936,11 @@ def _execute_strike_worker_task(task: dict) -> dict:
     pt96 = sz * 72.0 / 96.0
     patched_cnt = sum(1 for g in glyphs if g.patched)
     patch_tag = f" [+{patched_cnt} patches]" if patched_cnt else ""
+    fb_tag = f" fb->{task['fb_sym']}" if (task.get("verbose") and task.get("fb_sym")) else ""
+    mode_disp = "all(8-methods)" if task.get("dump_each_method_outputs") else effective_raster_m
     log_line = (
         f"    [+] {sym_name:<36} | {len(glyphs):>4} glyphs | {len(kern_pairs):>4} kern | "
-        f"em={sz:>2}px ({pt96:>4.1f}pt) lh={line_h:>2}px | {effective_raster_m:<13} | ~{rom_b:>7,} B ({rom_b/1024:.2f} KB){patch_tag}"
+        f"em={sz:>2}px ({pt96:>4.1f}pt) lh={line_h:>2}px | {mode_disp:<14} (T={task['threshold']}, g={gamma:.2f}) | ~{rom_b:>7,} B ({rom_b/1024:.2f} KB){patch_tag}{fb_tag}"
     )
     return {
         "sym_name": sym_name,
@@ -1148,44 +957,67 @@ def _execute_strike_worker_task(task: dict) -> dict:
         "png_pages": png_pages,
         "char_pngs": char_pngs,
         "vault_entry": vault_entry,
+        "all_method_stats": all_method_stats,
         "log_line": log_line,
     }
 
 
 def main() -> None:
+    install_clean_signal_handlers()
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent
     parser = build_arg_parser()
-    args = parser.parse_args()
 
-    # 1. Resolve unified --src-dir (Static TTFs live in <repo>/build/static_ttfs by default in v1.0.17)
-    raw_src_arg = args.src_dir or args.font_dir
-    if raw_src_arg:
-        cand_src = Path(raw_src_arg).resolve()
-        if (cand_src / "static_ttfs").is_dir():
-            font_dir = (cand_src / "static_ttfs").resolve()
-        else:
-            font_dir = cand_src
-    else:
-        font_dir = (repo_root / "build" / "static_ttfs").resolve()
-
-    # If workflow is gen-assets or build/static_ttfs is missing, invoke build_static_ttf_assets.py
-    if args.workflow == "gen-assets" or not (font_dir / "IBMPlexSans-Regular.ttf").is_file() or not (font_dir / "IBMPlexSans-ExtraBold.ttf").is_file() or not (font_dir / "NotoSans-SemiCondensedBlack.ttf").is_file():
-        sys.path.insert(0, str(script_dir))
-        import build_static_ttf_assets as bsta
-        raw_assets_root = Path(args.plex_dir).resolve() if args.plex_dir else (repo_root / "assets").resolve()
-        bsta.build_all_static_assets(
-            src_dir=raw_assets_root,
-            out_dir=font_dir,
-            meta_out_dir=(repo_root / "build" / "metadata").resolve(),
-            force=(args.workflow == "gen-assets"),
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        fail_gracefully(
+            "No CLI arguments were provided.",
+            "Pass `--workflow <stage>` and `--scheme <scheme.json>` (or `--src-dir` / `--out-dir`).",
         )
-        if args.workflow == "gen-assets":
-            bsta.verify_static_ttf_directory(font_dir)
-            return
 
-    # 2. Resolve unified --out-dir (inside <repo>/build) and --dist-dir (inside <repo>/dist)
-    base_out = Path(args.out_dir).resolve() if args.out_dir else (repo_root / "build").resolve()
+    args = parser.parse_args()
+    hw_info = detect_host_hardware(args.jobs)
+    if args.verbose:
+        print(
+            f"[*] Host Hardware Detected: OS={hw_info.os_name}, CPU={hw_info.cpu_cores} cores, "
+            f"Avail RAM={hw_info.available_ram_mb} MB / {hw_info.total_ram_mb} MB, "
+            f"Backend={hw_info.gpu_backend}, Active Workers={hw_info.recommended_workers}"
+        )
+
+    # 1. Handle `patch --apply` when compiling ASCII edits into patch JSON
+    do_dump_ascii = args.dump or (args.workflow in ("all", "audit"))
+    do_apply_ascii = args.apply or (args.workflow == "patch" and not args.dump)
+
+    if do_apply_ascii and args.workflow == "patch" and not do_dump_ascii:
+        apply_root = require_valid_path(args.ascii_dir, "--ascii-dir", must_exist=True, expect_dir=True)
+        if not args.patches:
+            fail_gracefully("Missing `--patches <font_icon_epd_patches.json>` path for `--workflow patch --apply`.")
+        patches_path = Path(args.patches).expanduser().resolve()
+        cnt = build_patches_json_from_ascii_root(apply_root, patches_path, only_modified=True)
+        print(f"[+] Compiled {cnt} modified ASCII glyph patch(es) from {apply_root} -> {patches_path}")
+        return
+
+    # 2. Resolve and validate `--src-dir` and `--out-dir`
+    if args.workflow == "gen-assets":
+        src_assets = require_valid_path(args.src_dir, "--src-dir", must_exist=True, expect_dir=True)
+        out_static = Path(args.out_dir).expanduser().resolve() if args.out_dir else fail_gracefully("Missing `--out-dir` for `--workflow gen-assets`.")
+        import build_static_ttf_assets as bsta
+        bsta.build_all_static_assets(
+            src_dir=src_assets,
+            out_dir=out_static,
+            meta_out_dir=(out_static.parent / "metadata").resolve(),
+            force=True,
+            jobs=hw_info.recommended_workers,
+        )
+        bsta.verify_static_ttf_directory(out_static)
+        return
+
+    cand_src = require_valid_path(args.src_dir, "--src-dir", must_exist=True, expect_dir=True)
+    font_dir = (cand_src / "static_ttfs").resolve() if (cand_src / "static_ttfs").is_dir() else cand_src
+
+    if not args.out_dir:
+        fail_gracefully("Missing required `--out-dir <build_dir>` argument.", "Pass `--out-dir build/<target>` on the command line.")
+    base_out = Path(args.out_dir).expanduser().resolve()
     if base_out.name == "fonts" and base_out.parent.name == "assets":
         c_out_dir = base_out
         root_out = base_out.parent.parent
@@ -1193,46 +1025,87 @@ def main() -> None:
         root_out = base_out
         c_out_dir = root_out / "fonts"
 
-    dist_root = Path(args.dist_dir).resolve() if args.dist_dir else (repo_root / "dist").resolve()
+    dist_root = Path(args.dist_dir).expanduser().resolve() if args.dist_dir else (root_out / "dist").resolve()
 
-    # Root-tracked patch manifest (`<repo>/font_icon_epd_patches.json` with fallback to `tools/fonts/font_icon_epd_patches.json`)
-    if args.patches:
-        patches_path = Path(args.patches).resolve()
-    elif (repo_root / "font_icon_epd_patches.json").is_file():
-        patches_path = (repo_root / "font_icon_epd_patches.json").resolve()
-    else:
-        patches_path = (script_dir / "font_icon_epd_patches.json").resolve()
+    if not args.scheme:
+        fail_gracefully("Missing required `--scheme <path.scheme.json>` argument.", "Pass `--scheme <file.scheme.json>` to specify the build configuration.")
+    scheme_path = require_valid_path(args.scheme, "--scheme", must_exist=True, expect_dir=False)
 
-    # `ascii_patches` MUST exist inside `build/` (`<root_out>/ascii_patches`)
-    default_ascii_dir = Path(args.ascii_dir).resolve() if args.ascii_dir else (root_out / "ascii_patches").resolve()
+    load_icon_name_registry(font_dir)
+    scheme_cfg, raw_plan = load_plan_from_scheme_json(scheme_path, full_icon_catalog=args.full_icon_catalog)
+    rcfg = scheme_cfg.get("raster_config", {})
 
-    # Determine active sub-operations from --workflow + any explicit legacy overrides
-    do_build_c = args.workflow in ("build", "all") or (args.out_dir is not None and args.workflow not in ("check", "patch", "repair"))
-    do_check_png = args.workflow in ("check", "all") or (args.inspect_png_dir is not None)
-    do_dump_ascii = args.dump or (args.workflow in ("all", "repair")) or (args.dump_ascii_dir is not None)
-    do_apply_ascii = args.apply or (args.build_ascii_dir is not None) or (args.workflow == "patch" and not args.dump)
-
-    dump_ascii_root = Path(args.dump_ascii_dir).resolve() if args.dump_ascii_dir else (default_ascii_dir if do_dump_ascii else None)
-    apply_ascii_root = Path(args.build_ascii_dir).resolve() if args.build_ascii_dir else (default_ascii_dir if do_apply_ascii else None)
-    ascii_ingest_root = Path(args.ascii_patch_dir).resolve() if args.ascii_patch_dir else (default_ascii_dir if default_ascii_dir.is_dir() else None)
-
-    inspect_png_root = Path(args.inspect_png_dir).resolve() if args.inspect_png_dir else ((root_out / "inspect_pages") if do_check_png else None)
-    inspect_chars_root = (
-        Path(args.inspect_chars_dir).resolve()
-        if args.inspect_chars_dir
-        else ((root_out / "inspect_chars") if (do_check_png and args.inspect_chars_filter != "none") else None)
+    # 3. Strictly validate Target Hardware Scheme & single 3 MByte partition constraint (Zero Hard Defaults)
+    hw_spec = load_and_validate_hardware_scheme(
+        scheme_cfg=scheme_cfg,
+        hw_scheme_cli=args.hw_scheme,
+        repo_root=repo_root,
+        scheme_path=scheme_path,
     )
-    bdf_out_dir = Path(args.export_bdf).resolve() if args.export_bdf else ((root_out / "bdf") if do_build_c else None)
-    metrics_out_dir = Path(args.metrics_dir).resolve() if args.metrics_dir else ((root_out / "metrics") if (do_build_c or do_check_png) else None)
-    vault_out_path = Path(args.export_vault).resolve() if args.export_vault else ((dist_root / "humid1_epd_vault.json.gz") if do_build_c else None)
-    specimen_out_path = Path(args.render_preview).resolve() if args.render_preview else ((root_out / "inspect_pages" / "humid1_epd_specimen_188dpi.png") if do_check_png else None)
 
-    # Step 2: Compile ASCII .txt edits into patches_path JSON if requested
+    # Resolve patches path from CLI or scheme JSON
+    raw_patches_cfg = args.patches or rcfg.get("patches_file")
+    if raw_patches_cfg:
+        p_cand = Path(raw_patches_cfg)
+        if not p_cand.is_absolute():
+            p_cand = (repo_root / p_cand).resolve() if (repo_root / p_cand).is_file() else (scheme_path.parent / p_cand).resolve()
+        patches_path = p_cand
+    else:
+        patches_path = (repo_root / "font_icon_epd_patches.json").resolve()
+
+    raw_ascii_cfg = args.ascii_dir or rcfg.get("ascii_patches_dir")
+    if raw_ascii_cfg:
+        a_cand = Path(raw_ascii_cfg)
+        default_ascii_dir = a_cand.resolve() if a_cand.is_absolute() else (repo_root / a_cand).resolve()
+    else:
+        default_ascii_dir = (root_out / "ascii_patches").resolve()
+
+    raw_pipe_arg = (args.pipeline or rcfg.get("pipeline") or rcfg.get("raster_mode") or "raw-hinted").strip().lower()
+    is_all_debug = (raw_pipe_arg == "all-debug")
+    dump_each_method_outputs = raw_pipe_arg in ("all", "all-debug")
+    run_all_methods = dump_each_method_outputs or (args.workflow == "audit")
+    raster_m = "raw-hinted" if dump_each_method_outputs else normalize_pipeline_name(raw_pipe_arg)
+
+    # Strict `char_debug` and `sheet_debug` boolean gating:
+    # - CLI `--char-debug` / `--no-char-debug` takes precedence over `raster_config.char_debug`
+    # - CLI `--sheet-debug` / `--no-sheet-debug` takes precedence over `raster_config.sheet_debug`
+    # - `--pipeline all-debug` forces both `sheet_debug=True` and `char_debug=True`
+    if is_all_debug:
+        eff_sheet_debug = True
+        eff_char_debug = True
+    else:
+        if args.sheet_debug is not None:
+            eff_sheet_debug = bool(args.sheet_debug)
+        elif "sheet_debug" in rcfg:
+            eff_sheet_debug = bool(rcfg.get("sheet_debug"))
+        else:
+            eff_sheet_debug = (args.workflow in ("check", "all"))
+
+        if args.char_debug is not None:
+            eff_char_debug = bool(args.char_debug)
+        elif "char_debug" in rcfg:
+            eff_char_debug = bool(rcfg.get("char_debug"))
+        else:
+            eff_char_debug = False
+
+    do_build_c = args.workflow in ("build", "audit", "all")
+    do_check_png = eff_sheet_debug or eff_char_debug or args.audit_screens
+
+    dump_ascii_root = default_ascii_dir if do_dump_ascii else None
+    apply_ascii_root = default_ascii_dir if do_apply_ascii else None
+    ascii_ingest_root = default_ascii_dir if default_ascii_dir.is_dir() else None
+
+    inspect_png_root = (root_out / "inspect_pages") if eff_sheet_debug else None
+    inspect_chars_root = (root_out / "inspect_chars") if (eff_char_debug and args.inspect_chars_filter != "none") else None
+    bdf_out_dir = (root_out / "bdf") if do_build_c else None
+    metrics_out_dir = (root_out / "metrics") if (do_build_c or do_check_png) else None
+    vault_out_path = (dist_root / "humid1_epd_vault.json.gz") if do_build_c else None
+    specimen_out_path = (root_out / "inspect_pages" / "humid1_epd_specimen_188dpi.png") if eff_sheet_debug else None
+    debug_stages_root = (root_out / "debug_stages") if (args.debug_stages or rcfg.get("debug_stages", False)) else None
+
     if apply_ascii_root and apply_ascii_root.is_dir():
         cnt = build_patches_json_from_ascii_root(apply_ascii_root, patches_path, only_modified=True)
         print(f"[+] Compiled {cnt} modified ASCII glyph patch(es) from {apply_ascii_root} -> {patches_path}")
-        if args.workflow == "patch" and not do_dump_ascii:
-            return
 
     patch_manifest: dict = {"patches": {}}
     if patches_path.is_file():
@@ -1243,36 +1116,24 @@ def main() -> None:
             for k, v in loaded_p.items():
                 if not k.startswith("_") and isinstance(v, dict):
                     patch_manifest["patches"][k] = v
-        print(f"[+] Loaded optical micro-strike patch manifest: {patches_path}")
+        print(f"[+] Loaded manual optical patch manifest: {patches_path}")
 
-    load_icon_name_registry(font_dir)
-    ft, ft_lib = load_freetype()
+    normal_w = int(rcfg.get("normal_weight", args.normal_weight))
+    bold_w = int(rcfg.get("bold_weight", args.bold_weight))
+    italic_w = int(rcfg.get("italic_weight", args.italic_weight))
+    eff_threshold = int(args.threshold if args.threshold is not None else rcfg.get("threshold", 128))
+    if not (1 <= eff_threshold <= 254):
+        fail_gracefully(f"Invalid `--threshold {eff_threshold}`. Must be an integer in [1..254] (default: 128).")
+    eff_gamma = float(args.gamma if args.gamma is not None else rcfg.get("gamma", 1.0))
+    if not (0.20 <= eff_gamma <= 3.00):
+        fail_gracefully(f"Invalid `--gamma {eff_gamma}`. Must be in [0.20..3.00] (default: 1.0).")
 
-    # Load scheme JSON (defaults to tools/fonts/schemes/humid1_reference.scheme.json or first available scheme)
-    if args.scheme:
-        scheme_path = Path(args.scheme).resolve()
-    elif (script_dir / "schemes" / "humid1_reference.scheme.json").is_file():
-        scheme_path = (script_dir / "schemes" / "humid1_reference.scheme.json").resolve()
-    else:
-        scheme_path = (script_dir / "schemes" / "h1os_epd_scheme.json").resolve()
-    scheme_cfg: Optional[dict] = None
-    if scheme_path.is_file():
-        scheme_cfg, raw_plan = load_plan_from_scheme_json(scheme_path)
-        rcfg = scheme_cfg.get("raster_config", {})
-        normal_w = int(rcfg.get("normal_weight", args.normal_weight))
-        bold_w = int(rcfg.get("bold_weight", args.bold_weight))
-        italic_w = int(rcfg.get("italic_weight", args.italic_weight))
-        raster_m = rcfg.get("raster_mode", args.raster_mode)
-        print(f"[+] Loaded declarative font scheme: {scheme_path.name} ({scheme_cfg.get('project_brand', '')})")
-    else:
-        normal_w = args.normal_weight
-        bold_w = args.bold_weight
-        italic_w = args.italic_weight
-        raster_m = args.raster_mode
-        raw_plan = [
-            (fam, role, szs, r_str, False, fb_pat, "")
-            for (fam, role, szs, r_str, _, fb_pat) in PROFILES[args.profile]
-        ]
+    print(
+        f"[+] Loaded declarative font scheme: {scheme_path.name} "
+        f"(hw_scheme={hw_spec.hw_scheme_id}, chip={hw_spec.chip_name}, partition_1={hw_spec.partition_1}, "
+        f"pipeline={raw_pipe_arg}, threshold={eff_threshold}, gamma={eff_gamma:.2f}, "
+        f"sheet_debug={eff_sheet_debug}, char_debug={eff_char_debug})"
+    )
 
     family_roles = get_family_roles(normal_w, bold_w, italic_w)
     if args.families:
@@ -1282,29 +1143,8 @@ def main() -> None:
     if do_build_c:
         c_out_dir.mkdir(parents=True, exist_ok=True)
 
-    compiled_symbols: List[Tuple[str, str, str, int, int]] = []
-    compiled_details: List[dict] = []
-    strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
-    kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
-    vault_data: dict = {
-        "vault_version": "1.0.17",
-        "raster_mode": raster_m,
-        "normal_weight": normal_w,
-        "strikes": {},
-    }
-    total_rom_bytes = 0
-    total_ascii_dumped = 0
-    total_png_inspected = 0
-    total_char_pngs = 0
+    recursive_font_index = index_font_files_recursive([font_dir, repo_root / "assets"])
 
-    # Build list of strike tasks and execute across all host CPU cores via ProcessPoolExecutor!
-    t_start = time.perf_counter()
-    max_workers = args.jobs if (args.jobs and args.jobs > 0) else (os.cpu_count() or 4)
-    strike_tasks: List[dict] = []
-    do_repair_wf = args.workflow in ("repair", "all")
-    inspect_repairs_root = (root_out / "inspect_repairs") if do_repair_wf else None
-
-    # Pre-compute all planned strike symbols so `.fallback` pointers are guaranteed to resolve
     planned_symbols_set = set()
     for _fam, _role, _psizes, _, _, _, _ in raw_plan:
         _r = Path(_role.split("custom:", 1)[1]).stem.lower().replace("-", "_") if _role.startswith("custom:") else _role
@@ -1323,11 +1163,12 @@ def main() -> None:
                 cand = f"humid1_font_{cand}"
             elif cand.startswith("plex_terminus_"):
                 cand = f"humid1_font_{cand[5:]}"
+            else:
+                cand = f"humid1_font_{cand}"
         if cand == cur_sym:
             return None
         if cand in all_syms:
             return cand
-        # Find nearest size in the same fallback family prefix
         m = re.match(r"^(.+_)(\d+)$", cand)
         if m:
             prefix = m.group(1)
@@ -1338,13 +1179,13 @@ def main() -> None:
                     if tail.isdigit():
                         avail_sizes.append((int(tail), s_item))
             if avail_sizes:
-                # Prefer largest size <= cur_sz, else smallest size > cur_sz
                 le = [x for x in avail_sizes if x[0] <= cur_sz]
                 if le:
                     return max(le, key=lambda x: x[0])[1]
                 return min(avail_sizes, key=lambda x: abs(x[0] - cur_sz))[1]
         return None
 
+    strike_tasks: List[dict] = []
     for family, role, prof_sizes, range_str, inc_fa5, fb_pattern, fa_range_str in raw_plan:
         if role.startswith("custom:"):
             ttf_name = role.split("custom:", 1)[1]
@@ -1360,25 +1201,37 @@ def main() -> None:
         codepoints = parse_unicode_range(range_str)
         if family.startswith("icon_"):
             codepoints = [cp for cp in codepoints if cp >= 0xE000]
-            if family == "icon_tabler" and role == "filled" and not codepoints:
-                codepoints = parse_unicode_range(DEFAULT_ICON_FALLBACK_RANGES["icon_tabler_filled"])
-        enable_kern = family in ("sans", "plex_sans", "noto_sans", "cond", "plex_cond", "noto_cond", "serif", "plex_serif", "noto_serif")
+            if family == "icon_tabler" and role == "filled":
+                codepoints = [cp for cp in codepoints if cp >= 0xEE80]
+                if not codepoints:
+                    codepoints = parse_unicode_range(DEFAULT_ICON_FALLBACK_RANGES["icon_tabler_filled"])
+        enable_kern = family in ("sans", "plex_sans", "noto_sans", "cond", "plex_cond", "noto_cond", "serif", "plex_serif", "noto_serif", "custom")
 
         for sz in valid_sizes:
-            # For Terminus, select the exact size-specific native .ttf (Terminus-Normal-<sz>.ttf / Terminus-Bold-<sz>.ttf)
             strike_ttf_name = ttf_name
             if family == "terminus":
-                if "bold" in role.lower() and (font_dir / f"Terminus-Bold-{sz}.ttf").is_file():
-                    strike_ttf_name = f"Terminus-Bold-{sz}.ttf"
-                elif "vga" in role.lower() and (font_dir / f"Terminus-VGA-{sz}.ttf").is_file():
-                    strike_ttf_name = f"Terminus-VGA-{sz}.ttf"
-                elif (font_dir / f"Terminus-Normal-{sz}.ttf").is_file():
-                    strike_ttf_name = f"Terminus-Normal-{sz}.ttf"
+                if "bold" in role.lower():
+                    for c_sz in (sz, max(12, sz - 2), 16):
+                        if resolve_font_file_recursive(f"Terminus-Bold-{c_sz}.ttf", [font_dir], recursive_font_index):
+                            strike_ttf_name = f"Terminus-Bold-{c_sz}.ttf"
+                            break
+                elif "vga" in role.lower():
+                    for c_sz in (sz, 16, 14):
+                        if resolve_font_file_recursive(f"Terminus-VGA-{c_sz}.ttf", [font_dir], recursive_font_index):
+                            strike_ttf_name = f"Terminus-VGA-{c_sz}.ttf"
+                            break
+                else:
+                    for c_sz in (sz, max(12, sz - 2), 16):
+                        if resolve_font_file_recursive(f"Terminus-Normal-{c_sz}.ttf", [font_dir], recursive_font_index):
+                            strike_ttf_name = f"Terminus-Normal-{c_sz}.ttf"
+                            break
 
-            ttf_path = font_dir / strike_ttf_name
-            if not ttf_path.is_file():
-                print(f"[!] Missing static TTF binary: {ttf_path}\n    Run `01_build_static_ttfs.bat` first.", file=sys.stderr)
-                sys.exit(1)
+            ttf_path = resolve_font_file_recursive(strike_ttf_name, [font_dir, repo_root / "assets"], recursive_font_index)
+            if ttf_path is None or not ttf_path.is_file():
+                fail_gracefully(
+                    f"Missing font asset `{strike_ttf_name}` inside `{font_dir}`.",
+                    "Run `01_build_static_ttfs.bat` first or verify `--src-dir` contains the font.",
+                )
 
             sym_name = format_strike_symbol(family, role, sz)
             legacy_sym_name = f"plex_{family}_{role}_{sz}"
@@ -1397,12 +1250,13 @@ def main() -> None:
                 "family": family,
                 "role": role,
                 "sz": sz,
-                "ttf_name": strike_ttf_name,
+                "ttf_name": ttf_path.name,
                 "ttf_path": str(ttf_path),
                 "font_dir": str(font_dir),
                 "codepoints": codepoints,
                 "effective_raster_m": effective_raster_m,
-                "threshold": args.threshold,
+                "threshold": eff_threshold,
+                "gamma": eff_gamma,
                 "strike_patches": strike_patches,
                 "strike_ascii_dir": str(strike_ascii_dir) if strike_ascii_dir else None,
                 "enable_kern": enable_kern,
@@ -1413,72 +1267,131 @@ def main() -> None:
                 "dump_ascii_root": str(dump_ascii_root) if dump_ascii_root else None,
                 "trouble_only": args.trouble_only,
                 "unicode_preview": args.unicode_preview,
+                "sheet_debug": eff_sheet_debug,
+                "char_debug": eff_char_debug,
                 "inspect_png_root": str(inspect_png_root) if inspect_png_root else None,
                 "inspect_chars_root": str(inspect_chars_root) if inspect_chars_root else None,
                 "inspect_chars_filter": args.inspect_chars_filter,
-                "bdf_out_dir": str(bdf_out_dir) if (bdf_out_dir and sz <= 32) else None,
+                "bdf_out_dir": str(bdf_out_dir) if bdf_out_dir else None,
                 "metrics_out_dir": str(metrics_out_dir) if metrics_out_dir else None,
-                "auto_floor": bool(scheme_cfg.get("raster_config", {}).get("auto_floor", args.auto_floor)) if scheme_cfg else args.auto_floor,
-                "min_stem": int(scheme_cfg.get("raster_config", {}).get("min_stem_px", args.min_stem)) if scheme_cfg else args.min_stem,
-                "repair_engine": str(scheme_cfg.get("raster_config", {}).get("repair_engine", args.repair_engine)) if scheme_cfg else args.repair_engine,
-                "tune_mode": str(scheme_cfg.get("raster_config", {}).get("tune_mode", args.tune_mode)) if scheme_cfg else args.tune_mode,
-                "inspect_repairs_root": str(inspect_repairs_root) if inspect_repairs_root else None,
+                "debug_stages_dir": str(debug_stages_root) if debug_stages_root else None,
+                "run_all_methods": (
+                    False if (args.workflow == "build" and not eff_sheet_debug and not eff_char_debug and raw_pipe_arg != "all-debug")
+                    else (run_all_methods if (len(planned_symbols_set) <= 120 or raw_pipe_arg == "all-debug") else (run_all_methods and sz == 16))
+                ),
+                "dump_each_method_outputs": dump_each_method_outputs,
+                "verbose": args.verbose,
             })
 
+    t_start = time.perf_counter()
+    max_workers = hw_info.recommended_workers
     print(f"[*] Processing {len(strike_tasks)} font/icon strikes in parallel across {max_workers} CPU worker processes...")
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as pool:
-        for res in pool.map(_execute_strike_worker_task, strike_tasks):
-            sym_name = res["sym_name"]
-            family = res["family"]
-            role = res["role"]
-            sz = res["sz"]
-            rom_b = res["rom_b"]
-            glyphs = res["glyphs"]
-            line_h = res["line_h"]
-            base_l = res["base_l"]
-            kern_pairs = res["kern_pairs"]
 
-            total_rom_bytes += rom_b
-            total_ascii_dumped += res["ascii_dumped"]
-            total_png_inspected += res["png_pages"]
-            total_char_pngs += res["char_pngs"]
-            compiled_symbols.append((sym_name, family, role, sz, rom_b))
-            compiled_details.append({
-                "sym_name": sym_name,
-                "family": family,
-                "role": role,
-                "sz": sz,
-                "line_h": line_h,
-                "glyph_count": len(glyphs),
-                "kern_count": len(kern_pairs),
-                "rom_b": rom_b,
-                "c_disk_b": res.get("c_disk_b", 0),
-            })
+    compiled_symbols: List[Tuple[str, str, str, int, int]] = []
+    compiled_details: List[dict] = []
+    strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]] = {}
+    kern_cache: Dict[str, Dict[Tuple[int, int], int]] = {}
+    all_method_rows: List[Tuple[str, int, Dict[str, dict]]] = []
+    vault_data: dict = {
+        "vault_version": TOOL_VERSION,
+        "raster_mode": raw_pipe_arg,
+        "threshold": eff_threshold,
+        "gamma": eff_gamma,
+        "normal_weight": normal_w,
+        "hardware_scheme": hw_spec.hw_scheme_id,
+        "chip_name": hw_spec.chip_name,
+        "partition_1": hw_spec.partition_1,
+        "partition_1_bytes": hw_spec.partition_1_bytes,
+        "strikes": {},
+    }
+    total_rom_bytes = 0
+    total_ascii_dumped = 0
+    total_png_inspected = 0
+    total_char_pngs = 0
 
-            gmap = {g.codepoint: g for g in glyphs}
-            strike_cache[sym_name] = (gmap, line_h, base_l)
-            kern_cache[sym_name] = {(lc, rc): kv for _, _, lc, rc, kv in kern_pairs}
+    worker_results = run_parallel_tasks(_execute_strike_worker_task, strike_tasks, max_workers=max_workers)
+    for res in worker_results:
+        sym_name = res["sym_name"]
+        family = res["family"]
+        role = res["role"]
+        sz = res["sz"]
+        rom_b = res["rom_b"]
+        glyphs = res["glyphs"]
+        line_h = res["line_h"]
+        base_l = res["base_l"]
+        kern_pairs = res["kern_pairs"]
 
-            if vault_out_path:
-                vault_data["strikes"][sym_name] = res["vault_entry"]
+        total_rom_bytes += rom_b
+        total_ascii_dumped += res["ascii_dumped"]
+        total_png_inspected += res["png_pages"]
+        total_char_pngs += res["char_pngs"]
+        compiled_symbols.append((sym_name, family, role, sz, rom_b))
+        compiled_details.append({
+            "sym_name": sym_name,
+            "family": family,
+            "role": role,
+            "sz": sz,
+            "line_h": line_h,
+            "glyph_count": len(glyphs),
+            "kern_count": len(kern_pairs),
+            "rom_b": rom_b,
+            "c_disk_b": res.get("c_disk_b", 0),
+        })
+        if res.get("all_method_stats"):
+            all_method_rows.append((sym_name, sz, res["all_method_stats"]))
 
-            print(res["log_line"])
+        gmap = {g.codepoint: g for g in glyphs}
+        strike_cache[sym_name] = (gmap, line_h, base_l)
+        kern_cache[sym_name] = {(lc, rc): kv for _, _, lc, rc, kv in kern_pairs}
+
+        if vault_out_path:
+            vault_data["strikes"][sym_name] = res["vault_entry"]
+
+        print(res["log_line"])
 
     elapsed_s = time.perf_counter() - t_start
     print(f"[+] Completed {len(strike_tasks)} strikes in {elapsed_s:.2f}s using {max_workers} CPU cores.")
 
+    if all_method_rows:
+        aud_dir = root_out / "audits"
+        aud_dir.mkdir(parents=True, exist_ok=True)
+        hdr_cols = " | ".join(f"`{pm}` (Stem / >=2px / Cnt)" for pm in CANONICAL_PIPELINES)
+        sep_cols = " | ".join(":---" for _ in CANONICAL_PIPELINES)
+        md_lines = [
+            f"# 8-Pipeline Resolution-Reduction Bilevel Conversion Audit Summary (`epd-font` v{TOOL_VERSION})",
+            "",
+            f"- **Scheme**: `{scheme_path.name}`",
+            f"- **Hardware Scheme**: `{hw_spec.hw_scheme_id}` (`{hw_spec.chip_name}`, `partition_1 = {hw_spec.partition_1}`)",
+            f"- **Threshold**: `{eff_threshold}` | **Gamma**: `{eff_gamma:.2f}`",
+            "",
+            f"| Strike Symbol | Size | {hdr_cols} |",
+            f"| :--- | ---: | {sep_cols} |",
+        ]
+        for s_sym, s_sz, fstats in all_method_rows:
+            cells = []
+            for pm in CANONICAL_PIPELINES:
+                st = fstats.get(pm, {})
+                cells.append(f"`{st.get('mean_stem_px', 0):.2f}px` / `{st.get('stem_2px_pct', 0):.1f}%` / `{st.get('counter_pct', 0):.1f}%`")
+            md_lines.append(f"| `{s_sym}` | `{s_sz}px` | {' | '.join(cells)} |")
+        md_body = "\n".join(md_lines) + "\n"
+        aud_file = aud_dir / "audit_8_pipelines_summary.md"
+        aud_file.write_text(md_body, encoding="utf-8")
+        (aud_dir / "audit_4_pipelines_summary.md").write_text(md_body, encoding="utf-8")
+        print(f"[+] Generated 8-Pipeline Resolution-Reduction Audit Summary -> {aud_file}")
+
     if do_build_c:
         generate_headers(c_out_dir, compiled_symbols, scheme_cfg=scheme_cfg)
-        copy_licenses(None, font_dir, c_out_dir)
+        copied_lics = copy_licenses(None, font_dir, c_out_dir)
+        if args.verbose:
+            print(f"[+] Copied {len(copied_lics)} license files into {c_out_dir / 'licenses'}")
 
     if vault_out_path:
         v_bytes = export_strike_vault(vault_out_path, vault_data)
         print(f"[+] Exported pre-rasterized Strike Vault ({len(vault_data['strikes'])} strikes) -> {vault_out_path} ({v_bytes:,} B)")
 
     if do_build_c and compiled_details:
-        tdisp_d = (scheme_cfg or {}).get("target_display", {})
-        rep_dpi = args.dpi if args.dpi is not None else float(tdisp_d.get("dpi", 188.3))
-        rep_scheme = scheme_cfg.get("scheme_id", args.profile) if scheme_cfg else args.profile
+        rep_dpi = args.dpi if args.dpi is not None else hw_spec.dpi
+        rep_scheme = scheme_cfg.get("scheme_id", "custom") if scheme_cfg else "custom"
         sz_rep_path = write_total_disk_size_report(
             c_out_dir=c_out_dir,
             root_out=root_out,
@@ -1487,40 +1400,51 @@ def main() -> None:
             vault_path=vault_out_path,
             scheme_id=rep_scheme,
             dpi=rep_dpi,
+            scheme_cfg=scheme_cfg,
+            hw_spec=hw_spec,
+            hw_scheme_cli=args.hw_scheme,
+            scheme_path=scheme_path,
         )
-        print(f"[+] Generated Flash ROM & Disk Size Report -> {sz_rep_path}")
+        print(f"[+] Generated Flash ROM (.rodata) & Disk Size Report -> {sz_rep_path}")
 
     if dump_ascii_root:
         print(f"[+] Dumped {total_ascii_dumped:,} Full-Canvas 1:1 Spaced ASCII .txt files across {len(compiled_symbols)} folders in {dump_ascii_root}")
-        if (args.workflow == "repair" or getattr(args, "save_repaired_patches", False)) and dump_ascii_root.is_dir():
-            comp_cnt = build_patches_json_from_ascii_root(dump_ascii_root, patches_path, only_modified=True)
-            print(f"[+] Compiled {comp_cnt:,} auto-repaired ASCII glyph patches from {dump_ascii_root} -> {patches_path}")
 
-    if inspect_png_root:
-        print(f"[+] Rendered {total_png_inspected} Auto-Wrapped Page Check PNG sheets in {inspect_png_root}")
+    if eff_sheet_debug and inspect_png_root and strike_cache:
+        master_map_png = inspect_png_root / "master_char_icon_map.png"
+        render_master_char_icon_map_png(
+            out_png=master_map_png,
+            strike_cache=strike_cache,
+            scheme_id=scheme_cfg.get("scheme_id", "epd-font") if scheme_cfg else "epd-font",
+            pipeline_name=raw_pipe_arg,
+            static_dir=font_dir,
+        )
+        print(f"[+] Rendered {total_png_inspected} Auto-Wrapped Page Check PNG sheets + Master Character/Icon Map in {inspect_png_root}")
+    elif not eff_sheet_debug:
+        print("[*] Sheet inspection PNG generation skipped (`sheet_debug = false`).")
 
-    if inspect_chars_root:
+    if eff_char_debug and inspect_chars_root:
         print(f"[+] Rendered {total_char_pngs:,} Char-by-Char Deep-Check Blueprint PNG cards in {inspect_chars_root}")
+    elif not eff_char_debug:
+        print("[*] Character inspection PNG generation skipped (`char_debug = false`).")
 
-    label_mode = scheme_cfg.get("scheme_id", args.profile) if scheme_cfg else args.profile
+    label_mode = scheme_cfg.get("scheme_id", "custom") if scheme_cfg else "custom"
     print(
-        f"\n[+] Scheme '{label_mode}' ({raster_m}, normal={normal_w}) complete: "
-        f"{len(compiled_symbols)} strikes, total ROM = {total_rom_bytes:,} bytes ({total_rom_bytes/1024:.1f} KB)."
+        f"\n[+] Scheme '{label_mode}' (pipeline={raw_pipe_arg}, threshold={eff_threshold}, gamma={eff_gamma:.2f}, normal={normal_w}) complete: "
+        f"{len(compiled_symbols)} strikes, total ROM = {total_rom_bytes:,} bytes ({total_rom_bytes/1024:.1f} KB / {total_rom_bytes * 100.0 / hw_spec.partition_1_bytes:.2f}% of {hw_spec.partition_1})."
     )
 
-    if (args.audit_screens or do_check_png) and strike_cache:
-        mont_dir = Path(args.montserrat_metrics_dir).resolve() if args.montserrat_metrics_dir else None
-        tdisp = (scheme_cfg or {}).get("target_display", {})
-        s_dpi = args.dpi if args.dpi is not None else float(tdisp.get("dpi", 188.3))
-        s_w = args.screen_width if args.screen_width is not None else int(tdisp.get("width_px", 200))
-        s_h = args.screen_height if args.screen_height is not None else int(tdisp.get("height_px", 200))
-        s_m = args.safe_margin if args.safe_margin is not None else int(tdisp.get("safe_margin_px", 6))
-        p_label = tdisp.get("panel", (scheme_cfg or {}).get("project_brand", "Humiditron Reference EPD"))
+    if (args.audit_screens or eff_sheet_debug) and strike_cache:
+        s_dpi = args.dpi if args.dpi is not None else hw_spec.dpi
+        s_w = args.screen_width if args.screen_width is not None else hw_spec.width_px
+        s_h = args.screen_height if args.screen_height is not None else hw_spec.height_px
+        s_m = args.safe_margin if args.safe_margin is not None else hw_spec.safe_margin_px
+        p_label = hw_spec.panel
         c_rows = (scheme_cfg or {}).get("screen_audit_rows", None)
         run_screen_width_audit(
             strike_cache,
             kern_cache,
-            mont_dir,
+            None,
             screen_width=s_w,
             screen_height=s_h,
             safe_margin=s_m,
@@ -1529,7 +1453,7 @@ def main() -> None:
             custom_rows=c_rows,
         )
 
-    if specimen_out_path and strike_cache:
+    if eff_sheet_debug and specimen_out_path and strike_cache:
         render_specimen_sheet(specimen_out_path, strike_cache)
 
 

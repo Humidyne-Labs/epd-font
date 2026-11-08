@@ -37,6 +37,7 @@ import gc
 import math
 import os
 import threading
+import warnings
 import weakref
 from typing import Dict, List, Optional, Tuple
 
@@ -777,6 +778,7 @@ class SharedHostMemoryArena:
     def __init__(self, ctx: "cl.Context", max_shared_mb: int = 4096) -> None:
         self.ctx = ctx
         self.max_shared_bytes = max(64, int(max_shared_mb)) * 1024 * 1024
+        self.budget_bytes = self.max_shared_bytes
         self.allocated_bytes = 0
         self._lock = threading.Lock()
         self._slots: Dict[str, Tuple["cl.Buffer", int]] = {}

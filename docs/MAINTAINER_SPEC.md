@@ -1,14 +1,14 @@
-# Formal Developer & Pipeline Specification — `epd-font` (v1.0.21)
+# Formal Developer & Pipeline Specification — `epd-font` (v1.0.22)
 
-- **Document ID**: `HUMIDITRON-SPEC-EPD-FONT-1.0.21`
+- **Document ID**: `HUMIDITRON-SPEC-EPD-FONT-1.0.22`
 - **Project**: A 1-bit EPD font generator and asset pipeline for embedded displays
-- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.21`)
+- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.22`)
 - **Authors**: [Humiditron](https://github.com/humiditron) (Humidyne Labs) & AI/LLM Collaborative Development Partner
 - **License**: MIT License (Tooling & C Emitter) / SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT (Upstream Fonts)
 
 ## 1. Architectural Overview & Source Traceability
 
-`epd-font` v1.0.21 enforces strict separation between immutable upstream static font archives (`assets/`), intermediate build/evaluation/audit outputs (`build/`), root-tracked manual pixel patches (`font_icon_epd_patches.json`), root hardware schemes (`esp32s3-N8R8-hw_scheme.json`, `generic_hw.json`), and portable versioned firmware distributions (`dist/`):
+`epd-font` v1.0.22 enforces strict separation between immutable upstream static font archives (`assets/`), intermediate build/evaluation/audit outputs (`build/`), root-tracked manual pixel patches (`font_icon_epd_patches.json`), root hardware schemes (`esp32s3-N8R8-hw_scheme.json`, `generic_hw.json`), and portable versioned firmware distributions (`dist/`):
 - **Static Source Immutability**: Files in `assets/` (or any custom `--src-dir` font directory) are searched recursively (`os.walk`) and are **never modified in place**, preserving SHA-256 source traceability.
 - **Logical `build/` Subdirectory Tree**:
   - `build/static_ttfs/` — Standardized static `.ttf` cuts (`113` cuts across IBM Plex, Google Noto, Terminus `10px–40px`, and 4 icon suites) + `licenses/`.
@@ -56,7 +56,7 @@ Let $T \in [1, 254]$ denote the configurable binarization threshold (default $T 
 
 
 ### 2.3 Modular Mathematical Abstraction & Hardware-Checked GPU/CPU Dispatch (`tools/fonts/math_backends/`)
-In `v1.0.21`, all resolution-reduction, polynomial root-finding, luminance linearization, and histogram thresholding math is abstracted into `tools/fonts/math_backends/`:
+In `v1.0.22`, all resolution-reduction, polynomial root-finding, luminance linearization, and histogram thresholding math is abstracted into `tools/fonts/math_backends/`:
 - `hw_dispatch.py`: Probes available compute hardware at startup (`select_math_backend()`, `describe_math_backend()`) and routes each mathematical call across three tiers:
   1. **`opencl` (`opencl_kernels.py`)**: PyOpenCL GPU / heterogeneous kernels conforming to the [Khronos OpenCL 3.0 Unified Specification](https://registry.khronos.org/OpenCL/specs/unified/refpages/man/html/), including `srgb_to_linear_gamma_kernel`, `render_bezier_sdf_yuksel_kernel` (Cem Yüksel degree-5 to degree-2 monotonic polynomial root-finding cascade + cubic ray-crossing winding parity), `sdf_valve_smoothstep_kernel` ($L_2$ screen-space derivative anti-aliasing), `msdf_median3_reconstruct_kernel` ([Chlumsky/msdfgen](https://github.com/Chlumsky/msdfgen)), `adf_biquadratic_9pt_kernel` (Saffron 9-point biquadratic Lagrange quadrature), and `compute_histogram_local_atomic` (`__local uint local_hist[256]` atomic reduction for Otsu $\sigma_B^2(k^*)$). Work-groups are sized to multiples of `64` (`16x8 = 128` or `8x8 = 64`) for optimal wavefront occupancy on AMD GCN/Polaris (`gfx803`) and NVIDIA warp architectures, using `CL_MEM_ALLOC_HOST_PTR` zero-copy pinned transfers.
   2. **`umat` (`umat_math.py`)**: OpenCV Transparent API (`cv2.ocl` / `cv2.UMat`) OpenCL queue for morphological closing and median filtering when `pyopencl` is absent.

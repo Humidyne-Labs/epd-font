@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [05] Humidyne Labs - Humiditron epd-font v1.0.21 - Compile Edited ASCII Patches to Root Patch File
+echo [05] Humidyne Labs - Humiditron epd-font v1.0.22 - Compile Edited ASCII Patches to Root Patch File
 echo      Workflow   : H1OS and humid1-os Firmware Distribution Workflow (ESP32-S3-N8R8)
 echo      Input Dir  : build\h1os\ascii_patches\
 echo      Output File: font_icon_epd_patches.json

@@ -7,9 +7,9 @@
     "Humiditron (https://github.com/humiditron)",
     "AI/LLM Collaborative Development Partner"
   ],
-  "version": "1.0.21",
-  "release_archive_tag": "v1.0.21",
-  "previous_version": "1.0.20",
+  "version": "1.0.22",
+  "release_archive_tag": "v1.0.22",
+  "previous_version": "1.0.21",
   "release_date": "2026-11-08",
   "repository_license": "MIT",
   "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
@@ -57,7 +57,7 @@
     "audits": "build/audits",
     "ascii_patches": "build/<workflow>/ascii_patches",
     "debug_stages": "build/<workflow>/debug_stages",
-    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.21.zip"
+    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.22.zip"
   },
   "target_hardware": {
     "chip_name": "ESP32-S3-N8R8",
@@ -67,7 +67,7 @@
   },
   "static_ttf_count": 113,
   "patch_count": 0,
-  "codename": "Nine-Pipeline Public Release, Single-Source Hardware Config & 75% Shared GPU RAM Edition",
+  "codename": "Singular Configuration Matrix, 5-Mode Hardware Delegation & Structured Visual Audit Edition",
   "target_display_dpi": 188.15,
   "math_backends": [
     "tools/fonts/math_backends/opencl_kernels.py (PyOpenCL 3D NDRange GPU/CPU + 75% Shared GPU RAM Arena + 1+JFA Marching Squares)",
@@ -105,5 +105,12 @@
   "potrace_submodes": [
     "potrace",
     "jfa-marching"
-  ]
+  ],
+  "math_backend_modes": {
+    "auto": "Probes hardware upfront; delegates heavy/distance-field/icon strikes to persistent OpenCL GPU worker and lightweight/bitmap strikes to async CPU workers (or all CPU workers if no GPU is present).",
+    "cpu": "Uses only the host CPU across all tasks (N async ProcessPoolExecutor CPU workers, zero GPU contexts).",
+    "gpu": "Requires a verified OpenCL/UMat GPU (raises an explicit error if unavailable); executes all applicable math, distance-field, thresholding, and sorting operations on the GPU while CPU orchestrates I/O.",
+    "hybrid": "Requires both a verified OpenCL GPU and multi-core CPU (raises an explicit error if unavailable); runs dual-pool deque work-stealing (1 GPU worker + N-1 CPU workers).",
+    "sync": "Executes all tasks sequentially in a single process without multiprocessing pools."
+  }
 }

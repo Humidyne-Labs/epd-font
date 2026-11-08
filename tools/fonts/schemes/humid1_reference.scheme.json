@@ -1,23 +1,23 @@
 {
-  "schema_version": "1.0.21",
+  "schema_version": "1.0.22",
   "scheme_id": "h1os_epd_v1_full",
   "project_brand": "Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite",
-  "description": "Master v1.0.21 H1OS & humid1-os Full Division-of-Labor Firmware Scheme (Hinted IBM Plex Sans/Mono + Hinted Google Noto Sans/SemiCondensed/Serif/Math + Native Terminus + 4 Icon Suites).",
+  "description": "Master v1.0.22 H1OS & humid1-os Full Division-of-Labor Firmware Scheme (Hinted IBM Plex Sans/Mono + Hinted Google Noto Sans/SemiCondensed/Serif/Math + Native Terminus + 4 Icon Suites).",
   "spdx_license": "MIT AND OFL-1.1",
   "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
+    "pipeline": "raw-hinted",
+    "math_backend": "auto",
+    "threshold": 128,
+    "gamma": 1.0,
     "normal_weight": 500,
     "bold_weight": 800,
+    "italic_weight": 600,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/h1os/ascii_patches",
-    "italic_weight": 600,
-    "pipeline": "raw-hinted",
-    "threshold": 128,
-    "debug_stages": false,
-    "gamma": 1.0,
-    "char_debug": false,
     "sheet_debug": false,
-    "math_backend": "auto"
+    "char_debug": false,
+    "debug_stages": false
   },
   "output_branding": {
     "symbol_prefix": "humid1_",

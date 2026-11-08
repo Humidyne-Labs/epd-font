@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [01] Humidyne Labs - Humiditron epd-font v1.0.21 - Build Static TTFs and Metadata
+echo [01] Humidyne Labs - Humiditron epd-font v1.0.22 - Build Static TTFs and Metadata
 echo      Workflow   : Complete 10px-40px (Step 2px) 9-Pipeline Visual Audit and Distribution Workflow
 echo      Source Dir : assets\
 echo      Output Dir : build\static_ttfs\ and build\metadata\
@@ -13,5 +13,5 @@ if errorlevel 1 (
     if "%EPD_NO_PAUSE%"=="" pause
     exit /b 1
 )
-echo [+] Static TTF assets (113 binaries) and metadata JSON catalogs verified in build\static_ttfs and build\metadata.
+echo [+] Static TTF assets and metadata JSON catalogs verified in build\static_ttfs and build\metadata.
 if "%EPD_NO_PAUSE%"=="" pause

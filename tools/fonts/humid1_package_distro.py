@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_package_distro.py (v1.0.21)
+humid1_package_distro.py (v1.0.22)
 ==================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -9,7 +9,7 @@ License    : MIT License
 
 Portable Distribution Bundler & Versioned Zip Archive Generator:
 Packages a self-contained firmware distribution directory (`--dist-dir`) and creates
-a versioned `.zip` archive (`epd-font_<workflow>_v1.0.21.zip`) containing:
+a versioned `.zip` archive (`epd-font_<workflow>_v1.0.22.zip`) containing:
   - Static build blob (`humid1_epd_vault.json.gz`)
   - Hardware scheme descriptors (`esp32s3-N8R8-hw_scheme.json`, `generic_hw.json`, `generic_hw.json`)
   - CMake-compatible Python scripts (`tools/humid1_fw_emit.py`, `tools/humid1_cmake_font_builder.py`, `tools/humid1_runtime.py`)
@@ -17,7 +17,7 @@ a versioned `.zip` archive (`epd-font_<workflow>_v1.0.21.zip`) containing:
   - Automatically copied font, icon, and MIT repository license files (`licenses/`)
   - Generated LVGL >= 9.6.0 `.c`/`.h` sources (`fonts/`)
   - ROM space estimate reports (`rom_space_estimate.txt`, `total_disk_size.txt`)
-  - Comprehensive `README.md` with version info (`v1.0.21`), credits, and full font/strike inventory.
+  - Comprehensive `README.md` with version info (`v1.0.22`), credits, and full font/strike inventory.
 """
 
 from __future__ import annotations
@@ -180,7 +180,7 @@ def package_distribution_bundle(
     ]
     (dist_dir / "README.md").write_text("\n".join(readme_lines), encoding="utf-8")
 
-    # 9. Create versioned zip archive inside dist_dir.parent (e.g. dist/epd-font_h1os_distro_v1.0.21.zip)
+    # 9. Create versioned zip archive inside dist_dir.parent (e.g. dist/epd-font_h1os_distro_v1.0.22.zip)
     for stale_z in dist_dir.glob("*.zip"):
         stale_z.unlink()
     zip_name = f"{REPO_NAME}_{bundle_name}_v{TOOL_VERSION}.zip"
@@ -205,7 +205,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("-b", "--build-dir", type=str, required=True, help="Input build directory (e.g. build/h1os)")
     parser.add_argument("-d", "--dist-dir", type=str, required=True, help="Output distribution directory (e.g. dist/h1os_distro)")
     parser.add_argument("-S", "--schemes", type=str, nargs="+", required=True, help="One or more .scheme.json files to include")
-    parser.add_argument("-H", "--hw-scheme", type=str, default=None, help="Optional primary hardware scheme JSON to validate/include (e.g. esp32s3-N8R8-hw_scheme.json or generic_hw.json)")
     parser.add_argument("-n", "--name", type=str, default="distro", help="Bundle identifier tag (e.g. h1os, example, audit)")
     return parser
 

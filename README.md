@@ -1,13 +1,13 @@
-# `epd-font` (v1.0.21) — A 1-bit EPD Font Generator and Asset Pipeline for Embedded Displays
+# `epd-font` (v1.0.22) — A 1-bit EPD Font Generator and Asset Pipeline for Embedded Displays
 
-[![Version](https://img.shields.io/badge/version-v1.0.21-blue.svg)](VERSION.json)
+[![Version](https://img.shields.io/badge/version-v1.0.22-blue.svg)](VERSION.json)
 [![Repository](https://img.shields.io/badge/github-Humidyne--Labs%2Fepd--font-181717.svg)](https://github.com/Humidyne-Labs/epd-font)
 [![Lead Developer](https://img.shields.io/badge/developer-Humiditron-0A66C2.svg)](https://github.com/humiditron)
 [![License](https://img.shields.io/badge/license-MIT%20%2F%20OFL--1.1%20%2F%20ISC-green.svg)](LICENSE)
 
 **`epd-font`** is **A 1-bit EPD font generator and asset pipeline for embedded displays**, designed and developed collaboratively by **[Humiditron](https://github.com/humiditron)** (Humidyne Labs) and the **AI/LLM Collaborative Development Partner** for monochrome Electrophoretic Displays (EPD) such as the Waveshare 1.54" e-Paper V2 (`SSD1681` / `GDEY0154D67`, `200 × 200` pixels @ `188.15 DPI`), OLEDs, Memory LCDs, and LVGL `>= 9.6.0` (and v8/v9) embedded applications ([public repository](https://github.com/Humidyne-Labs/epd-font)).
 
-## 1. Core Capabilities in v1.0.21
+## 1. Core Capabilities in v1.0.22
 
 1. **Eight Deterministic Resolution-Reduction (`1-bpp`) Conversion Pipelines + Linear Grayscale & Gamma (`tools/fonts/humid1_bilevel_pipelines.py`)**:
    - **True Linear Grayscale + Optional Gamma**: Converts sRGB or single-channel coverage rasters to ITU-R BT.709 / IEC 61966-2-1 linear luminance ($Y_{\text{lin}} = 0.2126 R_{\text{lin}} + 0.7152 G_{\text{lin}} + 0.0722 B_{\text{lin}}$) with configurable gamma adjustment (`--gamma`, default `1.0`) and an L1-cached 256-entry `uint8` LUT for `gamma == 1.0`.
@@ -32,7 +32,7 @@
    - Calibrated to the exact physical pixel density of the Waveshare 1.54" e-Paper V2 (`200 × 200` pixels across `27.00 mm × 27.00 mm`, `0.135 mm` pixel pitch -> `188.15 DPI`).
    - Supports only the single `3 MByte` (`3,145,728` bytes) hardware partition constraint in `rom_space_estimate.txt` and `total_disk_size.txt`, with **zero hardcoded fallback defaults**.
 5. **Closed-Loop Manual ASCII Patching & LVGL `>= 9.6.0` ESP-IDF CMake Integration**:
-   - Includes `humid1_cmake_font_builder.py`, `humid1_fw_emit.py`, `cmake/epd_font_esp_idf.cmake`, and `humid1_package_distro.py` for zero-dependency ESP-IDF CMake builds and portable versioned `.zip` distribution bundles (`dist/epd-font_<workflow>_v1.0.21.zip`).
+   - Includes `humid1_cmake_font_builder.py`, `humid1_fw_emit.py`, `cmake/epd_font_esp_idf.cmake`, and `humid1_package_distro.py` for zero-dependency ESP-IDF CMake builds and portable versioned `.zip` distribution bundles (`dist/epd-font_<workflow>_v1.0.22.zip`).
 
 ## 2. Detailed Installation, OpenCL Runtime Libraries & Setup Guide
 
@@ -118,7 +118,7 @@ To enable `PyOpenCL` hardware acceleration across **both discrete/integrated GPU
 | Target Hardware Device | Runtime OpenCL Library / ICD Package | Platform & Installation Instructions | Typical Device Enumeration in `probe_hardware.py` |
 | :--- | :--- | :--- | :--- |
 | **Multi-Core x86_64 CPUs (`AMD Ryzen` & `Intel Core / Xeon`)** | **[Intel CPU Runtime for OpenCL Applications with SYCL Support](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html)** (`intelocl64.dll` / `libintelocl.so` / `intel-opencl-rt`) | **Windows & Linux**: Download the standalone **Intel CPU Runtime for OpenCL Applications** installer from [Intel Developer Zone](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html) (or install via `python -m pip install intel-opencl-rt`). Exposes all logical x86_64 threads on **both AMD Ryzen and Intel CPUs** as an OpenCL `CL_DEVICE_TYPE_CPU` compute target with AVX2 SIMD vectorization. | `[1] Platform 1, Device 0: AMD Ryzen 5 5600G with Radeon Graphics (ALL \| CPU) - 12 CUs` |
-| **AMD Discrete & Integrated GPUs (`Polaris / RX 500`, `Vega`, `RDNA`)** | **[AMD Software: Adrenalin Edition](https://www.amd.com/en/support)** (`amdocl64.dll`, `PAL,HSAIL`) / **ROCm OpenCL Runtime** (`rocm-opencl-runtime`) | **Windows**: Included automatically with [AMD Software: Adrenalin Edition](https://www.amd.com/en/support) (`Driver >= 31.0.21923`, OpenCL 2.1 `AMD-APP`).<br>**Linux**: Install `rocm-opencl-runtime` or `mesa-opencl-icd`. | `[0] Platform 0, Device 0: Ellesmere (ALL \| GPU) - 32 CUs` |
+| **AMD Discrete & Integrated GPUs (`Polaris / RX 500`, `Vega`, `RDNA`)** | **[AMD Software: Adrenalin Edition](https://www.amd.com/en/support)** (`amdocl64.dll`, `PAL,HSAIL`) / **ROCm OpenCL Runtime** (`rocm-opencl-runtime`) | **Windows**: Included automatically with [AMD Software: Adrenalin Edition](https://www.amd.com/en/support) (`Driver >= 31.0.22923`, OpenCL 2.1 `AMD-APP`).<br>**Linux**: Install `rocm-opencl-runtime` or `mesa-opencl-icd`. | `[0] Platform 0, Device 0: Ellesmere (ALL \| GPU) - 32 CUs` |
 | **NVIDIA Discrete GPUs (`GTX / RTX / Quadro`)** | **[NVIDIA OpenCL ICD Runtime](https://developer.nvidia.com/opencl)** (`nvopencl64.dll` / `libnvidia-opencl.so`) | **Windows**: Bundled with standard NVIDIA Game Ready / Studio Drivers.<br>**Linux**: `sudo apt-get install -y nvidia-opencl-icd` | `[0] Platform 0, Device 0: NVIDIA GeForce ... (ALL \| GPU)` |
 | **Generic Linux CPU / Fallback OpenCL Runtime** | **[Portable Computing Language (`pocl`)](https://portablecl.org/)** (`pocl-opencl-icd`) | **Linux (`Ubuntu / Debian`)**: `sudo apt-get install -y pocl-opencl-icd ocl-icd-libopencl1 clinfo` | `[0] Platform 0, Device 0: cpu-... (ALL \| CPU)` |
 
@@ -154,18 +154,18 @@ Get-ItemProperty "HKLM:\SOFTWARE\Khronos\OpenCL\Vendors"
    python -c "import sys; sys.path.insert(0, 'tools/fonts'); from humid1_ft_raster import load_freetype; from math_backends import describe_math_backend, teardown_math_backends; load_freetype(); print('FreeType OK |', describe_math_backend()); teardown_math_backends()"
    ```
 
-## 3. Repository Directory Structure (`v1.0.21`)
+## 3. Repository Directory Structure (`v1.0.22`)
 
 ```text
 epd-font/
 ├── LICENSE                                  # MIT License (Humidyne Labs / Humiditron pipeline & tooling)
-├── VERSION.json                             # Release & upstream asset version manifest (v1.0.21)
+├── VERSION.json                             # Release & upstream asset version manifest (v1.0.22)
 ├── requirements.txt                         # Pip dependency manifest for core & optional GPU packages
 ├── esp32s3-N8R8-hw_scheme.json              # Root ESP32-S3-N8R8 hardware scheme (188.15 DPI, partition_1: "3 MBytes")
 ├── generic_hw.json                          # Root generic hardware scheme (188.15 DPI, partition_1: "3 MBytes")
 ├── font_icon_epd_patches.json               # Root-tracked manual 1-bpp pixel patch manifest
 ├── README.md                                # Primary repository overview, OpenCL runtime & setup guide
-├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.21)
+├── CHANGELOG.md                             # Chronological release history (v0.0.1 -> v1.0.22)
 ├── docs/
 │   ├── HOW_TO_GUIDE.md                      # Complete CLI, scheme, 8-pipeline & ESP-IDF CMake guide
 │   ├── MAINTAINER_SPEC.md                   # Formal 1-bpp mathematical, 3D OpenCL & pipeline specification
@@ -210,9 +210,9 @@ epd-font/
 
 ### A. One-Click Windows Batch Workflows (`scripts/*`)
 Run `00_setup_env.bat` once to install dependencies, then run `99_run_full_pipeline.bat` inside any workflow folder:
-- **General Example Project**: `scripts\example-build-distro\99_run_full_pipeline.bat` -> outputs to `build\example\` and `dist\epd-font_example_v1.0.21.zip`
-- **Full 10px–40px (Step 2px) Master Audit**: `scripts\full-audit-build-distro\99_run_full_pipeline.bat` -> outputs to `build\audit\` and `dist\epd-font_audit_v1.0.21.zip`
-- **H1OS / `humid1-os` Deployment**: `scripts\h1os-build-distro\99_run_full_pipeline.bat` -> outputs to `build\h1os\` and `dist\epd-font_h1os_v1.0.21.zip`
+- **General Example Project**: `scripts\example-build-distro\99_run_full_pipeline.bat` -> outputs to `build\example\` and `dist\epd-font_example_v1.0.22.zip`
+- **Full 10px–40px (Step 2px) Master Audit**: `scripts\full-audit-build-distro\99_run_full_pipeline.bat` -> outputs to `build\audit\` and `dist\epd-font_audit_v1.0.22.zip`
+- **H1OS / `humid1-os` Deployment**: `scripts\h1os-build-distro\99_run_full_pipeline.bat` -> outputs to `build\h1os\` and `dist\epd-font_h1os_v1.0.22.zip`
 
 ### B. Command-Line Usage (Windows & Linux Python 3)
 ```bash
@@ -248,3 +248,88 @@ python tools/fonts/humid1_font_eval.py \
 
 - **Lead Designer & Developer**: **[Humiditron](https://github.com/humiditron)** ([Humidyne Labs](https://github.com/Humidyne-Labs/epd-font))
 - **AI/LLM Development Partner**: Collaborative architecture design, mathematical pipeline implementation (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `mdf`, `msdf`, `sdf-smoothstep`, `adf-biquadratic`, `otsu-adaptive`), 3D NDRange OpenCL GPU / CPU math abstraction (`tools/fonts/math_backends/`, `tools/fonts/opencl_dispatcher.py`), LVGL `>= 9.6.0` integration, and automated verification suite.
+
+
+## Master Configuration Variable Matrix & `math_backend` Reference (`v1.0.22`)
+
+`epd-font v1.0.22` enforces a strict **Singular Configuration ("1 Spot, 1 Variable, Zero Assumed Defaults")** architecture. Every variable is defined in **one authoritative location** — either the **Hardware Configuration JSON** (`esp32s3-N8R8-hw_scheme.json` / `generic_hw.json`) or the **Profile Scheme JSON** (`*.scheme.json`). No variable is duplicated across files or CLI flags, and missing, unknown, or out-of-range variables halt execution immediately with a diagnostic error message.
+
+### 1. Hardware Configuration Matrix (`esp32s3-N8R8-hw_scheme.json` / `generic_hw.json`)
+
+| Variable Path | Type | Allowed Values / Domain | Purpose & Single-Source Usage |
+| :--- | :--- | :--- | :--- |
+| `schema_version` | `string` | `"1.0.22"` | Schema version identifier validated by `load_and_validate_hardware_scheme()`. |
+| `hw_scheme_id` | `string` | e.g., `"esp32s3-N8R8"`, `"generic_hw"` | Unique hardware target identifier recorded in Strike Vaults and ROM reports. |
+| `description` | `string` | Non-empty string | Human-readable summary of the target MCU and display platform. |
+| `chip_name` | `string` | e.g., `"ESP32-S3-N8R8"`, `"Generic-32bit-MCU"` | Target microcontroller identifier displayed in Flash `.rodata` reports. |
+| `soc_vendor` | `string` | e.g., `"Espressif Systems"` | Microcontroller vendor name for formal audit and ROM reports. |
+| `partition_bytes` | `int` | `3145728` (`3 MBytes` exact) | Single supported Flash `.rodata` partition capacity in bytes (`3,145,728` bytes). |
+| `display.panel` | `string` | e.g., `"Waveshare 1.54in V2 Monochrome EPD (SSD1681)"` | Physical display panel model name used in screen-width audit headers. |
+| `display.width_px` | `int` | Positive integer (`200`) | Horizontal display resolution in pixels. |
+| `display.height_px` | `int` | Positive integer (`200`) | Vertical display resolution in pixels. |
+| `display.dpi` | `float` | Positive float (`188.15`) | Exact physical pixel density (`25.4 mm / 0.135 mm = 188.15 DPI`); single resolution variable (no `ppi`). |
+| `display.safe_margin_px` | `int` | Non-negative integer (`6`) | Safe bezel margin per side in pixels (`usable_width_px` is derived as `width_px - 2 * safe_margin_px = 188`). |
+| `display.color_depth_bpp` | `int` | `1` | Bilevel monochrome bit depth (`1` bit per pixel). |
+| `display.lvgl_color_format` | `string` | `"LV_COLOR_FORMAT_I1"` | LVGL `>= 9.6.0` 1-bit indexed color format constant. |
+
+### 2. Profile Scheme Configuration Matrix (`*.scheme.json`)
+
+| Variable Path | Type | Allowed Values / Domain | Purpose & Single-Source Usage |
+| :--- | :--- | :--- | :--- |
+| `schema_version` | `string` | `"1.0.22"` | Schema version identifier validated by `validate_scheme_config()`. |
+| `scheme_id` | `string` | e.g., `"h1os_epd_v1_full"`, `"h1os_epd_v1_debug_single_font"` | Unique profile identifier used in headers, vaults, and audit reports. |
+| `project_brand` | `string` | Non-empty string | Project title rendered on visual inspection sheets and header banners. |
+| `description` | `string` | Non-empty string | Summary of the font/icon strikes included in the profile. |
+| `spdx_license` | `string` | e.g., `"MIT AND OFL-1.1"` | SPDX license expression written into generated C/H headers. |
+| `hardware_scheme` | `string` | `"esp32s3-N8R8-hw_scheme.json"` or `"generic_hw.json"` | Reference to the root Hardware Configuration JSON (composes the `[hardware.json + profile.json]` pair). |
+| `raster_config.pipeline` | `string` | `"raw-unhinted"`, `"raw-hinted"`, `"svg-potrace"`, `"svg-potrace-jfa"`, `"mdf"`, `"msdf"`, `"sdf-smoothstep"`, `"adf-biquadratic"`, `"otsu-adaptive"`, `"all"`, `"all-debug"` | Selects the resolution-reduction bilevel conversion method (or `"all"` / `"all-debug"` to evaluate all 9 pipelines). |
+| `raster_config.math_backend` | `string` | `"auto"`, `"cpu"`, `"gpu"`, `"hybrid"`, `"sync"` | Selects the hardware compute delegation and multiprocessing execution mode (see Section 3 below). |
+| `raster_config.threshold` | `int` | `1..254` (`128` nominal) | Binarization luminance threshold in linear `[0..255]` grayscale space. |
+| `raster_config.gamma` | `float` | `0.20..3.00` (`1.0` nominal) | Linear luminance contrast power factor applied prior to thresholding. |
+| `raster_config.normal_weight` | `int` | `100..900` (`500` Medium / `400` Regular) | OpenType weight mapped to the `"normal"` style slot. |
+| `raster_config.bold_weight` | `int` | `100..900` (`800` ExtraBold / `700` Bold) | OpenType weight mapped to the `"bold"` style slot. |
+| `raster_config.italic_weight` | `int` | `100..900` (`600` SemiBoldItalic / `400` Italic) | OpenType weight mapped to the `"italic"` style slot. |
+| `raster_config.patches_file` | `string` | `"font_icon_epd_patches.json"` | Path to the manual pixel patch manifest JSON. |
+| `raster_config.ascii_patches_dir` | `string` | e.g., `"build/h1os/ascii_patches"` | Directory for dumping and ingesting editable 1:1 ASCII `.txt` glyph files. |
+| `raster_config.sheet_debug` | `bool` | `true` or `false` | Enables/disables generation of `inspect_pages/` PNG sheets and `master_char_icon_map.png`. |
+| `raster_config.char_debug` | `bool` | `true` or `false` | Enables/disables generation of `inspect_chars/` per-glyph blueprint PNG cards. |
+| `raster_config.debug_stages` | `bool` | `true` or `false` | Enables/disables `debug_stages/` 9-pipeline stage breakdown PNGs and Potrace `.svg` vectors. |
+| `output_branding` | `object` | `{symbol_prefix, primary_header, compat_header, default_font, semantic_roles}` | C symbol naming prefix (`humid1_`), output header filenames, and semantic role macros. |
+| `character_sets` | `object` | Map of named character/icon sets | Defines Unicode ranges (`ranges`) or semantic icon lists (`vendor`, `scope`, `icons`). |
+| `strikes` | `array` | List of `{family, style, sizes, char_sets, kerning, fallback}` | Declares every font/icon strike, point-size array, kerning toggle, and LVGL fallback pointer. |
+
+### 3. `math_backend` Operating Modes & Hardware Pre-Check Behavior
+
+Before any strike task is dispatched, `humid1_generate_1bpp.py` and `humid1_runtime.py` inspect the host hardware and validate `raster_config.math_backend` with **zero silent fallbacks**:
+
+| `math_backend` Value | Hardware Requirement & Pre-Check | Execution & Resource Delegation Behavior |
+| :--- | :--- | :--- |
+| **`"auto"`** | Probes OpenCL GPU/CPU runtimes and host CPU cores. Never fails if a GPU is absent. | **Automatic Asynchronous Delegation**: If a verified OpenCL GPU (e.g., `Ellesmere`, 32 CUs) is detected, spawns `1` persistent GPU worker (for heavy icon catalogs, distance-field pipelines, and `28..40px` strikes) + `N-1` async CPU workers (for `Terminus` bitmap strikes and small text strikes). If no GPU is present, runs all tasks across `N` async CPU workers. |
+| **`"cpu"`** | Requires host CPU (`>= 1` core). | **100% Asynchronous Multi-Core CPU**: Spawns `N` `ProcessPoolExecutor` CPU workers (`EPD_FONT_WORKER_ROLE="cpu"`, OpenCL GPU and OpenCV UMat disabled). Zero GPU contexts or VRAM/Shared GPU RAM buffers are allocated. |
+| **`"gpu"`** | **Strict GPU Pre-Check**: Requires a verified OpenCL GPU (or OpenCV UMat GPU). **Halts immediately with an error if no GPU is available.** | **Dedicated GPU Acceleration + CPU Orchestration**: Routes all applicable mathematical operations (sRGB-to-linear luminance + gamma, SDF smoothstep, MSDF median-of-3, ADF biquadratic 9-pt Lagrange, Otsu local-atomic histogram, `1+JFA` + Marching Squares, morphological close, median blur, and compute-density task sorting) through the GPU accelerator (`3D NDRange`, `4` queues, `75%` Shared GPU RAM Arena), while the CPU orchestrates FreeType outline loading and file I/O. |
+| **`"hybrid"`** | **Strict Hybrid Pre-Check**: Requires BOTH a verified OpenCL GPU and multi-core host CPU. **Halts immediately with an error if no GPU is available.** | **Explicit Dual-Pool Work-Stealing Deque**: Spawns `1` persistent GPU worker pulling the highest-density tasks from the front of the work-stealing deque and `N-1` async CPU workers pulling lightweight tasks from the back of the deque. |
+| **`"sync"`** | Requires host CPU (`1` process). | **Synchronous Single-Process Mode (`misc`)**: Executes all strike tasks sequentially in the main process without spawning `ProcessPoolExecutor` child workers (useful for deterministic profiling and debugging). |
+
+### 4. Structured `inspect_pages/` Output Hierarchy (`all` / `all-debug` & Single-Font `h1os_debug.scheme.json`)
+
+When `sheet_debug = true` (or `pipeline = "all-debug"` / `--workflow audit`), all generated inspection PNGs are organized into logical subdirectories under `build/<target>/inspect_pages/` (**zero loose `.png` files in `inspect_pages/`**):
+- `build/<target>/inspect_pages/adf-biquadratic/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/mdf/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/msdf/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/otsu-adaptive/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/raw-hinted/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/raw-unhinted/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/sdf-smoothstep/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/svg-potrace/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/svg-potrace-jfa/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/default/` — Default selection strike sheets + `master_char_icon_map.png` + `humid1_epd_specimen_188dpi.png`
+- `build/<target>/inspect_pages/compare_methods/` — Side-by-side `<font_stem>_16px_38px.png` comparison sheets featuring **`16px` (Low-Detail) & `38px` (High-Detail)** across all 9 conversion pipelines.
+
+To verify the entire debug pipeline against **1 font (`IBM Plex Sans Normal` @ `16px` & `38px`)** in seconds rather than running all 108/368 strikes, run:
+```bat
+scripts\h1os-build-distro\08_run_single_font_debug.bat
+```
+or via Python CLI:
+```bash
+python tools/fonts/humid1_generate_1bpp.py --workflow audit --scheme scripts/h1os-build-distro/h1os_debug.scheme.json --src-dir build/static_ttfs --out-dir build/h1os_debug --dist-dir dist/h1os_debug_distro
+```

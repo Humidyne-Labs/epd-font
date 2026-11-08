@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_lvgl_bdf_export.py (v1.0.21)
+humid1_lvgl_bdf_export.py (v1.0.22)
 ===================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -25,7 +25,7 @@ from humid1_runtime import (
     load_and_validate_hardware_scheme,
 )
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 
 
 def export_bdf_strike(
@@ -827,11 +827,10 @@ def write_total_disk_size_report(
         "=" * 120,
         "  Project                      : A 1-bit EPD font generator and asset pipeline for embedded displays",
         f"  Scheme ID                    : {scheme_id}",
-        f"  Hardware Scheme ID           : {hw_spec.hw_scheme_id} ({hw_spec.hw_scheme_path.name if hw_spec.hw_scheme_path else 'scheme target_display'})",
-        f"  Target Chip Name (chip_name) : {hw_spec.chip_name} ({hw_spec.soc_vendor} — {hw_spec.cpu_architecture} @ {hw_spec.cpu_freq_mhz} MHz)",
-        f"  Target Memory Architecture   : Flash={hw_spec.flash_total} ({hw_spec.flash_total_bytes:,} B) | PSRAM={hw_spec.psram_total} | SRAM={hw_spec.sram_total}",
-        f"  Partition 1 (partition_1)    : {hw_spec.partition_1} ({part_bytes:,} bytes / {part_bytes / 1024.0:.2f} KB / {part_bytes / (1024.0 * 1024.0):.2f} MBytes)",
-        f"  Target Display Panel         : {hw_spec.panel} ({hw_spec.controller}, {hw_spec.width_px}x{hw_spec.height_px} px, {hw_spec.color_depth_bpp}-BPP {hw_spec.lvgl_color_format})",
+        f"  Hardware Scheme ID           : {hw_spec.hw_scheme_id} ({hw_spec.hw_scheme_path.name if hw_spec.hw_scheme_path else 'hardware_scheme'})",
+        f"  Target Chip Name (chip_name) : {hw_spec.chip_name} ({hw_spec.soc_vendor})",
+        f"  Flash Partition Budget       : {hw_spec.partition_1} ({part_bytes:,} bytes / {part_bytes / 1024.0:.2f} KB / {part_bytes / (1024.0 * 1024.0):.2f} MBytes)",
+        f"  Target Display Panel         : {hw_spec.panel} ({hw_spec.width_px}x{hw_spec.height_px} px, usable={hw_spec.usable_width_px} px, {hw_spec.color_depth_bpp}-BPP {hw_spec.lvgl_color_format})",
         f"  Target Display DPI           : {eff_dpi:.1f} DPI (1 typographic pt = 1/72 inch = {eff_dpi/72.0:.3f} px @ {eff_dpi:.1f} DPI)",
         f"  Total Compiled Strikes       : {len(compiled_details)} strikes",
         f"  Expected MCU Flash (.rodata) : {total_rom_b:12,d} bytes  ({total_rom_b / 1024.0:8.2f} KB  /  {total_rom_b / (1024.0 * 1024.0):6.3f} MBytes)",

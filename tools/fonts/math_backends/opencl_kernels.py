@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-opencl_kernels.py (v1.0.21)
+opencl_kernels.py (v1.0.22)
 ==========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -9,7 +9,7 @@ License    : MIT License
 
 OpenCL 1.2 / 2.0 / 3.0 GPU & Multi-Device Compute Kernels, 3D NDRange Batch Dispatcher,
 75% Dynamic Host/GPU Shared Memory Arena (`CL_MEM_ALLOC_HOST_PTR` + `clEnqueueMapBuffer`),
-Jump Flooding Algorithm (`1+JFA`) + Marching Squares Kernels, and Deterministic Teardown (`v1.0.21`):
+Jump Flooding Algorithm (`1+JFA`) + Marching Squares Kernels, and Deterministic Teardown (`v1.0.22`):
   - Full 3-Dimensional (`work_dim = 3`, `[dim_x, dim_y, dim_z]`) NDRange execution across all kernels
     with 3D local work-groups `(8, 8, 4) = 256` work-items (4 wavefronts of 64 threads on AMD GCN/Polaris
     `Ellesmere` 32 CUs, or 256 work-items on CPU OpenCL runtimes) so all 3 Work-Item Dimensions and all
@@ -43,7 +43,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 SHARED_RAM_CAP_RATIO = 0.75  # 75% cap on total WDDM Shared GPU Memory
 
 cl = None  # type: ignore
@@ -945,7 +945,7 @@ atexit.register(release_all_opencl_resources)
 
 
 # ---------------------------------------------------------------------------
-# OpenCL 3D NDRange Multi-Queue Mathematical Accelerator (`v1.0.21`)
+# OpenCL 3D NDRange Multi-Queue Mathematical Accelerator (`v1.0.22`)
 # ---------------------------------------------------------------------------
 class OpenCLMathAccelerator:
     """

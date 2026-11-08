@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-math_backends/__init__.py (v1.0.21)
+math_backends/__init__.py (v1.0.22)
 ===================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Modular Mathematical Abstraction & Hardware-Checked 3D NDRange GPU/CPU Dispatch Package (v1.0.21):
+Modular Mathematical Abstraction & Hardware-Checked 3D NDRange GPU/CPU Dispatch Package (v1.0.22):
 Abstracts all distance-field, polynomial root-finding, luminance linearization, Jump Flooding
 Algorithm (`1+JFA`) + Marching Squares (`svg-potrace-jfa`), and thresholding math into dedicated
 backend modules (`opencl_kernels.py`, `umat_math.py`, `cpu_math.py`) with automatic runtime

@@ -1,23 +1,23 @@
 {
-  "schema_version": "1.0.21",
+  "schema_version": "1.0.22",
   "scheme_id": "full_audit_10_40px_step2",
   "project_brand": "Humidyne Labs / Humiditron Complete 10px-40px (Step 2px) Audit & Distribution Suite",
   "description": "Exhaustive 10px-40px (step size 2px) audit build across all text families (IBM Plex, Google Noto, Terminus) and all 4 icon suites (Font Awesome 7, Lucide, Phosphor, Tabler) evaluating all 8 bilevel resolution-reduction pipelines (raw-unhinted, raw-hinted, svg-potrace, mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive).",
   "spdx_license": "MIT AND OFL-1.1",
   "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
+    "pipeline": "all-debug",
+    "math_backend": "auto",
+    "threshold": 128,
+    "gamma": 1.0,
     "normal_weight": 500,
     "bold_weight": 800,
+    "italic_weight": 600,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/audit/ascii_patches",
-    "italic_weight": 600,
-    "pipeline": "all",
-    "threshold": 128,
-    "debug_stages": false,
-    "gamma": 1.0,
-    "char_debug": false,
     "sheet_debug": true,
-    "math_backend": "auto"
+    "char_debug": false,
+    "debug_stages": false
   },
   "output_branding": {
     "symbol_prefix": "humid1_",

@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [00] Humidyne Labs - Humiditron epd-font v1.0.21 - Environment Setup
+echo [00] Humidyne Labs - Humiditron epd-font v1.0.22 - Environment Setup
 echo      Workflow   : Complete 10px-40px (Step 2px) 9-Pipeline Visual Audit and Distribution Workflow
 echo      HW Config  : esp32s3-N8R8-hw_scheme.json
 echo ============================================================================

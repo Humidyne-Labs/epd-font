@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_fw_emit.py (v1.0.21)
+humid1_fw_emit.py (v1.0.22)
 ===========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 
 
 def _install_sigint() -> None:
@@ -739,13 +739,7 @@ Examples:
         "-S", "--scheme",
         type=str,
         required=True,
-        help="Path to declarative JSON font scheme (required)",
-    )
-    parser.add_argument(
-        "-H", "--hw-scheme",
-        type=str,
-        default=None,
-        help="Optional path to target hardware scheme JSON (e.g. esp32s3-N8R8-hw_scheme.json or generic_hw.json)",
+        help="Path to declarative .scheme.json file (required)",
     )
     parser.add_argument(
         "-v", "--vault",
@@ -760,23 +754,11 @@ Examples:
         help="Target output directory for generated .c, .h, and licenses/ files (required)",
     )
     parser.add_argument(
-        "-a", "--ascii-dir", "--ascii-patch-dir",
+        "-a", "--ascii-dir",
         dest="ascii_dir",
         type=str,
         default=None,
         help="Optional path to local ascii_patches/ folder to live-override glyphs during build",
-    )
-    parser.add_argument(
-        "--sizes",
-        type=int,
-        nargs="+",
-        default=None,
-        help="Optional pixel size filter (e.g. --sizes 14 16 18 20 24 32)",
-    )
-    parser.add_argument(
-        "--emit-legacy-c-wrappers",
-        action="store_true",
-        help="Also emit h1os_font_montserrat_<sz>_1bpp.c wrapper files for legacy CMake targets",
     )
     return parser
 
@@ -823,7 +805,7 @@ def main() -> None:
 
     char_sets_cfg = scheme.get("character_sets", {})
     prefix = scheme.get("output_branding", {}).get("symbol_prefix", "humid1_")
-    size_filter = set(args.sizes) if args.sizes else None
+    size_filter = None
     ascii_root = Path(args.ascii_dir).expanduser().resolve() if args.ascii_dir else None
 
     # Pre-compute planned symbols so LVGL >= 9.6.0 fallback pointers are guaranteed valid
@@ -984,7 +966,7 @@ def main() -> None:
                 f"{len(remapped_kern):4d} kern | fb={fb_sym or 'NULL':<32} | ~{rom_b:6,d} B ({rom_b/1024.0:.2f} KB)"
             )
 
-            if args.emit_legacy_c_wrappers and fam == "sans" and style == "normal":
+            if False:
                 leg_sym = f"h1os_font_montserrat_{sz}_1bpp"
                 leg_path = out_dir / f"{leg_sym}.c"
                 emit_lvgl_c_file(
@@ -1001,13 +983,11 @@ def main() -> None:
 
     generate_scheme_headers(out_dir, emitted_symbols, scheme)
 
-    # Validate hardware partition budget strictly from root hardware_scheme (or --hw-scheme override)
-    hw_ref = getattr(args, "hw_scheme", None) or scheme.get("hardware_scheme")
-    if isinstance(hw_ref, str) and hw_ref.strip().lower() == "genaric_hw.json":
-        hw_ref = "generic_hw.json"
+    # Validate hardware partition budget strictly from scheme's hardware_scheme (zero assumed defaults)
+    hw_ref = scheme.get("hardware_scheme")
     part_bytes = None
     chip_name = ""
-    part_label = ""
+    part_label = "3 MBytes"
     if hw_ref:
         for cand_hw in [
             Path(str(hw_ref)),
@@ -1020,8 +1000,9 @@ def main() -> None:
                 hw_obj = json.loads(cand_hw.read_text(encoding="utf-8"))
                 hw_spec = hw_obj.get("hardware", hw_obj)
                 chip_name = str(hw_spec.get("chip_name", "")).strip()
-                part_label = str(hw_spec.get("partition_1", "")).strip()
-                if "partition_1_bytes" in hw_spec:
+                if "partition_bytes" in hw_spec:
+                    part_bytes = int(hw_spec["partition_bytes"])
+                elif "partition_1_bytes" in hw_spec:
                     part_bytes = int(hw_spec["partition_1_bytes"])
                 break
     if part_bytes is None and part_label:

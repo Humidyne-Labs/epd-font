@@ -13,5 +13,5 @@ python tools/agent/tools/string_info.py --strike humid1_font_plex_sans_bold_16 -
 
 # Audit a two-column (left label + right telemetry value) row on a custom display:
 python tools/agent/tools/string_info.py --strike humid1_font_plex_sans_normal_14 --text "Vapor Pressure" \
-  --right-text "42.8 hPa" --right-strike humid1_font_plex_mono_bold_14 --screen-width 200 --safe-margin 6
+  --right-text "42.8 hPa" --right-strike humid1_font_plex_mono_bold_14
 ```

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.21)
+build_static_ttf_assets.py (v1.0.22)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -56,7 +56,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES

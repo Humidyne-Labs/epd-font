@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_visual_check.py (v1.0.21)
+humid1_visual_check.py (v1.0.22)
 ================================
 Humidyne Labs / Humiditron `epd-font` Visual Diagnostic Inspection Sheet,
 Multi-Method Comparison Sheet, Single-Character Blueprint & 188.15 DPI E-Ink Specimen Renderer Module.
@@ -22,7 +22,7 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 
 _UI_FONTS_CACHE: Dict[str, dict] = {}
 
@@ -362,71 +362,80 @@ def render_multi_method_comparison_sheet_png(
     method_strikes: Dict[str, Tuple[Sequence[GlyphStrike], int, int]],
     method_stats: Dict[str, dict],
     static_dir: Optional[Path] = None,
+    hi_size_px: int = 38,
+    hi_method_strikes: Optional[Dict[str, Tuple[Sequence[GlyphStrike], int, int]]] = None,
+    hi_method_stats: Optional[Dict[str, dict]] = None,
 ) -> Path:
     """
-    Render a side-by-side Multi-Method Comparison Sheet (`inspect_pages/compare_methods/<symbol>_all_methods.png`)
-    when `pipeline="all"` (or `all-debug`) is active, allowing direct visual comparison of every offered
-    resolution-reduction conversion pipeline (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `mdf`, `msdf`,
-    `sdf-smoothstep`, `adf-biquadratic`, `otsu-adaptive`) on the exact same strike.
+    Render a side-by-side Dual-Detail (`16px` Low-Detail & `38px` High-Detail) Multi-Method Comparison Sheet
+    (`inspect_pages/compare_methods/<font_stem>.png`) across all 9 resolution-reduction conversion pipelines:
+      - Left Column (`x = 24..950`) : `16px` Low-Detail strike (1:1 & 2x specimen + 4x pixel grid + stem/counter stats)
+      - Right Column (`x = 970..1936`): `38px` High-Detail strike (1:1 specimen + 2x pixel grid + stem/counter stats)
     """
     ui_fonts = _load_ui_fonts(static_dir)
     methods = list(method_strikes.keys())
     n_methods = len(methods)
-    row_h = max(136, size_px * 5 + 56)
-    W = 1560
-    H = 96 + n_methods * row_h + 28
+    has_hi = bool(hi_method_strikes)
+    row_h = 158
+    W = 1960 if has_hi else 1560
+    H = 104 + n_methods * row_h + 28
     img = Image.new("RGB", (W, H), (244, 246, 250))
     draw = ImageDraw.Draw(img)
 
-    draw.rectangle([0, 0, W, 68], fill=(16, 22, 31))
-    draw.text(
-        (24, 12),
-        f"HUMIDYNE LABS MULTI-METHOD COMPARISON  |  {font_symbol_name} ({family.upper()} {role.upper()} {size_px}px)  |  {n_methods} PIPELINES",
-        fill=(255, 255, 255),
-        font=ui_fonts["title"],
+    draw.rectangle([0, 0, W, 76], fill=(16, 22, 31))
+    title_str = (
+        f"HUMIDYNE LABS 9-PIPELINE COMPARISON  |  {font_symbol_name} ({family.upper()} {role.upper()})  |  "
+        f"LOW-DETAIL ({size_px}px) vs HIGH-DETAIL ({hi_size_px}px)"
+        if has_hi
+        else f"HUMIDYNE LABS MULTI-METHOD COMPARISON  |  {font_symbol_name} ({family.upper()} {role.upper()} {size_px}px)  |  {n_methods} PIPELINES"
     )
+    draw.text((24, 14), title_str, fill=(255, 255, 255), font=ui_fonts["title"])
     draw.text(
-        (24, 38),
+        (24, 42),
         f"Side-by-side comparison across all {n_methods} resolution-reduction conversion methods (Threshold={threshold}, Gamma={gamma:.2f})",
         fill=(176, 196, 218),
         font=ui_fonts["subtitle"],
     )
 
-    y = 84
-    for idx, m_key in enumerate(methods):
-        glyphs, lh, bl = method_strikes[m_key]
-        gmap = {g.codepoint: g for g in glyphs if g.codepoint > 0}
-        st = method_stats.get(m_key, {})
-        bg = (255, 255, 255) if (idx % 2 == 0) else (248, 250, 254)
-        draw.rectangle([20, y, W - 20, y + row_h - 8], fill=bg, outline=(206, 214, 224), width=1)
-
-        m_label = PIPELINE_LABELS.get(m_key, m_key)
-        draw.text((34, y + 10), m_label, fill=(20, 28, 40), font=ui_fonts["section"])
-        stat_str = (
-            f"Mean Stem: {st.get('mean_stem_px', 0.0):.2f}px  |  >=2px Stems: {st.get('stem_2px_pct', 0.0):.1f}%  |  "
-            f"Open Counters: {st.get('counter_pct', 100.0):.1f}%  |  Ink: {st.get('ink_px', 0)}px"
-        )
-        draw.text((34, y + 32), stat_str, fill=(85, 98, 114), font=ui_fonts["mono_sm"])
-
-        # Draw 1:1 and 2x specimen text or icon strip on left
+    def _draw_panel(
+        x_left: int,
+        x_right: int,
+        y_top: int,
+        sz_val: int,
+        detail_tag: str,
+        glyphs_seq: Sequence[GlyphStrike],
+        lh_val: int,
+        bl_val: int,
+        st_dict: dict,
+    ) -> None:
+        gmap = {g.codepoint: g for g in glyphs_seq if g.codepoint > 0}
         is_icon = family.startswith("icon_") or (ord("A") not in gmap)
         if is_icon:
-            sample_cps = [g.codepoint for g in glyphs if g.codepoint > 0][:18]
+            sample_cps = [g.codepoint for g in glyphs_seq if g.codepoint > 0][:14]
             sample_str = " ".join(chr(c) for c in sample_cps)
-            zoom_cps = sample_cps[:8]
+            zoom_cps = sample_cps[:6]
         else:
-            sample_str = "HUMIDYNE 72.4°F 46.8% @%#$&80_easy AaBbGgQqWw"
-            zoom_cps = [ord(c) for c in ("@", "%", "#", "8", "0", "a", "e", "g", "s", "W")]
+            sample_str = "HUMIDYNE 72.4F 46.8% @%#$&80_easy AaBbGgQqWw"
+            zoom_cps = [ord(c) for c in ("@", "%", "8", "0", "a", "e", "g", "W")]
 
-        def _draw_line(px_x: int, px_y: int, txt: str, sc: int):
+        stat_str = (
+            f"[{detail_tag}: {sz_val}px]  Stem: {st_dict.get('mean_stem_px', 0.0):.2f}px  |  "
+            f">=2px: {st_dict.get('stem_2px_pct', 0.0):.1f}%  |  "
+            f"Counters: {st_dict.get('counter_pct', 100.0):.1f}%  |  Ink: {st_dict.get('ink_px', 0)}px"
+        )
+        draw.text((x_left, y_top + 32), stat_str, fill=(75, 88, 106), font=ui_fonts["mono_sm"])
+
+        spec_max_x = x_left + int((x_right - x_left) * 0.54)
+
+        def _draw_line(px_x: int, px_y: int, txt: str, sc: int) -> None:
             cx = px_x
-            by = px_y + (lh - bl) * sc
+            by = px_y + (lh_val - bl_val) * sc
             for ch in txt:
                 g = gmap.get(ord(ch))
                 if not g:
-                    cx += (size_px // 2) * sc
+                    cx += max(4, (sz_val // 3)) * sc
                     continue
-                if g.box_w > 0 and g.box_h > 0 and cx + g.box_w * sc < 760:
+                if g.box_w > 0 and g.box_h > 0 and cx + g.box_w * sc < spec_max_x:
                     gx0 = cx + g.ofs_x * sc
                     gy0 = by - (g.ofs_y + g.box_h) * sc
                     for rr, r_s in enumerate(g.rows):
@@ -435,32 +444,56 @@ def render_multi_method_comparison_sheet_png(
                                 if sc == 1:
                                     draw.point((gx0 + cc, gy0 + rr), fill=(12, 16, 22))
                                 else:
-                                    draw.rectangle([gx0 + cc * sc, gy0 + rr * sc, gx0 + (cc + 1) * sc - 1, gy0 + (rr + 1) * sc - 1], fill=(12, 16, 22))
+                                    draw.rectangle(
+                                        [gx0 + cc * sc, gy0 + rr * sc, gx0 + (cc + 1) * sc - 1, gy0 + (rr + 1) * sc - 1],
+                                        fill=(12, 16, 22),
+                                    )
                 cx += ((g.adv_w_fp4 + 8) >> 4) * sc
 
-        _draw_line(34, y + 54, sample_str, 1)
-        _draw_line(34, y + 58 + lh, sample_str[:28], 2)
+        _draw_line(x_left, y_top + 54, sample_str, 1)
+        if sz_val <= 20:
+            _draw_line(x_left, y_top + 60 + lh_val, sample_str[:22], 2)
 
-        # Right side: 4x/5x zoomed pixel grid of key characters/icons
-        zx = 780
-        z_scale = 4 if size_px <= 18 else 3
+        zx = spec_max_x + 14
+        z_scale = 4 if sz_val <= 18 else 2
         for cp in zoom_cps:
             g = gmap.get(cp)
             if not g or g.box_w <= 0 or g.box_h <= 0:
                 continue
-            if zx + g.box_w * z_scale + 16 > W - 28:
+            if zx + g.box_w * z_scale + 12 > x_right - 8:
                 break
             ch_lbl = chr(cp) if 0x20 <= cp <= 0x7E else f"U+{cp:04X}"
-            draw.text((zx, y + 10), ch_lbl, fill=(65, 78, 94), font=ui_fonts["mono_sm"])
-            gy0 = y + 28
+            draw.text((zx, y_top + 50), ch_lbl, fill=(65, 78, 94), font=ui_fonts["mono_sm"])
+            gy0 = y_top + 66
             for rr, r_s in enumerate(g.rows):
                 for cc, px in enumerate(r_s):
                     rx = zx + cc * z_scale
                     ry = gy0 + rr * z_scale
-                    if ry + z_scale < y + row_h - 12:
-                        col = (14, 18, 24) if px == "#" else (236, 240, 246)
+                    if ry + z_scale < y_top + row_h - 10:
+                        col = (14, 18, 24) if px == "#" else (232, 236, 242)
                         draw.rectangle([rx, ry, rx + z_scale - 1, ry + z_scale - 1], fill=col)
-            zx += max(44, g.box_w * z_scale + 14)
+            zx += max(38, g.box_w * z_scale + 10)
+
+    y = 90
+    for idx, m_key in enumerate(methods):
+        glyphs_lo, lh_lo, bl_lo = method_strikes[m_key]
+        st_lo = method_stats.get(m_key, {})
+        bg = (255, 255, 255) if (idx % 2 == 0) else (248, 250, 254)
+        draw.rectangle([20, y, W - 20, y + row_h - 8], fill=bg, outline=(206, 214, 224), width=1)
+
+        m_label = PIPELINE_LABELS.get(m_key, m_key)
+        draw.text((34, y + 8), m_label, fill=(20, 28, 40), font=ui_fonts["section"])
+
+        if has_hi and hi_method_strikes and m_key in hi_method_strikes:
+            mid_x = W // 2
+            draw.line([(mid_x, y + 6), (mid_x, y + row_h - 14)], fill=(210, 218, 228), width=1)
+            _draw_panel(34, mid_x - 12, y, size_px, "LOW-DETAIL", glyphs_lo, lh_lo, bl_lo, st_lo)
+            glyphs_hi, lh_hi, bl_hi = hi_method_strikes[m_key]
+            st_hi = (hi_method_stats or {}).get(m_key, {})
+            draw.text((mid_x + 16, y + 8), f"{m_label} @ {hi_size_px}px", fill=(20, 28, 40), font=ui_fonts["section"])
+            _draw_panel(mid_x + 16, W - 28, y, hi_size_px, "HIGH-DETAIL", glyphs_hi, lh_hi, bl_hi, st_hi)
+        else:
+            _draw_panel(34, W - 28, y, size_px, "STRIKE", glyphs_lo, lh_lo, bl_lo, st_lo)
 
         y += row_h
 

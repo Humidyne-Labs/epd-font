@@ -1,5 +1,5 @@
 # ==============================================================================
-# epd_font_esp_idf.cmake (v1.0.21)
+# epd_font_esp_idf.cmake (v1.0.22)
 # A 1-bit EPD font generator and asset pipeline for embedded displays
 # Repository : https://github.com/Humidyne-Labs/epd-font
 # Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
@@ -10,8 +10,8 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 function(epd_font_generate_lvgl_target)
     set(options "")
-    set(oneValueArgs TARGET_NAME SCHEME HW_SCHEME VAULT SRC_DIR OUT_DIR PIPELINE THRESHOLD PATCHES ASCII_DIR)
-    set(multiValueArgs SIZES)
+    set(oneValueArgs TARGET_NAME SCHEME VAULT SRC_DIR OUT_DIR ASCII_DIR)
+    set(multiValueArgs "")
     cmake_parse_arguments(EPD_FONT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if(NOT EPD_FONT_TARGET_NAME)
@@ -35,28 +35,13 @@ function(epd_font_generate_lvgl_target)
         "--out-dir" "${EPD_FONT_OUT_DIR}"
         "--list-sources"
     )
-    if(EPD_FONT_HW_SCHEME)
-        list(APPEND CMD_ARGS "--hw-scheme" "${EPD_FONT_HW_SCHEME}")
-    endif()
     if(EPD_FONT_VAULT)
         list(APPEND CMD_ARGS "--vault" "${EPD_FONT_VAULT}")
     elseif(EPD_FONT_SRC_DIR)
         list(APPEND CMD_ARGS "--src-dir" "${EPD_FONT_SRC_DIR}")
     endif()
-    if(EPD_FONT_PIPELINE)
-        list(APPEND CMD_ARGS "--pipeline" "${EPD_FONT_PIPELINE}")
-    endif()
-    if(EPD_FONT_THRESHOLD)
-        list(APPEND CMD_ARGS "--threshold" "${EPD_FONT_THRESHOLD}")
-    endif()
-    if(EPD_FONT_PATCHES)
-        list(APPEND CMD_ARGS "--patches" "${EPD_FONT_PATCHES}")
-    endif()
     if(EPD_FONT_ASCII_DIR)
         list(APPEND CMD_ARGS "--ascii-dir" "${EPD_FONT_ASCII_DIR}")
-    endif()
-    if(EPD_FONT_SIZES)
-        list(APPEND CMD_ARGS "--sizes" ${EPD_FONT_SIZES})
     endif()
 
     execute_process(

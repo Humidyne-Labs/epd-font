@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-hw_dispatch.py (v1.0.21)
+hw_dispatch.py (v1.0.22)
 ========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -8,7 +8,7 @@ Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Par
 License    : MIT License
 
 Multi-Device Hardware Capability Check, 3D NDRange GPU/CPU Dispatcher, 75% Shared RAM Arena &
-Deterministic Teardown (`v1.0.21`):
+Deterministic Teardown (`v1.0.22`):
   - Enumerates all available OpenCL platforms and devices (e.g., `[0] Ellesmere (GPU - 32 CUs)` and
     `[1] AMD Ryzen 5 5600G with Radeon Graphics (CPU - 12 CUs)` installed via Intel CPU Runtime for OpenCL).
   - Enforces Single-Owner GPU Context isolation (`EPD_FONT_WORKER_ROLE="cpu"` in child CPU workers) so
@@ -53,7 +53,7 @@ from .opencl_kernels import (
 )
 from .umat_math import is_opencv_umat_opencl_active, umat_median_blur, umat_morphology_close
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 
 
 @dataclass
@@ -197,8 +197,11 @@ def _probe_and_init_backend(preferred: Optional[str] = None) -> MathBackendStatu
 
     worker_role = os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower()
     pref = (preferred or os.environ.get("EPD_FONT_ACCEL", "auto")).strip().lower()
-    if pref not in ("auto", "opencl", "gpu", "umat", "cpu", "opencl-cpu", "hybrid"):
-        pref = "auto"
+    valid_modes = ("auto", "cpu", "gpu", "hybrid", "sync", "opencl", "umat", "opencl-cpu")
+    if pref not in valid_modes:
+        raise ValueError(
+            f"Invalid math_backend '{pref}'. Must be one of: 'auto', 'cpu', 'gpu', 'hybrid', or 'sync'."
+        )
 
     res = 32
     grid = np.linspace(-1.0, 1.0, res, dtype=np.float32)
@@ -336,6 +339,13 @@ def _probe_and_init_backend(preferred: Optional[str] = None) -> MathBackendStatu
         )
         return _ACTIVE_STATUS
 
+    if pref in ("gpu", "opencl", "hybrid", "umat") and worker_role != "cpu":
+        raise RuntimeError(
+            f"Configuration math_backend='{pref}' requires a verified OpenCL/UMat GPU accelerator, "
+            "but no compatible GPU device or OpenCL runtime is available on this host. "
+            "Install an OpenCL GPU runtime (see README.md) or set 'math_backend' to 'auto' or 'cpu' in your .scheme.json."
+        )
+
     _ACTIVE_ACCEL = None
     _ACTIVE_STATUS = MathBackendStatus(
         backend_id="cpu",
@@ -395,14 +405,14 @@ def dispatch_srgb_to_linear_grayscale(arr: np.ndarray, gamma: float = 1.0) -> np
     """
     if arr is None or arr.size == 0:
         return np.zeros((0, 0), dtype=np.uint8)
-    if arr.size < 65536 and (arr.ndim <= 2 or (arr.ndim == 3 and arr.shape[2] == 1)) and abs(float(gamma) - 1.0) <= 1e-4:
-        return eval_srgb_to_linear_grayscale_cpu(arr, gamma=gamma)
-
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
+        return eval_srgb_to_linear_grayscale_cpu(arr, gamma=gamma)
+    force_gpu = (os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower() == "gpu")
+    if not force_gpu and arr.size < 4096 and (arr.ndim <= 2 or (arr.ndim == 3 and arr.shape[2] == 1)) and abs(float(gamma) - 1.0) <= 1e-4:
         return eval_srgb_to_linear_grayscale_cpu(arr, gamma=gamma)
 
     st = get_active_math_backend()
-    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and arr.size >= 65536:
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and (force_gpu or arr.size >= 4096):
         try:
             return _ACTIVE_ACCEL.eval_srgb_to_linear_grayscale(arr, gamma=gamma)
         except Exception:
@@ -421,7 +431,7 @@ def dispatch_sdf_smoothstep(
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
         return eval_sdf_smoothstep_cpu(sdf_hi, target_w, target_h, upscale, threshold)
     st = get_active_math_backend()
-    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and sdf_hi.size >= 4096:
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and sdf_hi.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_sdf_smoothstep(sdf_hi, target_w, target_h, upscale, threshold)
         except Exception:
@@ -440,7 +450,7 @@ def dispatch_msdf_median3_reconstruct(
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
         return eval_msdf_median3_reconstruct_cpu(msdf_rgb_or_r, sdf_g, sdf_b, threshold, edge_offset_px)
     st = get_active_math_backend()
-    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and msdf_rgb_or_r.size >= 1024:
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and msdf_rgb_or_r.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_msdf_median3_reconstruct(msdf_rgb_or_r, sdf_g, sdf_b, threshold, edge_offset_px)
         except Exception:
@@ -459,7 +469,7 @@ def dispatch_adf_biquadratic(
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
         return eval_adf_biquadratic_cpu(sdf_hi, target_w, target_h, upscale, threshold)
     st = get_active_math_backend()
-    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and sdf_hi.size >= 4096:
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and sdf_hi.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_adf_biquadratic(sdf_hi, target_w, target_h, upscale, threshold)
         except Exception:
@@ -472,7 +482,7 @@ def dispatch_otsu_linear_threshold(linear_gray: np.ndarray, base_threshold: int 
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
         return eval_otsu_linear_threshold_cpu(linear_gray, base_threshold)
     st = get_active_math_backend()
-    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and linear_gray is not None and linear_gray.size >= 16384:
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and linear_gray is not None and linear_gray.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_otsu_linear_threshold(linear_gray, base_threshold)
         except Exception:
@@ -494,7 +504,7 @@ def dispatch_jfa_marching_squares(
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
         return eval_jfa_marching_squares_cpu(high_gray, target_w, target_h, upscale, threshold)
     st = get_active_math_backend()
-    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and high_gray is not None and high_gray.size >= 2048:
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and high_gray is not None and high_gray.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_jfa_marching_squares(high_gray, target_w, target_h, upscale, threshold)
         except Exception:
@@ -504,7 +514,7 @@ def dispatch_jfa_marching_squares(
 
 def dispatch_median_blur(arr: np.ndarray, ksize: int) -> np.ndarray:
     """Dispatch median filtering to OpenCV UMat OpenCL queue or CPU."""
-    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu" or arr.size < 16384:
+    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu" or arr.size < 256:
         return cv2.medianBlur(arr, ksize) if (ksize > 1 and arr.size > 0) else arr
     st = get_active_math_backend()
     if st.backend_id in ("opencl", "umat"):
@@ -514,7 +524,7 @@ def dispatch_median_blur(arr: np.ndarray, ksize: int) -> np.ndarray:
 
 def dispatch_morphology_close(arr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """Dispatch morphological closing to OpenCV UMat OpenCL queue or CPU."""
-    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu" or arr.size < 16384:
+    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu" or arr.size < 256:
         return cv2.morphologyEx(arr, cv2.MORPH_CLOSE, kernel)
     st = get_active_math_backend()
     if st.backend_id in ("opencl", "umat"):

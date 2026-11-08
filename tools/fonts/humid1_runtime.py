@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_runtime.py (v1.0.21)
+humid1_runtime.py (v1.0.22)
 ==========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -11,7 +11,7 @@ Host Hardware Detection (Multi-Device OpenCL GPU/CPU + Shared GPU RAM + Multi-Co
 Target Embedded Hardware Scheme Validator (`esp32s3-N8R8-hw_scheme.json` & `generic_hw.json`),
 Single-Owner GPU + Multi-Core CPU Work-Stealing Dispatcher (`run_parallel_tasks`),
 Clean Signal/Ctrl-C Interruption Handler (Zero Worker Traceback Noise + Deterministic Teardown),
-Recursive Asset/License Discovery, and Strict Zero-Default Argument/Path Validation Module (`v1.0.21`).
+Recursive Asset/License Discovery, and Strict Zero-Default Argument/Path Validation Module (`v1.0.22`).
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 REPO_NAME = "epd-font"
 PROJECT_TAGLINE = "A 1-bit EPD font generator and asset pipeline for embedded displays"
 PUBLIC_REPO_URL = "https://github.com/Humidyne-Labs/epd-font"
@@ -183,19 +183,8 @@ class TargetHardwareSpec:
     hw_scheme_path: Optional[Path]
     chip_name: str
     soc_vendor: str
-    cpu_architecture: str
-    cpu_freq_mhz: int
-    flash_total: str
-    flash_total_bytes: int
-    psram_total: str
-    psram_total_bytes: int
-    sram_total: str
-    sram_total_bytes: int
-    partition_1: str
-    partition_1_bytes: int
-    partition_1_label: str
+    partition_bytes: int
     panel: str
-    controller: str
     width_px: int
     height_px: int
     dpi: float
@@ -203,6 +192,182 @@ class TargetHardwareSpec:
     usable_width_px: int
     color_depth_bpp: int
     lvgl_color_format: str
+
+    @property
+    def partition_1_bytes(self) -> int:
+        return self.partition_bytes
+
+    @property
+    def partition_1(self) -> str:
+        return f"{self.partition_bytes // (1024 * 1024)} MBytes"
+
+
+REQUIRED_HW_TOP_KEYS = {
+    "schema_version",
+    "hw_scheme_id",
+    "description",
+    "chip_name",
+    "soc_vendor",
+    "partition_bytes",
+    "display",
+}
+
+REQUIRED_HW_DISPLAY_KEYS = {
+    "panel",
+    "width_px",
+    "height_px",
+    "dpi",
+    "safe_margin_px",
+    "color_depth_bpp",
+    "lvgl_color_format",
+}
+
+REQUIRED_SCHEME_TOP_KEYS = {
+    "schema_version",
+    "scheme_id",
+    "project_brand",
+    "description",
+    "spdx_license",
+    "hardware_scheme",
+    "raster_config",
+    "output_branding",
+    "character_sets",
+    "strikes",
+}
+
+REQUIRED_RASTER_CONFIG_KEYS = {
+    "pipeline",
+    "math_backend",
+    "threshold",
+    "gamma",
+    "normal_weight",
+    "bold_weight",
+    "italic_weight",
+    "patches_file",
+    "ascii_patches_dir",
+    "sheet_debug",
+    "char_debug",
+    "debug_stages",
+}
+
+VALID_PIPELINE_VALUES = {
+    "raw-unhinted",
+    "raw-hinted",
+    "svg-potrace",
+    "svg-potrace-jfa",
+    "mdf",
+    "msdf",
+    "sdf-smoothstep",
+    "adf-biquadratic",
+    "otsu-adaptive",
+    "all",
+    "all-debug",
+}
+
+VALID_MATH_BACKEND_VALUES = {
+    "auto",
+    "cpu",
+    "gpu",
+    "hybrid",
+    "sync",
+}
+
+
+def validate_scheme_config(scheme_cfg: Any, scheme_path: Optional[Path] = None) -> dict:
+    """
+    Strictly validate a profile `.scheme.json` dictionary against the Singular Configuration
+    Variable Matrix (`v1.0.22`) with ZERO assumed defaults and ZERO dangling/unknown keys.
+    """
+    s_name = scheme_path.name if scheme_path else "scheme.json"
+    if not isinstance(scheme_cfg, dict):
+        fail_gracefully(
+            f"Invalid JSON root in `{s_name}`: expected an object.",
+            "Ensure the `.scheme.json` file contains a valid JSON object.",
+        )
+
+    missing_top = sorted(REQUIRED_SCHEME_TOP_KEYS - set(scheme_cfg.keys()))
+    if missing_top:
+        fail_gracefully(
+            f"Missing required top-level configuration key(s) {missing_top} in `{s_name}` (default values are not assumed).",
+            "Refer to the Master Configuration Matrix in `README.md` / `docs/HOW_TO_GUIDE.md`.",
+        )
+
+    unknown_top = sorted(set(scheme_cfg.keys()) - REQUIRED_SCHEME_TOP_KEYS - {"screen_audit_rows"})
+    if unknown_top:
+        fail_gracefully(
+            f"Unknown or redundant top-level key(s) {unknown_top} in `{s_name}`.",
+            "Remove legacy/dangling keys (such as `target_display`) so each variable is defined in exactly 1 place.",
+        )
+
+    rcfg = scheme_cfg.get("raster_config")
+    if not isinstance(rcfg, dict):
+        fail_gracefully(f"`raster_config` in `{s_name}` must be a JSON object.")
+
+    missing_rcfg = sorted(REQUIRED_RASTER_CONFIG_KEYS - set(rcfg.keys()))
+    if missing_rcfg:
+        fail_gracefully(
+            f"Missing required `raster_config` variable(s) {missing_rcfg} in `{s_name}` (default values are not assumed).",
+            "Specify all 12 `raster_config` variables explicitly in `.scheme.json`.",
+        )
+
+    unknown_rcfg = sorted(set(rcfg.keys()) - REQUIRED_RASTER_CONFIG_KEYS)
+    if unknown_rcfg:
+        fail_gracefully(
+            f"Unknown or duplicate `raster_config` variable(s) {unknown_rcfg} in `{s_name}`.",
+            "Remove legacy duplicate keys (such as `raster_mode` or `condensed_width`) per the Singular Configuration Matrix.",
+        )
+
+    pipe_val = str(rcfg["pipeline"]).strip().lower()
+    if pipe_val not in VALID_PIPELINE_VALUES:
+        fail_gracefully(
+            f"Invalid `raster_config.pipeline` value `'{rcfg['pipeline']}'` in `{s_name}`.",
+            f"Must be one of: {sorted(VALID_PIPELINE_VALUES)}.",
+        )
+
+    mb_val = str(rcfg["math_backend"]).strip().lower()
+    if mb_val not in VALID_MATH_BACKEND_VALUES:
+        fail_gracefully(
+            f"Invalid `raster_config.math_backend` value `'{rcfg['math_backend']}'` in `{s_name}`.",
+            f"Must be one of: {sorted(VALID_MATH_BACKEND_VALUES)}.",
+        )
+
+    thresh = rcfg["threshold"]
+    if not isinstance(thresh, int) or isinstance(thresh, bool) or not (1 <= thresh <= 254):
+        fail_gracefully(
+            f"Invalid `raster_config.threshold` value `{thresh}` in `{s_name}`.",
+            "Must be an integer in `[1..254]` (e.g., `128`).",
+        )
+
+    gamma = rcfg["gamma"]
+    if not isinstance(gamma, (int, float)) or isinstance(gamma, bool) or not (0.20 <= float(gamma) <= 3.00):
+        fail_gracefully(
+            f"Invalid `raster_config.gamma` value `{gamma}` in `{s_name}`.",
+            "Must be a number in `[0.20..3.00]` (e.g., `1.0`).",
+        )
+
+    for w_key in ("normal_weight", "bold_weight", "italic_weight"):
+        wv = rcfg[w_key]
+        if not isinstance(wv, int) or isinstance(wv, bool) or not (100 <= wv <= 900):
+            fail_gracefully(
+                f"Invalid `raster_config.{w_key}` value `{wv}` in `{s_name}`.",
+                "Must be an integer OpenType weight in `[100..900]` (e.g., `500`, `800`, `600`).",
+            )
+
+    for b_key in ("sheet_debug", "char_debug", "debug_stages"):
+        if not isinstance(rcfg[b_key], bool):
+            fail_gracefully(
+                f"Invalid `raster_config.{b_key}` value `{rcfg[b_key]}` in `{s_name}`.",
+                "Must be a JSON boolean (`true` or `false`).",
+            )
+
+    for s_key in ("patches_file", "ascii_patches_dir"):
+        if not isinstance(rcfg[s_key], str) or not rcfg[s_key].strip():
+            fail_gracefully(
+                f"Invalid `raster_config.{s_key}` in `{s_name}`.",
+                "Must be a non-empty relative path string.",
+            )
+
+    return rcfg
 
 
 def load_and_validate_hardware_scheme(
@@ -212,155 +377,113 @@ def load_and_validate_hardware_scheme(
     scheme_path: Optional[Path] = None,
 ) -> TargetHardwareSpec:
     """
-    Strictly validate target hardware and partition attributes with ZERO hardcoded defaults.
-    Loads the referenced hardware scheme JSON (`esp32s3-N8R8-hw_scheme.json` or `generic_hw.json` / `generic_hw.json`)
-    and validates `target_display` in `.scheme.json`.
-    If the partition constraint (`partition_1` / `partition_1_bytes` / `target_partition_bytes`) or any required
-    hardware/display attribute is removed or missing, fails immediately via `fail_gracefully()`.
+    Strictly validate target hardware and partition attributes from the root hardware scheme
+    JSON (`esp32s3-N8R8-hw_scheme.json` or `generic_hw.json`) with ZERO assumed defaults and
+    ZERO duplicate keys.
     """
     if repo_root is None:
         script_dir = Path(__file__).resolve().parent
         repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent
 
     s_name = scheme_path.name if scheme_path else "scheme.json"
-    if not isinstance(scheme_cfg, dict):
+    hw_ref = hw_scheme_cli
+    if not hw_ref and isinstance(scheme_cfg, dict):
+        hw_ref = scheme_cfg.get("hardware_scheme")
+
+    if not hw_ref or not str(hw_ref).strip():
         fail_gracefully(
-            f"Missing or invalid scheme configuration object in `{s_name}`.",
-            "Pass a valid `.scheme.json` file and hardware scheme (`esp32s3-N8R8-hw_scheme.json` or `generic_hw.json`).",
+            f"Missing required `hardware_scheme` reference in `{s_name}` (default values are not assumed).",
+            "Set 'hardware_scheme': 'esp32s3-N8R8-hw_scheme.json' (or 'generic_hw.json') in `.scheme.json`.",
         )
 
-    hw_ref = hw_scheme_cli or scheme_cfg.get("hardware_scheme")
-    if isinstance(hw_ref, str) and hw_ref.strip().lower() == "genaric_hw.json":
-        hw_ref = "generic_hw.json"
-    hw_data: dict = {}
+    cand_paths = [Path(str(hw_ref))]
+    if not cand_paths[0].is_absolute():
+        if scheme_path:
+            cand_paths.append(scheme_path.parent / str(hw_ref))
+            cand_paths.append(scheme_path.parent.parent / str(hw_ref))
+        cand_paths.append(repo_root / str(hw_ref))
+        cand_paths.append(repo_root / "schemes" / str(hw_ref))
+
     resolved_hw_path: Optional[Path] = None
+    for cp in cand_paths:
+        if cp.is_file():
+            resolved_hw_path = cp.resolve()
+            break
 
-    if hw_ref:
-        cand_paths = [Path(str(hw_ref))]
-        if not cand_paths[0].is_absolute():
-            if scheme_path:
-                cand_paths.append(scheme_path.parent / str(hw_ref))
-                cand_paths.append(scheme_path.parent.parent / str(hw_ref))
-            cand_paths.append(repo_root / str(hw_ref))
-            cand_paths.append(repo_root / "schemes" / str(hw_ref))
-        for cp in cand_paths:
-            if cp.is_file():
-                resolved_hw_path = cp.resolve()
-                break
-        if resolved_hw_path is None:
-            fail_gracefully(
-                f"Hardware scheme file `{hw_ref}` referenced by `{s_name}` does not exist.",
-                "Ensure `esp32s3-N8R8-hw_scheme.json` or `generic_hw.json` exists in the repository root or pass `--hw-scheme <path>`.",
-            )
-        try:
-            hw_data = json.loads(resolved_hw_path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            fail_gracefully(f"Failed to parse hardware scheme JSON `{resolved_hw_path}`: {exc}")
-
-    tdisp = scheme_cfg.get("target_display")
-    if not hw_data and not isinstance(tdisp, dict):
+    if resolved_hw_path is None:
         fail_gracefully(
-            f"Missing `hardware_scheme` reference in `{s_name}`.",
-            "Add `\"hardware_scheme\": \"esp32s3-N8R8-hw_scheme.json\"` (or `\"generic_hw.json\"`) to `.scheme.json` or pass `--hw-scheme <path>`.",
+            f"Hardware scheme file `{hw_ref}` referenced by `{s_name}` does not exist.",
+            "Ensure `esp32s3-N8R8-hw_scheme.json` or `generic_hw.json` exists in the repository root.",
         )
 
-    part_bytes: Optional[int] = None
-    part_label_str = "3 MBytes"
+    try:
+        hw_data = json.loads(resolved_hw_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        fail_gracefully(f"Failed to parse hardware scheme JSON `{resolved_hw_path}`: {exc}")
 
-    if hw_data:
-        hw_src = f"hardware scheme `{resolved_hw_path.name if resolved_hw_path else hw_ref}`"
-        if "partition_1" not in hw_data and "partition_1_bytes" not in hw_data:
-            fail_gracefully(
-                f"Missing required `partition_1` / `partition_1_bytes` attribute in {hw_src}.",
-                "Set `\"partition_1\": \"3 MBytes\"` and `\"partition_1_bytes\": 3145728` in the hardware scheme JSON.",
-            )
-        if "partition_1" in hw_data:
-            part_bytes = parse_partition_size_string(hw_data["partition_1"], hw_src)
-            part_label_str = str(hw_data["partition_1"]).strip()
-        if "partition_1_bytes" in hw_data:
-            b_chk = parse_partition_size_string(hw_data["partition_1_bytes"], hw_src)
-            part_bytes = b_chk
-    elif isinstance(tdisp, dict):
-        td_src = f"`target_display` in `{s_name}`"
-        if "partition_1" in tdisp and tdisp["partition_1"] is not None:
-            part_bytes = parse_partition_size_string(tdisp["partition_1"], td_src)
-            part_label_str = str(tdisp["partition_1"]).strip()
-        if "partition_1_bytes" in tdisp and tdisp["partition_1_bytes"] is not None:
-            part_bytes = parse_partition_size_string(tdisp["partition_1_bytes"], td_src)
-        if "target_partition_bytes" in tdisp and tdisp["target_partition_bytes"] is not None:
-            part_bytes = parse_partition_size_string(tdisp["target_partition_bytes"], td_src)
+    hw_src = f"`{resolved_hw_path.name}`"
+    if not isinstance(hw_data, dict):
+        fail_gracefully(f"Hardware scheme {hw_src} must be a JSON object.")
 
-    if part_bytes is None or part_bytes != SUPPORTED_PARTITION_BYTES:
+    missing_hw = sorted(REQUIRED_HW_TOP_KEYS - set(hw_data.keys()))
+    if missing_hw:
         fail_gracefully(
-            f"Missing or invalid 3 MByte partition constraint in `{s_name}`.",
-            f"Only the single 3 MByte ({SUPPORTED_PARTITION_BYTES:,} bytes) partition is supported.",
+            f"Missing required hardware attribute(s) {missing_hw} in {hw_src} (default values are not assumed).",
+            "Refer to the Master Configuration Matrix in `README.md`.",
         )
 
-    disp_block = hw_data.get("display", {}) if isinstance(hw_data.get("display"), dict) else {}
-    tdisp_dict = tdisp if isinstance(tdisp, dict) else {}
-
-    def _req_field(keys: Sequence[str], field_desc: str) -> Any:
-        # Authoritative root hardware scheme (`hw_data` & `disp_block`) takes strict precedence
-        for k in keys:
-            if k in disp_block and disp_block[k] is not None and str(disp_block[k]).strip() != "":
-                return disp_block[k]
-            if k in hw_data and hw_data[k] is not None and str(hw_data[k]).strip() != "":
-                return hw_data[k]
-            if k in tdisp_dict and tdisp_dict[k] is not None and str(tdisp_dict[k]).strip() != "":
-                return tdisp_dict[k]
+    unknown_hw = sorted(set(hw_data.keys()) - REQUIRED_HW_TOP_KEYS)
+    if unknown_hw:
         fail_gracefully(
-            f"Missing required hardware/display attribute `{keys[0]}` ({field_desc}) in `{s_name}`.",
-            "Provide full target hardware attributes via `esp32s3-N8R8-hw_scheme.json` or `generic_hw.json`.",
+            f"Unknown or duplicate hardware attribute(s) {unknown_hw} in {hw_src}.",
+            "Keep only singular hardware keys (`partition_bytes`, `chip_name`, `soc_vendor`, `display`).",
         )
 
-    chip_name = str(_req_field(["chip_name", "target_soc"], "target microcontroller/chip name"))
-    width_px = int(_req_field(["width_px"], "display horizontal width in pixels"))
-    height_px = int(_req_field(["height_px"], "display vertical height in pixels"))
-    dpi = float(_req_field(["dpi"], "display pixel density in DPI"))
-    safe_margin_px = int(_req_field(["safe_margin_px"], "display safe horizontal margin in pixels"))
-    color_depth_bpp = int(_req_field(["color_depth_bpp"], "display color depth in bits per pixel"))
-    lvgl_color_format = str(_req_field(["lvgl_color_format"], "LVGL color format identifier"))
-    panel = str(_req_field(["panel", "display_panel"], "display panel model"))
+    part_bytes = parse_partition_size_string(hw_data["partition_bytes"], hw_src)
+    disp = hw_data.get("display")
+    if not isinstance(disp, dict):
+        fail_gracefully(f"`display` in {hw_src} must be a JSON object.")
 
-    usable_width_px = int(tdisp_dict.get("usable_width_px") or disp_block.get("usable_width_px") or (width_px - 2 * safe_margin_px))
-    hw_scheme_id = str(hw_data.get("hw_scheme_id") or tdisp_dict.get("hw_scheme_id") or chip_name)
-    soc_vendor = str(hw_data.get("soc_vendor") or tdisp_dict.get("soc_vendor") or "Embedded Target")
-    cpu_arch = str(hw_data.get("cpu_architecture") or tdisp_dict.get("cpu_architecture") or "32-bit MCU")
-    cpu_freq = int(hw_data.get("cpu_freq_mhz") or tdisp_dict.get("cpu_freq_mhz") or 240)
-    flash_tot = str(hw_data.get("flash_total") or tdisp_dict.get("flash_total") or "8 MBytes")
-    flash_tot_b = int(hw_data.get("flash_total_bytes") or tdisp_dict.get("flash_total_bytes") or (8 * 1024 * 1024))
-    psram_tot = str(hw_data.get("psram_total") or tdisp_dict.get("psram_total") or "8 MBytes")
-    psram_tot_b = int(hw_data.get("psram_total_bytes") or tdisp_dict.get("psram_total_bytes") or (8 * 1024 * 1024))
-    sram_tot = str(hw_data.get("sram_total") or tdisp_dict.get("sram_total") or "512 KBytes")
-    sram_tot_b = int(hw_data.get("sram_total_bytes") or tdisp_dict.get("sram_total_bytes") or (512 * 1024))
-    part_desc = str(hw_data.get("partition_1_label") or tdisp_dict.get("partition_1_label") or "3 MByte Flash Partition")
-    controller = str(disp_block.get("controller") or tdisp_dict.get("controller") or "Monochrome EPD Controller")
+    missing_disp = sorted(REQUIRED_HW_DISPLAY_KEYS - set(disp.keys()))
+    if missing_disp:
+        fail_gracefully(
+            f"Missing required `display` attribute(s) {missing_disp} in {hw_src} (default values are not assumed).",
+            "Specify `panel`, `width_px`, `height_px`, `dpi`, `safe_margin_px`, `color_depth_bpp`, and `lvgl_color_format`.",
+        )
+
+    unknown_disp = sorted(set(disp.keys()) - REQUIRED_HW_DISPLAY_KEYS)
+    if unknown_disp:
+        fail_gracefully(
+            f"Unknown or redundant `display` attribute(s) {unknown_disp} in {hw_src}.",
+            "Remove duplicate/derived display keys (such as `usable_width_px` or `ppi`).",
+        )
+
+    width_px = int(disp["width_px"])
+    height_px = int(disp["height_px"])
+    dpi = float(disp["dpi"])
+    safe_margin_px = int(disp["safe_margin_px"])
+    color_depth_bpp = int(disp["color_depth_bpp"])
+    usable_width_px = width_px - (2 * safe_margin_px)
+    if width_px <= 0 or height_px <= 0 or usable_width_px <= 0 or dpi <= 0.0 or color_depth_bpp != 1:
+        fail_gracefully(
+            f"Invalid display geometry in {hw_src}: width={width_px}, height={height_px}, dpi={dpi}, bpp={color_depth_bpp}.",
+            "Ensure positive pixel dimensions, `dpi > 0`, and `color_depth_bpp == 1`.",
+        )
 
     return TargetHardwareSpec(
-        hw_scheme_id=hw_scheme_id,
+        hw_scheme_id=str(hw_data["hw_scheme_id"]).strip(),
         hw_scheme_path=resolved_hw_path,
-        chip_name=chip_name,
-        soc_vendor=soc_vendor,
-        cpu_architecture=cpu_arch,
-        cpu_freq_mhz=cpu_freq,
-        flash_total=flash_tot,
-        flash_total_bytes=flash_tot_b,
-        psram_total=psram_tot,
-        psram_total_bytes=psram_tot_b,
-        sram_total=sram_tot,
-        sram_total_bytes=sram_tot_b,
-        partition_1=part_label_str,
-        partition_1_bytes=part_bytes,
-        partition_1_label=part_desc,
-        panel=panel,
-        controller=controller,
+        chip_name=str(hw_data["chip_name"]).strip(),
+        soc_vendor=str(hw_data["soc_vendor"]).strip(),
+        partition_bytes=part_bytes,
+        panel=str(disp["panel"]).strip(),
         width_px=width_px,
         height_px=height_px,
         dpi=dpi,
         safe_margin_px=safe_margin_px,
         usable_width_px=usable_width_px,
         color_depth_bpp=color_depth_bpp,
-        lvgl_color_format=lvgl_color_format,
+        lvgl_color_format=str(disp["lvgl_color_format"]).strip(),
     )
 
 
@@ -467,8 +590,8 @@ def _worker_process_init_gpu() -> None:
     """
     Initializer for the SINGLE Persistent GPU Worker Process (`max_workers=1`):
       1. Ignores `SIGINT` (`Ctrl+C`) in child process so the parent coordinator handles Ctrl+C cleanly.
-      2. Sets `EPD_FONT_WORKER_ROLE="gpu"` so this single worker owns the `Ellesmere` discrete GPU
-         context (32 CUs, 4 CommandQueues, 3D NDRange, 15.7 GB Shared GPU Memory).
+      2. Sets `EPD_FONT_WORKER_ROLE="gpu"` and `EPD_FONT_ACCEL="gpu"` so this single worker owns the
+         `Ellesmere` discrete GPU context (32 CUs, 4 CommandQueues, 3D NDRange, 75% Shared GPU Memory).
       3. Registers `teardown_math_backends` with `atexit`.
     """
     try:
@@ -476,9 +599,10 @@ def _worker_process_init_gpu() -> None:
     except Exception:
         pass
     os.environ["EPD_FONT_WORKER_ROLE"] = "gpu"
+    os.environ["EPD_FONT_ACCEL"] = "gpu"
     try:
         from math_backends import select_math_backend, teardown_math_backends
-        select_math_backend("opencl")
+        select_math_backend("gpu")
         atexit.register(teardown_math_backends)
     except Exception:
         pass
@@ -488,10 +612,9 @@ def _worker_process_init_cpu() -> None:
     """
     Initializer for ProcessPoolExecutor CPU workers:
       1. Sets `signal.signal(signal.SIGINT, signal.SIG_IGN)` so pressing `Ctrl+C` in the console
-         does NOT cause 12 child worker processes to dump `KeyboardInterrupt` tracebacks from
-         `multiprocessing.queues.get()` (`_winapi.WaitForMultipleObjects`).
-      2. Sets `EPD_FONT_WORKER_ROLE="cpu"` so child CPU workers NEVER allocate competing
-         discrete GPU OpenCL contexts on `Ellesmere` (`0` VRAM bloat and `0` WDDM context thrashing).
+         does NOT cause child worker processes to dump `KeyboardInterrupt` tracebacks.
+      2. Sets `EPD_FONT_WORKER_ROLE="cpu"` and `EPD_FONT_ACCEL="cpu"` so child CPU workers NEVER
+         allocate competing discrete GPU OpenCL contexts (`0` VRAM bloat and `0` context thrashing).
       3. Registers deterministic teardown on worker exit.
     """
     try:
@@ -556,28 +679,57 @@ def run_parallel_tasks(
     tasks: Sequence[dict],
     max_workers: int = 4,
     use_threads: bool = False,
+    math_backend: Optional[str] = None,
 ) -> List[Any]:
     """
-    Execute tasks across a Hybrid Single-Owner GPU + Multi-Core CPU Work-Stealing Pool:
-      - When an OpenCL GPU/CPU accelerator is available and `use_threads` is False:
-          * Spawns `gpu_pool` (`max_workers=1`, `EPD_FONT_WORKER_ROLE="gpu"`) which owns the
-            single persistent OpenCL context (`Ellesmere` 32 CUs, 4 CommandQueues, 3D NDRange,
-            15.7 GB Shared GPU Memory) and pulls heavy icon/SDF strikes from the front of the deque.
-          * Spawns `cpu_pool` (`max_workers=max(1, max_workers - 1)`, `EPD_FONT_WORKER_ROLE="cpu"`)
-            which runs on the host CPU cores (`AMD Ryzen 5 5600G` 12 threads) and pulls lightweight
-            `Terminus` and small text strikes from the back of the deque, with dynamic work-stealing
-            when the two pools meet.
-      - Before returning, explicitly runs `_teardown_worker_opencl_noop` on `gpu_pool` so all
-        GPU/Shared RAM buffers and contexts are deterministically `.release()`d (`0 MB` post-exit).
-      - On `Ctrl+C` (`KeyboardInterrupt`), immediately cancels pending futures, terminates and joins
-        all child worker processes (`_terminate_executor_processes`), releases all OpenCL/Shared RAM
-        allocations (`teardown_math_backends()`), and prints a single clean teardown message with
-        zero tracebacks.
+    Execute tasks asynchronously according to the validated `math_backend` operating mode:
+      - `"sync"`: Synchronous single-process execution in the main process.
+      - `"cpu"` : Asynchronous multi-core CPU execution (`max_workers` `ProcessPoolExecutor` CPU workers,
+                  `EPD_FONT_WORKER_ROLE="cpu"`, zero GPU contexts).
+      - `"gpu"` : Dedicated GPU acceleration (`gpu_pool` with `max_workers=1`, `EPD_FONT_WORKER_ROLE="gpu"`,
+                  `EPD_FONT_ACCEL="gpu"`) executing all vector/distance-field/thresholding tasks on the GPU,
+                  orchestrated asynchronously from the CPU (with bitmap `exact-mono` tasks routed to a helper
+                  CPU worker). Raises an explicit error if no verified GPU is available.
+      - `"hybrid"` / `"auto"`: Dual-pool work-stealing deque (`1` persistent GPU worker pulling heavy tasks
+                  from the front + `max_workers - 1` async CPU workers pulling lightweight tasks from the back).
+                  In `"hybrid"`, raises an explicit error if no OpenCL GPU is present; in `"auto"`, delegates
+                  to the async multi-core CPU pool when no OpenCL GPU is detected.
     """
     if not tasks:
         return []
 
-    if len(tasks) == 1 or max_workers <= 1:
+    eff_mode = (math_backend or os.environ.get("EPD_FONT_ACCEL", "auto")).strip().lower()
+    if eff_mode not in VALID_MATH_BACKEND_VALUES:
+        fail_gracefully(
+            f"Unsupported `math_backend` mode `'{eff_mode}'`.",
+            f"Valid modes are: {sorted(VALID_MATH_BACKEND_VALUES)}.",
+        )
+
+    # Check hardware upfront before executing tasks
+    has_opencl_gpu = False
+    if eff_mode != "cpu":
+        try:
+            from opencl_dispatcher import get_devices
+            gpu_dev, cpu_ocl_dev, _ = get_devices()
+            has_opencl_gpu = (gpu_dev is not None or cpu_ocl_dev is not None)
+        except Exception:
+            has_opencl_gpu = False
+
+    if eff_mode in ("gpu", "hybrid") and not has_opencl_gpu:
+        fail_gracefully(
+            f"Hardware check failed for `math_backend = '{eff_mode}'`: no compatible OpenCL GPU/accelerator was detected on this host.",
+            "Install an OpenCL GPU runtime (see `README.md`) or set 'math_backend': 'auto' or 'cpu' in your `.scheme.json`.",
+        )
+
+    # Release any parent-process probe context before spawning worker processes
+    try:
+        from math_backends import teardown_math_backends
+        teardown_math_backends()
+    except Exception:
+        pass
+
+    # 1. Synchronous single-process mode (`math_backend = "sync"`)
+    if eff_mode == "sync":
         results = []
         try:
             for t in tasks:
@@ -605,26 +757,23 @@ def run_parallel_tasks(
 
     # Sort tasks by compute density descending: left of deque = heaviest GPU tasks, right = lightest CPU tasks
     indexed_tasks: List[Tuple[int, dict]] = list(enumerate(tasks))
-    has_opencl_gpu = False
     try:
-        from opencl_dispatcher import get_devices, score_task_compute_density
+        from opencl_dispatcher import score_task_compute_density
         indexed_tasks.sort(key=lambda pair: score_task_compute_density(pair[1]), reverse=True)
-        gpu_dev, cpu_ocl_dev, _ = get_devices()
-        has_opencl_gpu = (gpu_dev is not None or cpu_ocl_dev is not None)
     except Exception:
         pass
 
     ordered_results: List[Any] = [None] * len(tasks)
 
-    # Thread-based execution path
-    if use_threads or not has_opencl_gpu or max_workers < 2:
+    # 2. Pure Async Multi-Core CPU mode (`math_backend = "cpu"`, or `"auto"` when no OpenCL GPU is present)
+    if use_threads or eff_mode == "cpu" or (eff_mode == "auto" and not has_opencl_gpu):
         if use_threads:
             pool: Any = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         else:
             prev_sig = signal.signal(signal.SIGINT, signal.SIG_IGN)
             try:
                 pool = concurrent.futures.ProcessPoolExecutor(
-                    max_workers=max_workers,
+                    max_workers=max(1, max_workers),
                     initializer=_worker_process_init_cpu,
                 )
             finally:
@@ -674,7 +823,82 @@ def run_parallel_tasks(
                 pass
             gc.collect()
 
-    # Hybrid Dual-Pool Work-Stealing Execution (`1` Persistent GPU Worker + `max_workers - 1` CPU Workers)
+    # 3. Dedicated GPU Mode (`math_backend = "gpu"`):
+    #    All vector/distance-field/thresholding tasks run in the persistent GPU worker (`EPD_FONT_ACCEL="gpu"`),
+    #    while native pre-gridded bitmap strikes (`exact-mono` / `Terminus`) run in 1 helper CPU worker.
+    if eff_mode == "gpu":
+        prev_sig = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            gpu_pool = concurrent.futures.ProcessPoolExecutor(
+                max_workers=1,
+                initializer=_worker_process_init_gpu,
+            )
+            cpu_pool = concurrent.futures.ProcessPoolExecutor(
+                max_workers=1,
+                initializer=_worker_process_init_cpu,
+            )
+        finally:
+            signal.signal(signal.SIGINT, prev_sig)
+
+        futures_map_gpu: Dict[concurrent.futures.Future, int] = {}
+        try:
+            for orig_idx, t in indexed_tasks:
+                fam = str(t.get("family", "")).lower() if isinstance(t, dict) else ""
+                pipe = str(t.get("pipeline", "")).lower() if isinstance(t, dict) else ""
+                if fam in ("terminus", "unifont") or pipe == "exact-mono":
+                    fut = cpu_pool.submit(worker_fn, t)
+                else:
+                    fut = gpu_pool.submit(worker_fn, t)
+                futures_map_gpu[fut] = orig_idx
+
+            for fut in concurrent.futures.as_completed(futures_map_gpu):
+                if _INTERRUPTED:
+                    raise KeyboardInterrupt()
+                orig_idx = futures_map_gpu[fut]
+                ordered_results[orig_idx] = fut.result()
+
+            try:
+                gpu_pool.submit(_teardown_worker_opencl_noop, None).result(timeout=3.0)
+            except Exception:
+                pass
+            gpu_pool.shutdown(wait=True)
+            cpu_pool.shutdown(wait=True)
+            return ordered_results
+        except KeyboardInterrupt:
+            for fut in futures_map_gpu:
+                fut.cancel()
+            _terminate_executor_processes(gpu_pool)
+            _terminate_executor_processes(cpu_pool)
+            gpu_pool.shutdown(wait=False, cancel_futures=True)
+            cpu_pool.shutdown(wait=False, cancel_futures=True)
+            try:
+                from math_backends import teardown_math_backends
+                teardown_math_backends()
+            except Exception:
+                pass
+            sys.stderr.write(
+                "\n[!] Execution interrupted by user (Ctrl+C). Workers stopped and OpenCL/host memory released cleanly.\n"
+            )
+            sys.stderr.flush()
+            sys.exit(130)
+        except Exception:
+            for fut in futures_map_gpu:
+                fut.cancel()
+            _terminate_executor_processes(gpu_pool)
+            _terminate_executor_processes(cpu_pool)
+            gpu_pool.shutdown(wait=False, cancel_futures=True)
+            cpu_pool.shutdown(wait=False, cancel_futures=True)
+            raise
+        finally:
+            try:
+                from math_backends import teardown_math_backends
+                teardown_math_backends()
+            except Exception:
+                pass
+            gc.collect()
+
+    # 4. Hybrid Dual-Pool Work-Stealing Execution (`math_backend = "auto"` or `"hybrid"` with OpenCL GPU):
+    #    `1` Persistent GPU Worker (heavy front of deque) + `max_workers - 1` CPU Workers (lightweight back of deque)
     cpu_workers = max(1, max_workers - 1)
     prev_sig = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
@@ -692,12 +916,10 @@ def run_parallel_tasks(
     in_flight: Dict[concurrent.futures.Future, Tuple[int, str]] = {}
 
     try:
-        # Seed the single persistent GPU worker from the heavy front of the deque
         if task_deque:
             o_idx, t_item = task_deque.popleft()
             in_flight[gpu_pool.submit(worker_fn, t_item)] = (o_idx, "gpu")
 
-        # Seed the CPU workers from the lightweight back of the deque
         for _ in range(cpu_workers):
             if not task_deque:
                 break
@@ -722,7 +944,6 @@ def run_parallel_tasks(
                         next_idx, next_task = task_deque.pop()
                         in_flight[cpu_pool.submit(worker_fn, next_task)] = (next_idx, "cpu")
 
-        # Explicitly release OpenCL buffers/contexts inside the persistent GPU worker before shutdown
         try:
             gpu_pool.submit(_teardown_worker_opencl_noop, None).result(timeout=3.0)
         except Exception:

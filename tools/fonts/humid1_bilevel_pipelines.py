@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_pipelines.py (v1.0.21)
+humid1_bilevel_pipelines.py (v1.0.22)
 =====================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -50,7 +50,7 @@ from math_backends import (
     get_active_math_backend,
 )
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 
 CANONICAL_PIPELINES: Tuple[str, ...] = (
     "raw-unhinted",

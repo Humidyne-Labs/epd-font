@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [06] Humidyne Labs - Humiditron epd-font v1.0.21 - Rebuild Icon and Font Metadata Catalogs
+echo [06] Humidyne Labs - Humiditron epd-font v1.0.22 - Rebuild Icon and Font Metadata Catalogs
 echo      Workflow   : General Embedded Display Example Distribution Workflow
 echo      Source Dir : assets\
 echo      Output Dir : build\static_ttfs\ and build\metadata\

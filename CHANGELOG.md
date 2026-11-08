@@ -2,6 +2,29 @@
 
 All notable changes to the `epd-font` repository ([Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)) designed and developed by [Humiditron](https://github.com/humiditron) and the AI/LLM Collaborative Development Partner are documented in this file.
 
+## [v1.0.22] — 2026-11-08
+
+### Added
+- **Singular Configuration Variable Matrix ("1 Spot, 1 Var, Zero Assumed Defaults") (`humid1_runtime.py`, `README.md`, `docs/HOW_TO_GUIDE.md`)**:
+  - Added `validate_scheme_config()` and upgraded `load_and_validate_hardware_scheme()` in `tools/fonts/humid1_runtime.py` to enforce strict schema validation across all 21 `.scheme.json` files and both root hardware configuration files (`esp32s3-N8R8-hw_scheme.json` and `generic_hw.json`).
+  - Consolidated hardware partition capacity into a single `partition_bytes` (`3145728`) key in `esp32s3-N8R8-hw_scheme.json` and `generic_hw.json` (removing duplicate `partition_1` + `partition_1_bytes`, `flash_total*`, `psram_total*`, `sram_total*`, `cpu_*`, and redundant `usable_width_px`).
+  - Documented the complete **Master Configuration Variable Matrix** and `math_backend` operating mode table in `README.md` and `docs/HOW_TO_GUIDE.md`.
+- **Single-Font Full-Pipeline Fast Debug Scheme (`scripts/h1os-build-distro/h1os_debug.scheme.json`, `08_run_single_font_debug.bat`)**:
+  - Added `h1os_debug.scheme.json` and `08_run_single_font_debug.bat` containing a single font family (`IBM Plex Sans Normal` @ `16px` low-detail and `38px` high-detail) with `pipeline = "all-debug"`, `sheet_debug = true`, `char_debug = true`, and `debug_stages = true` for rapid end-to-end verification of all 9 pipelines and debug outputs.
+- **Structured `inspect_pages/` Subdirectory Hierarchy, Per-Method `master_char_icon_map.png` & Dual-Detail `16px`/`38px` `compare_methods/` (`humid1_generate_1bpp.py`, `humid1_visual_check.py`)**:
+  - Organized `build/<target>/inspect_pages/` into logical subdirectories (`adf-biquadratic/`, `mdf/`, `msdf/`, `otsu-adaptive/`, `raw-hinted/`, `raw-unhinted/`, `sdf-smoothstep/`, `svg-potrace/`, `svg-potrace-jfa/`, `default/`, and `compare_methods/`) with **zero loose `.png` files** in the root of `inspect_pages/`.
+  - Every method subdirectory (`adf-biquadratic/` through `svg-potrace-jfa/` and `default/`) now generates its own `master_char_icon_map.png`.
+  - Upgraded `render_multi_method_comparison_sheet_png()` (`inspect_pages/compare_methods/<font_stem>_16px_38px.png`) to render **`16px` (Low-Detail) and `38px` (High-Detail)** side-by-side across all 9 conversion pipelines.
+
+### Fixed
+- **Resolved `"debug_stages": true` Crash (`tools/fonts/humid1_ft_raster.py`, `PRE-22-01`)**:
+  - Removed the stale `font_path=f_path, ft_lib=ft_lib` keyword arguments in `humid1_ft_raster.py:728` left behind by an earlier partial edit, fixing `TypeError: save_debug_stage_artifacts() got an unexpected keyword argument 'font_path'` when `"debug_stages": true` is enabled.
+- **Resolved `math_backend` Config-to-Runtime Disconnect & Removed Silent Fallbacks (`hw_dispatch.py`, `humid1_runtime.py`, `opencl_dispatcher.py`, `PRE-22-02`)**:
+  - Implemented explicit upfront hardware verification and worker pool delegation for all five `math_backend` modes (`"auto"`, `"cpu"`, `"gpu"`, `"hybrid"`, `"sync"`).
+  - Removed silent fallbacks when `"gpu"` or `"hybrid"` is configured on a host without a verified OpenCL/UMat GPU (now halts immediately with a clear diagnostic message), and removed the `65536`/`16384` pixel-count skips when running in `"gpu"` mode so all applicable math operations execute on the GPU.
+- **Minimized & Standardized CLI Arguments Across All Python Tooling (`humid1_generate_1bpp.py`, `humid1_fw_emit.py`, `humid1_cmake_font_builder.py`, `humid1_package_distro.py`, `string_info.py`, `PRE-22-03`)**:
+  - Removed 22 redundant CLI flags from `humid1_generate_1bpp.py` that duplicated `.scheme.json` and `hardware_scheme` settings, leaving a minimal, consistent set of workflow and path flags across all Python tools.
+
 ## [v1.0.21] — 2026-11-08
 
 ### Changed

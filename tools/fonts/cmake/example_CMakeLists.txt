@@ -1,5 +1,5 @@
 # ==============================================================================
-# Example ESP-IDF Component CMakeLists.txt for epd-font (v1.0.21)
+# Example ESP-IDF Component CMakeLists.txt for epd-font (v1.0.22)
 # A 1-bit EPD font generator and asset pipeline for embedded displays
 # Repository : https://github.com/Humidyne-Labs/epd-font
 # Target SoC : ESP32-S3-N8R8 (H1OS / LVGL >= 9.6.0)

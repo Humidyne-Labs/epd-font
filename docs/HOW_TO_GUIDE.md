@@ -1,14 +1,14 @@
-# Complete How-To Guide — `epd-font` (v1.0.21)
+# Complete How-To Guide — `epd-font` (v1.0.22)
 
 - **Project**: A 1-bit EPD font generator and asset pipeline for embedded displays
-- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.21`)
+- **Repository**: [Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font) (`v1.0.22`)
 - **Authors**: [Humiditron](https://github.com/humiditron) (Humidyne Labs) & AI/LLM Collaborative Development Partner
 - **Supported Platforms**: Windows (Primary) and Linux (Optional). *(Note: unsupported Apple OS is not supported.)*
 - **License**: MIT License (Pipeline & Tooling) / SIL OFL 1.1 / CC-BY-4.0 / ISC / MIT (Upstream Fonts)
 
 ## 1. Host Prerequisites & Dependency Installation
 
-`epd-font` v1.0.21 supports two operational modes:
+`epd-font` v1.0.22 supports two operational modes:
 1. **Full Pipeline & Asset Builder (`build_static_ttf_assets.py`, `humid1_generate_1bpp.py`, `humid1_font_eval.py`)**: Requires Python 3.9+, `fonttools`, `Pillow`, `numpy`, `opencv-python`, and `freetype-py` (`freetype.dll` on Windows or `libfreetype.so.6` on Linux).
 2. **Downstream Firmware / CMake Vault Emitter (`humid1_fw_emit.py`)**: Requires **ONLY** the standard Python 3 library (`0` third-party packages, `< 0.15s` execution time).
 
@@ -50,11 +50,11 @@ Every `.scheme.json` references a hardware scheme (`"hardware_scheme": "esp32s3-
   "target_partition_bytes": 3145728
 }
 ```
-All hardcoded partition fallback defaults have been removed in `v1.0.21`: if `"partition_1"` / `"target_partition_bytes"` is removed or does not equal `3 MBytes` (`3,145,728` bytes), the generator immediately exits with a descriptive configuration error.
+All hardcoded partition fallback defaults have been removed in `v1.0.22`: if `"partition_1"` / `"target_partition_bytes"` is removed or does not equal `3 MBytes` (`3,145,728` bytes), the generator immediately exits with a descriptive configuration error.
 
 ## 4. Closed-Loop Manual ASCII Patching Workflow
 
-In `v1.0.21`, all pixel-level modifications are controlled directly by the developer:
+In `v1.0.22`, all pixel-level modifications are controlled directly by the developer:
 1. **Step 1 — Generate Static Assets**: Run `01_build_static_ttfs.bat` and `02_build_fonts.bat` to generate static `.ttf` binaries and baseline `.c`/`.h` font strikes using `font_icon_epd_patches.json`.
 2. **Step 2 — Dump Visual Inspection PNGs**: Run `03_visual_check_pngs.bat` (`--sheet-debug`) to render per-strike character map sheets (`build/<workflow>/inspect_pages/*.png`) and `master_char_icon_map.png`.
 3. **Step 3 — Dump Editable ASCII Files**: Run `04_dump_ascii_patches.bat` (`--workflow patch --dump`) to export Full-Canvas `1:1` Spaced ASCII `.txt` files into `build/<workflow>/ascii_patches/<strike>/`.
@@ -75,4 +75,89 @@ epd_font_generate_lvgl_target(
     VAULT       "${CMAKE_CURRENT_LIST_DIR}/dist/h1os_distro/humid1_epd_vault.json.gz"
     OUT_DIR     "${CMAKE_CURRENT_BINARY_DIR}/generated_fonts"
 )
+```
+
+
+## Master Configuration Variable Matrix & `math_backend` Reference (`v1.0.22`)
+
+`epd-font v1.0.22` enforces a strict **Singular Configuration ("1 Spot, 1 Variable, Zero Assumed Defaults")** architecture. Every variable is defined in **one authoritative location** — either the **Hardware Configuration JSON** (`esp32s3-N8R8-hw_scheme.json` / `generic_hw.json`) or the **Profile Scheme JSON** (`*.scheme.json`). No variable is duplicated across files or CLI flags, and missing, unknown, or out-of-range variables halt execution immediately with a diagnostic error message.
+
+### 1. Hardware Configuration Matrix (`esp32s3-N8R8-hw_scheme.json` / `generic_hw.json`)
+
+| Variable Path | Type | Allowed Values / Domain | Purpose & Single-Source Usage |
+| :--- | :--- | :--- | :--- |
+| `schema_version` | `string` | `"1.0.22"` | Schema version identifier validated by `load_and_validate_hardware_scheme()`. |
+| `hw_scheme_id` | `string` | e.g., `"esp32s3-N8R8"`, `"generic_hw"` | Unique hardware target identifier recorded in Strike Vaults and ROM reports. |
+| `description` | `string` | Non-empty string | Human-readable summary of the target MCU and display platform. |
+| `chip_name` | `string` | e.g., `"ESP32-S3-N8R8"`, `"Generic-32bit-MCU"` | Target microcontroller identifier displayed in Flash `.rodata` reports. |
+| `soc_vendor` | `string` | e.g., `"Espressif Systems"` | Microcontroller vendor name for formal audit and ROM reports. |
+| `partition_bytes` | `int` | `3145728` (`3 MBytes` exact) | Single supported Flash `.rodata` partition capacity in bytes (`3,145,728` bytes). |
+| `display.panel` | `string` | e.g., `"Waveshare 1.54in V2 Monochrome EPD (SSD1681)"` | Physical display panel model name used in screen-width audit headers. |
+| `display.width_px` | `int` | Positive integer (`200`) | Horizontal display resolution in pixels. |
+| `display.height_px` | `int` | Positive integer (`200`) | Vertical display resolution in pixels. |
+| `display.dpi` | `float` | Positive float (`188.15`) | Exact physical pixel density (`25.4 mm / 0.135 mm = 188.15 DPI`); single resolution variable (no `ppi`). |
+| `display.safe_margin_px` | `int` | Non-negative integer (`6`) | Safe bezel margin per side in pixels (`usable_width_px` is derived as `width_px - 2 * safe_margin_px = 188`). |
+| `display.color_depth_bpp` | `int` | `1` | Bilevel monochrome bit depth (`1` bit per pixel). |
+| `display.lvgl_color_format` | `string` | `"LV_COLOR_FORMAT_I1"` | LVGL `>= 9.6.0` 1-bit indexed color format constant. |
+
+### 2. Profile Scheme Configuration Matrix (`*.scheme.json`)
+
+| Variable Path | Type | Allowed Values / Domain | Purpose & Single-Source Usage |
+| :--- | :--- | :--- | :--- |
+| `schema_version` | `string` | `"1.0.22"` | Schema version identifier validated by `validate_scheme_config()`. |
+| `scheme_id` | `string` | e.g., `"h1os_epd_v1_full"`, `"h1os_epd_v1_debug_single_font"` | Unique profile identifier used in headers, vaults, and audit reports. |
+| `project_brand` | `string` | Non-empty string | Project title rendered on visual inspection sheets and header banners. |
+| `description` | `string` | Non-empty string | Summary of the font/icon strikes included in the profile. |
+| `spdx_license` | `string` | e.g., `"MIT AND OFL-1.1"` | SPDX license expression written into generated C/H headers. |
+| `hardware_scheme` | `string` | `"esp32s3-N8R8-hw_scheme.json"` or `"generic_hw.json"` | Reference to the root Hardware Configuration JSON (composes the `[hardware.json + profile.json]` pair). |
+| `raster_config.pipeline` | `string` | `"raw-unhinted"`, `"raw-hinted"`, `"svg-potrace"`, `"svg-potrace-jfa"`, `"mdf"`, `"msdf"`, `"sdf-smoothstep"`, `"adf-biquadratic"`, `"otsu-adaptive"`, `"all"`, `"all-debug"` | Selects the resolution-reduction bilevel conversion method (or `"all"` / `"all-debug"` to evaluate all 9 pipelines). |
+| `raster_config.math_backend` | `string` | `"auto"`, `"cpu"`, `"gpu"`, `"hybrid"`, `"sync"` | Selects the hardware compute delegation and multiprocessing execution mode (see Section 3 below). |
+| `raster_config.threshold` | `int` | `1..254` (`128` nominal) | Binarization luminance threshold in linear `[0..255]` grayscale space. |
+| `raster_config.gamma` | `float` | `0.20..3.00` (`1.0` nominal) | Linear luminance contrast power factor applied prior to thresholding. |
+| `raster_config.normal_weight` | `int` | `100..900` (`500` Medium / `400` Regular) | OpenType weight mapped to the `"normal"` style slot. |
+| `raster_config.bold_weight` | `int` | `100..900` (`800` ExtraBold / `700` Bold) | OpenType weight mapped to the `"bold"` style slot. |
+| `raster_config.italic_weight` | `int` | `100..900` (`600` SemiBoldItalic / `400` Italic) | OpenType weight mapped to the `"italic"` style slot. |
+| `raster_config.patches_file` | `string` | `"font_icon_epd_patches.json"` | Path to the manual pixel patch manifest JSON. |
+| `raster_config.ascii_patches_dir` | `string` | e.g., `"build/h1os/ascii_patches"` | Directory for dumping and ingesting editable 1:1 ASCII `.txt` glyph files. |
+| `raster_config.sheet_debug` | `bool` | `true` or `false` | Enables/disables generation of `inspect_pages/` PNG sheets and `master_char_icon_map.png`. |
+| `raster_config.char_debug` | `bool` | `true` or `false` | Enables/disables generation of `inspect_chars/` per-glyph blueprint PNG cards. |
+| `raster_config.debug_stages` | `bool` | `true` or `false` | Enables/disables `debug_stages/` 9-pipeline stage breakdown PNGs and Potrace `.svg` vectors. |
+| `output_branding` | `object` | `{symbol_prefix, primary_header, compat_header, default_font, semantic_roles}` | C symbol naming prefix (`humid1_`), output header filenames, and semantic role macros. |
+| `character_sets` | `object` | Map of named character/icon sets | Defines Unicode ranges (`ranges`) or semantic icon lists (`vendor`, `scope`, `icons`). |
+| `strikes` | `array` | List of `{family, style, sizes, char_sets, kerning, fallback}` | Declares every font/icon strike, point-size array, kerning toggle, and LVGL fallback pointer. |
+
+### 3. `math_backend` Operating Modes & Hardware Pre-Check Behavior
+
+Before any strike task is dispatched, `humid1_generate_1bpp.py` and `humid1_runtime.py` inspect the host hardware and validate `raster_config.math_backend` with **zero silent fallbacks**:
+
+| `math_backend` Value | Hardware Requirement & Pre-Check | Execution & Resource Delegation Behavior |
+| :--- | :--- | :--- |
+| **`"auto"`** | Probes OpenCL GPU/CPU runtimes and host CPU cores. Never fails if a GPU is absent. | **Automatic Asynchronous Delegation**: If a verified OpenCL GPU (e.g., `Ellesmere`, 32 CUs) is detected, spawns `1` persistent GPU worker (for heavy icon catalogs, distance-field pipelines, and `28..40px` strikes) + `N-1` async CPU workers (for `Terminus` bitmap strikes and small text strikes). If no GPU is present, runs all tasks across `N` async CPU workers. |
+| **`"cpu"`** | Requires host CPU (`>= 1` core). | **100% Asynchronous Multi-Core CPU**: Spawns `N` `ProcessPoolExecutor` CPU workers (`EPD_FONT_WORKER_ROLE="cpu"`, OpenCL GPU and OpenCV UMat disabled). Zero GPU contexts or VRAM/Shared GPU RAM buffers are allocated. |
+| **`"gpu"`** | **Strict GPU Pre-Check**: Requires a verified OpenCL GPU (or OpenCV UMat GPU). **Halts immediately with an error if no GPU is available.** | **Dedicated GPU Acceleration + CPU Orchestration**: Routes all applicable mathematical operations (sRGB-to-linear luminance + gamma, SDF smoothstep, MSDF median-of-3, ADF biquadratic 9-pt Lagrange, Otsu local-atomic histogram, `1+JFA` + Marching Squares, morphological close, median blur, and compute-density task sorting) through the GPU accelerator (`3D NDRange`, `4` queues, `75%` Shared GPU RAM Arena), while the CPU orchestrates FreeType outline loading and file I/O. |
+| **`"hybrid"`** | **Strict Hybrid Pre-Check**: Requires BOTH a verified OpenCL GPU and multi-core host CPU. **Halts immediately with an error if no GPU is available.** | **Explicit Dual-Pool Work-Stealing Deque**: Spawns `1` persistent GPU worker pulling the highest-density tasks from the front of the work-stealing deque and `N-1` async CPU workers pulling lightweight tasks from the back of the deque. |
+| **`"sync"`** | Requires host CPU (`1` process). | **Synchronous Single-Process Mode (`misc`)**: Executes all strike tasks sequentially in the main process without spawning `ProcessPoolExecutor` child workers (useful for deterministic profiling and debugging). |
+
+### 4. Structured `inspect_pages/` Output Hierarchy (`all` / `all-debug` & Single-Font `h1os_debug.scheme.json`)
+
+When `sheet_debug = true` (or `pipeline = "all-debug"` / `--workflow audit`), all generated inspection PNGs are organized into logical subdirectories under `build/<target>/inspect_pages/` (**zero loose `.png` files in `inspect_pages/`**):
+- `build/<target>/inspect_pages/adf-biquadratic/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/mdf/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/msdf/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/otsu-adaptive/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/raw-hinted/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/raw-unhinted/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/sdf-smoothstep/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/svg-potrace/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/svg-potrace-jfa/` — All strike sheets + `master_char_icon_map.png`
+- `build/<target>/inspect_pages/default/` — Default selection strike sheets + `master_char_icon_map.png` + `humid1_epd_specimen_188dpi.png`
+- `build/<target>/inspect_pages/compare_methods/` — Side-by-side `<font_stem>_16px_38px.png` comparison sheets featuring **`16px` (Low-Detail) & `38px` (High-Detail)** across all 9 conversion pipelines.
+
+To verify the entire debug pipeline against **1 font (`IBM Plex Sans Normal` @ `16px` & `38px`)** in seconds rather than running all 108/368 strikes, run:
+```bat
+scripts\h1os-build-distro\08_run_single_font_debug.bat
+```
+or via Python CLI:
+```bash
+python tools/fonts/humid1_generate_1bpp.py --workflow audit --scheme scripts/h1os-build-distro/h1os_debug.scheme.json --src-dir build/static_ttfs --out-dir build/h1os_debug --dist-dir dist/h1os_debug_distro
 ```

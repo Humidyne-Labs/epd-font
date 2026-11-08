@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-humid1_font_eval.py (v1.0.21)
+humid1_font_eval.py (v1.0.22)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Multi-Core 9-Pipeline Font & Wnine Evaluation Suite (v1.0.21):
+Multi-Core 9-Pipeline Font & Wnine Evaluation Suite (v1.0.22):
   - Evaluates ALL EIGHT bilevel resolution-reduction pipelines per font and per pixel size:
       1. `raw-unhinted`    : Raw Threshold Pipeline without Hinting (Linear Grayscale + Gamma)
       2. `raw-hinted`      : Raw Threshold Pipeline with Hinting (Linear Grayscale + Gamma)
@@ -102,7 +102,7 @@ from humid1_runtime import (
 
 EVAL_BENCHMARK_CHARS = "0124689ABCDHIJMNOPQRWabcefghijlmnoqrstvwxyz$%&()[]{}/\\|!<>+="
 EVAL_COUNTER_CHARS = set("04689ABDOPQRabdegopq$%&")
-EVAL_SPECIMEN_STRING = "H1OS v1.0.21 (08B$) [aeg] {WwMm} <=>"
+EVAL_SPECIMEN_STRING = "H1OS v1.0.22 (08B$) [aeg] {WwMm} <=>"
 EVAL_ZOOM_STRIP_CHARS = "WwMmABCfgrs$()[]08"
 
 

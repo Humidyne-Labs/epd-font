@@ -3,10 +3,9 @@ setlocal
 set EPD_NO_PAUSE=1
 cd /d "%~dp0"
 echo ============================================================================
-echo [99] Humidyne Labs - Humiditron epd-font v1.0.21 - Full End-to-End Pipeline
+echo [99] Humidyne Labs - Humiditron epd-font v1.0.22 - Full End-to-End Pipeline
 echo      Workflow   : H1OS and humid1-os Firmware Distribution Workflow (ESP32-S3-N8R8)
-echo      HW Config  : esp32s3-N8R8-hw_scheme.json
-echo      Scheme     : scripts\h1os-build-distro\h1os_full.scheme.json
+echo      Scheme     : scripts\h1os-build-distro\h1os_full.scheme.json (Hardware: esp32s3-N8R8-hw_scheme.json)
 echo ============================================================================
 call 01_build_static_ttfs.bat
 if errorlevel 1 exit /b 1
@@ -21,8 +20,8 @@ if errorlevel 1 exit /b 1
 call 07_package_distro.bat
 if errorlevel 1 exit /b 1
 echo ============================================================================
-echo [+] Full v1.0.21 pipeline completed!
+echo [+] Full v1.0.22 pipeline completed!
 echo     Build Output : build\h1os\
-echo     Dist Bundle  : dist\h1os_distro\ (and dist\epd-font_h1os_v1.0.21.zip)
+echo     Dist Bundle  : dist\h1os_distro\ (and dist\epd-font_h1os_v1.0.22.zip)
 echo ============================================================================
 if "%EPD_CI%"=="" pause

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-opencl_dispatcher.py (v1.0.21)
+opencl_dispatcher.py (v1.0.22)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Heterogeneous Multi-Device OpenCL & CPU Workload Coordinator (`v1.0.21`):
+Heterogeneous Multi-Device OpenCL & CPU Workload Coordinator (`v1.0.22`):
   - Discovers discrete GPU OpenCL devices (e.g., `[0] Platform 0, Device 0: Ellesmere (ALL | GPU) - 32 CUs`)
     and host CPU OpenCL runtimes (e.g., `[1] Platform 1, Device 0: AMD Ryzen 5 5600G (ALL | CPU) - 12 CUs`
     installed via Intel CPU Runtime for OpenCL Applications).
@@ -48,7 +48,7 @@ from math_backends import (
     teardown_math_backends,
 )
 
-TOOL_VERSION = "1.0.21"
+TOOL_VERSION = "1.0.22"
 
 HEAVY_ICON_FAMILIES = {"icon_tabler", "icon_phosphor", "icon_lucide", "icon_fa7"}
 DISTANCE_FIELD_PIPELINES = {
@@ -212,31 +212,46 @@ def init_worker_environment(role: str = "cpu") -> None:
     atexit.register(teardown_math_backends)
 
 
-def describe_hybrid_dispatch_plan(total_tasks: int, max_workers: int) -> str:
-    pref = os.environ.get("EPD_FONT_ACCEL", "auto").strip().lower()
-    gpu_dev, cpu_dev, _ = get_devices()
-    if pref == "cpu" or (gpu_dev is None and cpu_dev is None):
-        threads = os.cpu_count() or max_workers
+def describe_hybrid_dispatch_plan(total_tasks: int, max_workers: int, math_backend: Optional[str] = None) -> str:
+    pref = (math_backend or os.environ.get("EPD_FONT_ACCEL", "auto")).strip().lower()
+    threads = os.cpu_count() or max_workers
+    if pref == "sync":
         return (
-            f"Pure CPU Compute Dispatch ({total_tasks} tasks): "
-            f"CPU=[Host CPU SIMD ({threads} threads), {max_workers} workers] | "
-            f"Math Backend=CPU (NumPy/OpenCV Engine)"
+            f"Synchronous Single-Process Dispatch ({total_tasks} tasks): "
+            f"Mode=sync | Workers=1 (Main Process) | Host CPU={threads} threads"
+        )
+    if pref == "cpu":
+        return (
+            f"Async Multi-Core CPU Dispatch ({total_tasks} tasks): "
+            f"Mode=cpu | CPU=[Host CPU SIMD ({threads} threads), {max_workers} async workers] | GPU=Disabled"
+        )
+    gpu_dev, cpu_dev, _ = get_devices()
+    if gpu_dev is None and cpu_dev is None:
+        return (
+            f"Auto-Delegated CPU Compute Dispatch ({total_tasks} tasks): "
+            f"Mode={pref} -> CPU=[Host CPU SIMD ({threads} threads), {max_workers} async workers] (No OpenCL GPU detected)"
         )
     total_shared_mb, avail_shared_mb = detect_shared_gpu_memory_mb()
     gpu_str = (
         f"{gpu_dev.name.strip()} ({gpu_dev.max_compute_units} CUs, 3D NDRange, 4 Queues)"
         if gpu_dev is not None
-        else "None (CPU Fallback)"
+        else f"{cpu_dev.name.strip()} ({cpu_dev.max_compute_units} CUs, OpenCL CPU)"
     )
+    if pref == "gpu":
+        return (
+            f"Dedicated GPU Compute Dispatch ({total_tasks} tasks): "
+            f"Mode=gpu | GPU=[{gpu_str}] | CPU=[Orchestration Only] | "
+            f"Shared RAM Arena={avail_shared_mb:,}/{total_shared_mb:,} MB (75% Cap, CL_MEM_ALLOC_HOST_PTR)"
+        )
     cpu_ocl_str = (
         f"{cpu_dev.name.strip()} ({cpu_dev.max_compute_units} CUs)"
         if cpu_dev is not None
-        else f"Host CPU SIMD ({os.cpu_count() or max_workers} threads)"
+        else f"Host CPU SIMD ({threads} threads)"
     )
     return (
-        f"Hybrid Compute Dispatch ({total_tasks} tasks): "
-        f"GPU=[{gpu_str}] | CPU=[{cpu_ocl_str}, {max_workers} workers] | "
-        f"Shared RAM Pool={avail_shared_mb:,}/{total_shared_mb:,} MB (CL_MEM_ALLOC_HOST_PTR)"
+        f"Hybrid Async Work-Stealing Dispatch ({total_tasks} tasks): "
+        f"Mode={pref} | GPU=[1 Worker: {gpu_str}] + CPU=[{max(1, max_workers - 1)} Workers: {cpu_ocl_str}] | "
+        f"Shared RAM Arena={avail_shared_mb:,}/{total_shared_mb:,} MB (75% Cap, CL_MEM_ALLOC_HOST_PTR)"
     )
 
 

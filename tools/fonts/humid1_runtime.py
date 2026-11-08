@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """
-humid1_runtime.py (v1.0.19c)
-===========================
+humid1_runtime.py (v1.0.20)
+==========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Host Hardware Detection (GPU/OpenCL/CUDA + Multi-Core CPU + Dynamic RAM),
+Host Hardware Detection (Multi-Device OpenCL GPU/CPU + Shared GPU RAM + Multi-Core CPU),
 Target Embedded Hardware Scheme Validator (`esp32s3-N8R8-hw_scheme.json` & `genaric_hw.json`),
-Clean Signal/Ctrl-C Interruption Handler, Recursive Asset/License Discovery,
-and Strict Zero-Default Argument/Path Validation Module.
+Single-Owner GPU + Multi-Core CPU Work-Stealing Dispatcher (`run_parallel_tasks`),
+Clean Signal/Ctrl-C Interruption Handler (Zero Worker Traceback Noise + Deterministic Teardown),
+Recursive Asset/License Discovery, and Strict Zero-Default Argument/Path Validation Module (`v1.0.20`).
 """
 
 from __future__ import annotations
 
+import atexit
+from collections import deque
 import concurrent.futures
 import ctypes
+import gc
 import json
 import os
 import re
@@ -25,9 +29,9 @@ import signal
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-TOOL_VERSION = "1.0.19c"
+TOOL_VERSION = "1.0.20"
 REPO_NAME = "epd-font"
 PROJECT_TAGLINE = "A 1-bit EPD font generator and asset pipeline for embedded displays"
 PUBLIC_REPO_URL = "https://github.com/Humidyne-Labs/epd-font"
@@ -49,12 +53,18 @@ def enforce_supported_platform() -> None:
         sys.exit(2)
 
 
+def _quiet_unraisable_hook(unraisable: Any) -> None:
+    if getattr(unraisable, "exc_type", None) in (KeyboardInterrupt, SystemExit, BrokenPipeError):
+        return
+    sys.__unraisablehook__(unraisable)
+
+
 def _sigint_handler(signum: int, frame: Any) -> None:
     """Cleanly handle Ctrl-C (SIGINT) without stack trace noise."""
     global _INTERRUPTED
+    if _INTERRUPTED:
+        return
     _INTERRUPTED = True
-    sys.stderr.write("\n[!] Pipeline execution interrupted by user (Ctrl-C). Stopping workers cleanly...\n")
-    sys.stderr.flush()
     raise KeyboardInterrupt()
 
 
@@ -62,6 +72,7 @@ def install_clean_signal_handlers() -> None:
     """Register clean Ctrl-C (SIGINT) and SIGTERM handlers."""
     enforce_supported_platform()
     try:
+        sys.unraisablehook = _quiet_unraisable_hook
         signal.signal(signal.SIGINT, _sigint_handler)
         if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, _sigint_handler)
@@ -70,7 +81,12 @@ def install_clean_signal_handlers() -> None:
 
 
 def fail_gracefully(message: str, hint: Optional[str] = None, exit_code: int = 1) -> None:
-    """Print a structured diagnostic error message and exit cleanly."""
+    """Print a structured diagnostic error message, release any OpenCL resources, and exit cleanly."""
+    try:
+        from math_backends import teardown_math_backends
+        teardown_math_backends()
+    except Exception:
+        pass
     sys.stderr.write(f"[!] Configuration / Argument Error: {message}\n")
     if hint:
         sys.stderr.write(f"    Guidance: {hint}\n")
@@ -223,7 +239,6 @@ def load_and_validate_hardware_scheme(
             if scheme_path:
                 cand_paths.append(scheme_path.parent / str(hw_ref))
             cand_paths.append(repo_root / str(hw_ref))
-            # Support both genaric_hw.json and generic_hw.json seamlessly
             if str(hw_ref) == "generic_hw.json":
                 cand_paths.append(repo_root / "genaric_hw.json")
             elif str(hw_ref) == "genaric_hw.json":
@@ -249,9 +264,6 @@ def load_and_validate_hardware_scheme(
             "Add `\"hardware_scheme\": \"esp32s3-N8R8-hw_scheme.json\"` (or `\"genaric_hw.json\"`) and `target_display` with `target_partition_bytes = 3145728`.",
         )
 
-    # Zero-default partition validation:
-    # If `target_display` is present in the font scheme JSON and the user removes the partition constraint from it
-    # (without passing an explicit CLI `--hw-scheme` override), the script MUST error out immediately!
     if isinstance(tdisp, dict) and hw_scheme_cli is None:
         has_scheme_part = any(
             k in tdisp and tdisp[k] is not None
@@ -268,7 +280,6 @@ def load_and_validate_hardware_scheme(
                 "Specify `\"partition_1\": \"3 MBytes\"` and `\"target_partition_bytes\": 3145728`.",
             )
 
-    # Validate partition_1 / target_partition_bytes from both hw_data (if loaded) and tdisp (if present)
     part_bytes: Optional[int] = None
     part_label_str = "3 MBytes"
 
@@ -375,16 +386,18 @@ class HostHardwareInfo:
     cpu_cores: int
     available_ram_mb: int
     total_ram_mb: int
+    shared_gpu_ram_mb: int
+    avail_shared_gpu_ram_mb: int
     gpu_backend: str
     gpu_enabled: bool
     recommended_workers: int
 
 
 def detect_host_hardware(requested_jobs: Optional[int] = None) -> HostHardwareInfo:
-    """Detect CPU cores, available dynamic RAM, and OpenCV GPU (CUDA / OpenCL) acceleration."""
+    """Detect CPU cores, available dynamic RAM, WDDM Shared GPU RAM (15.7 GB), and OpenCL/CUDA acceleration."""
     cpu_cores = os.cpu_count() or 4
-    total_ram_mb = 4096
-    avail_ram_mb = 2048
+    total_ram_mb = 8192
+    avail_ram_mb = 4096
 
     if os.name == "nt":
         try:
@@ -398,7 +411,7 @@ def detect_host_hardware(requested_jobs: Optional[int] = None) -> HostHardwareIn
                     ("ullAvailPageFile", ctypes.c_ulonglong),
                     ("ullTotalVirtual", ctypes.c_ulonglong),
                     ("ullAvailVirtual", ctypes.c_ulonglong),
-                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
                 ]
 
             stat = MEMORYSTATUSEX()
@@ -419,20 +432,32 @@ def detect_host_hardware(requested_jobs: Optional[int] = None) -> HostHardwareIn
         except Exception:
             pass
 
+    shared_gpu_ram_mb = max(512, total_ram_mb // 2)
+    avail_shared_gpu_ram_mb = max(256, min(avail_ram_mb - 512, shared_gpu_ram_mb))
+
     gpu_backend = "CPU-SIMD (NumPy/OpenCV)"
     gpu_enabled = False
     try:
-        import cv2
-        if hasattr(cv2, "cuda") and cv2.cuda.getCudaEnabledDeviceCount() > 0:
-            gpu_backend = f"NVIDIA CUDA ({cv2.cuda.getCudaEnabledDeviceCount()} device(s))"
+        from math_backends import enumerate_opencl_devices
+        devs = enumerate_opencl_devices()
+        if devs:
+            dev_summaries = [f"{d.device_name} ({d.compute_units} CUs)" for d in devs]
+            gpu_backend = f"PyOpenCL 3D NDRange [{' + '.join(dev_summaries)}]"
             gpu_enabled = True
-        elif hasattr(cv2, "ocl") and cv2.ocl.haveOpenCL():
-            cv2.ocl.setUseOpenCL(True)
-            if cv2.ocl.useOpenCL():
-                gpu_backend = "OpenCL UMat Hardware Acceleration"
-                gpu_enabled = True
     except Exception:
         pass
+
+    if not gpu_enabled:
+        try:
+            import cv2
+            if hasattr(cv2, "cuda") and cv2.cuda.getCudaEnabledDeviceCount() > 0:
+                gpu_backend = f"NVIDIA CUDA ({cv2.cuda.getCudaEnabledDeviceCount()} device(s))"
+                gpu_enabled = True
+            elif hasattr(cv2, "ocl") and cv2.ocl.haveOpenCL():
+                gpu_backend = "OpenCL UMat Hardware Acceleration"
+                gpu_enabled = True
+        except Exception:
+            pass
 
     ram_limited_workers = max(1, avail_ram_mb // 256)
     rec_workers = min(cpu_cores, ram_limited_workers)
@@ -444,10 +469,91 @@ def detect_host_hardware(requested_jobs: Optional[int] = None) -> HostHardwareIn
         cpu_cores=cpu_cores,
         available_ram_mb=avail_ram_mb,
         total_ram_mb=total_ram_mb,
+        shared_gpu_ram_mb=shared_gpu_ram_mb,
+        avail_shared_gpu_ram_mb=avail_shared_gpu_ram_mb,
         gpu_backend=gpu_backend,
         gpu_enabled=gpu_enabled,
         recommended_workers=max(1, rec_workers),
     )
+
+
+def _worker_process_init_gpu() -> None:
+    """
+    Initializer for the SINGLE Persistent GPU Worker Process (`max_workers=1`):
+      1. Ignores `SIGINT` (`Ctrl+C`) in child process so the parent coordinator handles Ctrl+C cleanly.
+      2. Sets `EPD_FONT_WORKER_ROLE="gpu"` so this single worker owns the `Ellesmere` discrete GPU
+         context (32 CUs, 4 CommandQueues, 3D NDRange, 15.7 GB Shared GPU Memory).
+      3. Registers `teardown_math_backends` with `atexit`.
+    """
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except Exception:
+        pass
+    os.environ["EPD_FONT_WORKER_ROLE"] = "gpu"
+    try:
+        from math_backends import select_math_backend, teardown_math_backends
+        select_math_backend("opencl")
+        atexit.register(teardown_math_backends)
+    except Exception:
+        pass
+
+
+def _worker_process_init_cpu() -> None:
+    """
+    Initializer for ProcessPoolExecutor CPU workers:
+      1. Sets `signal.signal(signal.SIGINT, signal.SIG_IGN)` so pressing `Ctrl+C` in the console
+         does NOT cause 12 child worker processes to dump `KeyboardInterrupt` tracebacks from
+         `multiprocessing.queues.get()` (`_winapi.WaitForMultipleObjects`).
+      2. Sets `EPD_FONT_WORKER_ROLE="cpu"` so child CPU workers NEVER allocate competing
+         discrete GPU OpenCL contexts on `Ellesmere` (`0` VRAM bloat and `0` WDDM context thrashing).
+      3. Registers deterministic teardown on worker exit.
+    """
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except Exception:
+        pass
+    os.environ["EPD_FONT_WORKER_ROLE"] = "cpu"
+    try:
+        from math_backends import teardown_math_backends
+        atexit.register(teardown_math_backends)
+    except Exception:
+        pass
+
+
+def _teardown_worker_opencl_noop(_: Any = None) -> int:
+    """Explicitly release OpenCL contexts and buffers inside a worker process before pool shutdown."""
+    try:
+        from math_backends import teardown_math_backends
+        return teardown_math_backends()
+    except Exception:
+        return 0
+
+
+def _terminate_executor_processes(pool: Any) -> None:
+    """
+    Explicitly terminate and join all child `SpawnProcess` / `ForkProcess` worker processes
+    inside a `ProcessPoolExecutor` so zero orphaned `python.exe` processes or GPU allocations
+    remain in Windows Task Manager after completion or `Ctrl+C`.
+    """
+    if pool is None:
+        return
+    procs = getattr(pool, "_processes", None)
+    if not isinstance(procs, dict):
+        return
+    for p in list(procs.values()):
+        try:
+            if p is not None and p.is_alive():
+                p.terminate()
+        except Exception:
+            pass
+    for p in list(procs.values()):
+        try:
+            if p is not None:
+                p.join(timeout=1.5)
+                if p.is_alive() and hasattr(p, "kill"):
+                    p.kill()
+        except Exception:
+            pass
 
 
 def run_parallel_tasks(
@@ -457,11 +563,25 @@ def run_parallel_tasks(
     use_threads: bool = False,
 ) -> List[Any]:
     """
-    Execute tasks across multiple CPU processes or threads with clean Ctrl-C
-    (KeyboardInterrupt) cancellation and immediate worker shutdown.
+    Execute tasks across a Hybrid Single-Owner GPU + Multi-Core CPU Work-Stealing Pool:
+      - When an OpenCL GPU/CPU accelerator is available and `use_threads` is False:
+          * Spawns `gpu_pool` (`max_workers=1`, `EPD_FONT_WORKER_ROLE="gpu"`) which owns the
+            single persistent OpenCL context (`Ellesmere` 32 CUs, 4 CommandQueues, 3D NDRange,
+            15.7 GB Shared GPU Memory) and pulls heavy icon/SDF strikes from the front of the deque.
+          * Spawns `cpu_pool` (`max_workers=max(1, max_workers - 1)`, `EPD_FONT_WORKER_ROLE="cpu"`)
+            which runs on the host CPU cores (`AMD Ryzen 5 5600G` 12 threads) and pulls lightweight
+            `Terminus` and small text strikes from the back of the deque, with dynamic work-stealing
+            when the two pools meet.
+      - Before returning, explicitly runs `_teardown_worker_opencl_noop` on `gpu_pool` so all
+        GPU/Shared RAM buffers and contexts are deterministically `.release()`d (`0 MB` post-exit).
+      - On `Ctrl+C` (`KeyboardInterrupt`), immediately cancels pending futures, terminates and joins
+        all child worker processes (`_terminate_executor_processes`), releases all OpenCL/Shared RAM
+        allocations (`teardown_math_backends()`), and prints a single clean teardown message with
+        zero tracebacks.
     """
     if not tasks:
         return []
+
     if len(tasks) == 1 or max_workers <= 1:
         results = []
         try:
@@ -471,31 +591,187 @@ def run_parallel_tasks(
                 results.append(worker_fn(t))
             return results
         except KeyboardInterrupt:
-            sys.stderr.write("[!] Execution halted cleanly by user.\n")
+            try:
+                from math_backends import teardown_math_backends
+                teardown_math_backends()
+            except Exception:
+                pass
+            sys.stderr.write(
+                "\n[!] Execution interrupted by user (Ctrl+C). OpenCL/host memory released cleanly.\n"
+            )
+            sys.stderr.flush()
             sys.exit(130)
+        finally:
+            try:
+                from math_backends import teardown_math_backends
+                teardown_math_backends()
+            except Exception:
+                pass
 
-    executor_cls = (
-        concurrent.futures.ThreadPoolExecutor
-        if use_threads
-        else concurrent.futures.ProcessPoolExecutor
-    )
-    results: List[Any] = []
-    pool = executor_cls(max_workers=max_workers)
+    # Sort tasks by compute density descending: left of deque = heaviest GPU tasks, right = lightest CPU tasks
+    indexed_tasks: List[Tuple[int, dict]] = list(enumerate(tasks))
+    has_opencl_gpu = False
     try:
-        futures = [pool.submit(worker_fn, t) for t in tasks]
-        for fut in futures:
-            results.append(fut.result())
-        pool.shutdown(wait=True)
-        return results
+        from opencl_dispatcher import get_devices, score_task_compute_density
+        indexed_tasks.sort(key=lambda pair: score_task_compute_density(pair[1]), reverse=True)
+        gpu_dev, cpu_ocl_dev, _ = get_devices()
+        has_opencl_gpu = (gpu_dev is not None or cpu_ocl_dev is not None)
+    except Exception:
+        pass
+
+    ordered_results: List[Any] = [None] * len(tasks)
+
+    # Thread-based execution path
+    if use_threads or not has_opencl_gpu or max_workers < 2:
+        if use_threads:
+            pool: Any = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        else:
+            prev_sig = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                pool = concurrent.futures.ProcessPoolExecutor(
+                    max_workers=max_workers,
+                    initializer=_worker_process_init_cpu,
+                )
+            finally:
+                signal.signal(signal.SIGINT, prev_sig)
+        futures_map: Dict[concurrent.futures.Future, int] = {}
+        try:
+            for orig_idx, t in indexed_tasks:
+                fut = pool.submit(worker_fn, t)
+                futures_map[fut] = orig_idx
+
+            for fut in concurrent.futures.as_completed(futures_map):
+                if _INTERRUPTED:
+                    raise KeyboardInterrupt()
+                orig_idx = futures_map[fut]
+                ordered_results[orig_idx] = fut.result()
+
+            pool.shutdown(wait=True)
+            return ordered_results
+        except KeyboardInterrupt:
+            for fut in futures_map:
+                fut.cancel()
+            if not use_threads:
+                _terminate_executor_processes(pool)
+            pool.shutdown(wait=False, cancel_futures=True)
+            try:
+                from math_backends import teardown_math_backends
+                teardown_math_backends()
+            except Exception:
+                pass
+            sys.stderr.write(
+                "\n[!] Execution interrupted by user (Ctrl+C). Workers stopped and OpenCL/host memory released cleanly.\n"
+            )
+            sys.stderr.flush()
+            sys.exit(130)
+        except Exception:
+            for fut in futures_map:
+                fut.cancel()
+            if not use_threads:
+                _terminate_executor_processes(pool)
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+        finally:
+            try:
+                from math_backends import teardown_math_backends
+                teardown_math_backends()
+            except Exception:
+                pass
+            gc.collect()
+
+    # Hybrid Dual-Pool Work-Stealing Execution (`1` Persistent GPU Worker + `max_workers - 1` CPU Workers)
+    cpu_workers = max(1, max_workers - 1)
+    prev_sig = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        gpu_pool = concurrent.futures.ProcessPoolExecutor(
+            max_workers=1,
+            initializer=_worker_process_init_gpu,
+        )
+        cpu_pool = concurrent.futures.ProcessPoolExecutor(
+            max_workers=cpu_workers,
+            initializer=_worker_process_init_cpu,
+        )
+    finally:
+        signal.signal(signal.SIGINT, prev_sig)
+    task_deque: deque[Tuple[int, dict]] = deque(indexed_tasks)
+    in_flight: Dict[concurrent.futures.Future, Tuple[int, str]] = {}
+
+    try:
+        # Seed the single persistent GPU worker from the heavy front of the deque
+        if task_deque:
+            o_idx, t_item = task_deque.popleft()
+            in_flight[gpu_pool.submit(worker_fn, t_item)] = (o_idx, "gpu")
+
+        # Seed the CPU workers from the lightweight back of the deque
+        for _ in range(cpu_workers):
+            if not task_deque:
+                break
+            o_idx, t_item = task_deque.pop()
+            in_flight[cpu_pool.submit(worker_fn, t_item)] = (o_idx, "cpu")
+
+        while in_flight:
+            if _INTERRUPTED:
+                raise KeyboardInterrupt()
+            done, _ = concurrent.futures.wait(
+                in_flight.keys(),
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            for fut in done:
+                o_idx, pool_tag = in_flight.pop(fut)
+                ordered_results[o_idx] = fut.result()
+                if task_deque:
+                    if pool_tag == "gpu":
+                        next_idx, next_task = task_deque.popleft()
+                        in_flight[gpu_pool.submit(worker_fn, next_task)] = (next_idx, "gpu")
+                    else:
+                        next_idx, next_task = task_deque.pop()
+                        in_flight[cpu_pool.submit(worker_fn, next_task)] = (next_idx, "cpu")
+
+        # Explicitly release OpenCL buffers/contexts inside the persistent GPU worker before shutdown
+        try:
+            gpu_pool.submit(_teardown_worker_opencl_noop, None).result(timeout=3.0)
+        except Exception:
+            pass
+        gpu_pool.shutdown(wait=True)
+        cpu_pool.shutdown(wait=True)
+        return ordered_results
     except KeyboardInterrupt:
-        for fut in futures:
+        for fut in in_flight:
             fut.cancel()
-        pool.shutdown(wait=False, cancel_futures=True)
-        sys.stderr.write("[!] Worker pool terminated cleanly after user interrupt.\n")
+        _terminate_executor_processes(gpu_pool)
+        _terminate_executor_processes(cpu_pool)
+        gpu_pool.shutdown(wait=False, cancel_futures=True)
+        cpu_pool.shutdown(wait=False, cancel_futures=True)
+        try:
+            from math_backends import teardown_math_backends
+            teardown_math_backends()
+        except Exception:
+            pass
+        sys.stderr.write(
+            "\n[!] Execution interrupted by user (Ctrl+C). Workers stopped and OpenCL/host memory released cleanly.\n"
+        )
+        sys.stderr.flush()
         sys.exit(130)
     except Exception:
-        pool.shutdown(wait=False, cancel_futures=True)
+        for fut in in_flight:
+            fut.cancel()
+        _terminate_executor_processes(gpu_pool)
+        _terminate_executor_processes(cpu_pool)
+        gpu_pool.shutdown(wait=False, cancel_futures=True)
+        cpu_pool.shutdown(wait=False, cancel_futures=True)
+        try:
+            from math_backends import teardown_math_backends
+            teardown_math_backends()
+        except Exception:
+            pass
         raise
+    finally:
+        try:
+            from math_backends import teardown_math_backends
+            teardown_math_backends()
+        except Exception:
+            pass
+        gc.collect()
 
 
 def index_font_files_recursive(search_roots: Sequence[Path]) -> Dict[str, Path]:

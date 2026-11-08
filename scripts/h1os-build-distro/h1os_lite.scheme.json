@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.0.19c",
+  "schema_version": "1.0.20",
   "scheme_id": "h1os_epd_v1_lite",
   "project_brand": "Humidyne Labs H1OS & humid1-os 1-BPP EPD Typography & Modular Icon Suite",
-  "description": "Compact v1.0.19cc H1OS & humid1-os Lite Division-of-Labor Scheme (Hinted IBM Plex Sans/Mono + Hinted Noto SemiCondensed/Math + Native Terminus + FA7/Phosphor Core).",
+  "description": "Compact v1.0.20 H1OS & humid1-os Lite Division-of-Labor Scheme (Hinted IBM Plex Sans/Mono + Hinted Noto SemiCondensed/Math + Native Terminus + FA7/Phosphor Core).",
   "spdx_license": "MIT AND OFL-1.1",
   "target_display": {
     "panel": "Waveshare 1.54in V2 EPD (SSD1681)",

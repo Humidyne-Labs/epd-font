@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.19c",
+  "schema_version": "1.0.20",
   "scheme_id": "full_audit_10_40px_step2",
   "project_brand": "Humidyne Labs / Humiditron Complete 10px-40px (Step 2px) Audit & Distribution Suite",
   "description": "Exhaustive 10px-40px (step size 2px) audit build across all text families (IBM Plex, Google Noto, Terminus) and all 4 icon suites (Font Awesome 7, Lucide, Phosphor, Tabler) evaluating all 8 bilevel resolution-reduction pipelines (raw-unhinted, raw-hinted, svg-potrace, mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive).",

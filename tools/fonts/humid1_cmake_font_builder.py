@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_cmake_font_builder.py (v1.0.19c)
+humid1_cmake_font_builder.py (v1.0.20)
 ======================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -52,7 +52,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("-a", "--ascii-dir", type=str, default=None, help="Optional path to ascii_patches directory")
     parser.add_argument(
         "--pipeline",
-        choices=["raw-unhinted", "raw-hinted", "svg-potrace", "mdf", "msdf", "sdf-smoothstep", "adf-biquadratic", "otsu-adaptive", "all", "all-debug"],
+        choices=["raw-unhinted", "raw-hinted", "svg-potrace", "svg-potrace-jfa", "jfa-marching", "mdf", "msdf", "sdf-smoothstep", "adf-biquadratic", "otsu-adaptive", "all", "all-debug"],
         default="raw-hinted",
         help="Bilevel conversion method when running in direct --src-dir mode (default: raw-hinted)",
     )

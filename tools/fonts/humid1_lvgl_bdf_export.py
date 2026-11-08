@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_lvgl_bdf_export.py (v1.0.19c)
+humid1_lvgl_bdf_export.py (v1.0.20)
 ===================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -25,7 +25,7 @@ from humid1_runtime import (
     load_and_validate_hardware_scheme,
 )
 
-TOOL_VERSION = "1.0.19c"
+TOOL_VERSION = "1.0.20"
 
 
 def export_bdf_strike(

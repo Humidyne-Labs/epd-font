@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.19c)
+build_static_ttf_assets.py (v1.0.20)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -56,7 +56,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.19c"
+TOOL_VERSION = "1.0.20"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES
@@ -945,10 +945,19 @@ def build_all_static_assets(
 
     if tasks:
         print(f"[*] Executing {len(tasks)} font conversion tasks across {max_workers} CPU worker processes...")
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as pool:
+        from humid1_runtime import _worker_process_init_cpu, _terminate_executor_processes
+        pool = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers, initializer=_worker_process_init_cpu)
+        try:
             for target_name, dst_str, sz, desc in pool.map(_worker_build_task, tasks):
                 built_files.append(Path(dst_str))
                 print(f"    [+] {target_name:36s} ({sz:9,d} B) — {desc}")
+            pool.shutdown(wait=True)
+        except KeyboardInterrupt:
+            _terminate_executor_processes(pool)
+            pool.shutdown(wait=False, cancel_futures=True)
+            sys.stderr.write("\n[!] Static TTF build interrupted by user (Ctrl+C). Workers stopped cleanly.\n")
+            sys.stderr.flush()
+            sys.exit(130)
 
     if (out_dir / "Terminus-Normal-16.ttf").is_file():
         shutil.copy2(out_dir / "Terminus-Normal-16.ttf", out_dir / "Terminus-Regular.ttf")

@@ -1,5 +1,5 @@
 # ==============================================================================
-# epd_font_esp_idf.cmake (v1.0.19c)
+# epd_font_esp_idf.cmake (v1.0.20)
 # A 1-bit EPD font generator and asset pipeline for embedded displays
 # Repository : https://github.com/Humidyne-Labs/epd-font
 # Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner

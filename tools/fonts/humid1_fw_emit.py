@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_fw_emit.py (v1.0.19c)
+humid1_fw_emit.py (v1.0.20)
 ===========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
-TOOL_VERSION = "1.0.19c"
+TOOL_VERSION = "1.0.20"
 
 
 def _install_sigint() -> None:

@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """
-humid1_generate_1bpp.py (v1.0.19c)
+humid1_generate_1bpp.py (v1.0.20)
 =================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Modular 1-BPP Font & Asset Pipeline Orchestrator (v1.0.19c):
-  - Eight selectable resolution-reduction bilevel conversion methods (`--pipeline` / `--raster-mode`):
-      1. `raw-unhinted`   : Raw Threshold without Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
-      2. `raw-hinted`     : Raw Threshold with Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
-      3. `svg-potrace`    : High-Res (10x) Hierarchical RETR_TREE Potrace B-Spline SVG + Aliased Fill
-      4. `mdf`            : High-Res (12x) Median Filter + Directional Signed Distance Field
-      5. `msdf`           : Multi-Channel Signed Distance Field (Chlumsky msdfgen 3-Ch RGB Corner SDF)
-      6. `sdf-smoothstep` : High-Res (16x) Euclidean SDF + L2 Jacobian Gradient Smoothstep (Valve / Boesch)
-      7. `adf-biquadratic`: MERL Saffron Bi-Quadratic 9-Point Lagrange Adaptively Sampled Distance Field
-      8. `otsu-adaptive`  : Otsu (1979) Nonparametric Cumulative-Moment Linear Grayscale Thresholding
+Modular 1-BPP Font & Asset Pipeline Orchestrator (v1.0.20):
+  - Nine selectable resolution-reduction bilevel conversion methods (`--pipeline` / `--raster-mode`):
+      1. `raw-unhinted`    : Raw Threshold without Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
+      2. `raw-hinted`      : Raw Threshold with Hinting (sRGB-to-Linear Grayscale + Gamma + Threshold)
+      3. `svg-potrace`     : High-Res (10x) Hierarchical RETR_TREE Potrace B-Spline SVG + Aliased Fill
+      4. `svg-potrace-jfa` : Sub-mode of `svg-potrace` (`jfa-marching`): 3D OpenCL / CPU Jump Flooding (`1+JFA`)
+                             + 2x2 Marching Squares sub-pixel zero-crossing + RETR_TREE Potrace SVG
+      5. `mdf`             : High-Res (12x) Median Filter + Directional Signed Distance Field
+      6. `msdf`            : Multi-Channel Signed Distance Field (Chlumsky msdfgen 3-Ch RGB Corner SDF)
+      7. `sdf-smoothstep`  : High-Res (16x) Euclidean SDF + L2 Jacobian Gradient Smoothstep (Valve / Boesch)
+      8. `adf-biquadratic` : MERL Saffron Bi-Quadratic 9-Point Lagrange Adaptively Sampled Distance Field
+      9. `otsu-adaptive`   : Otsu (1979) Nonparametric Cumulative-Moment Linear Grayscale Thresholding
       *  `all`            : Run every offered conversion method and dump per-method sheets/chars when enabled
       *  `all-debug`      : Run every offered conversion method with `sheet_debug=true` and `char_debug=true`
   - Strict `char_debug` and `sheet_debug` boolean gating (`false` disables char/sheet PNG generation)
@@ -43,7 +45,8 @@ from humid1_ascii_patches import (
     build_patches_json_from_ascii_root,
     dump_strike_to_ascii_folder,
 )
-from math_backends import describe_math_backend, select_math_backend
+from math_backends import describe_math_backend, select_math_backend, teardown_math_backends
+from opencl_dispatcher import describe_hybrid_dispatch_plan
 from humid1_bilevel_pipelines import (
     CANONICAL_PIPELINES,
     compute_betti_numbers,
@@ -406,16 +409,17 @@ def export_strike_vault(vault_path: Path, vault_data: dict) -> int:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     epilog_text = """
-Eight Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
---------------------------------------------------------------------------
-  1. raw-unhinted   : Direct FreeType unhinted rendering -> sRGB-to-Linear Gray -> gamma -> threshold
-  2. raw-hinted     : Grid-fitted hinted FreeType rendering -> sRGB-to-Linear Gray -> gamma -> threshold
-  3. svg-potrace    : High-res (10x) linear gray -> threshold -> RETR_TREE Potrace SVG -> aliased fill
-  4. mdf            : High-res (12x) median filter + directional Signed Distance Field -> threshold
-  5. msdf           : Multi-Channel Signed Distance Field (Chlumsky msdfgen 3-Ch RGB corner SDF)
-  6. sdf-smoothstep : High-res (16x) Euclidean SDF + L2 Jacobian gradient smoothstep (Valve / Boesch)
-  7. adf-biquadratic: MERL Saffron bi-quadratic 9-point Lagrange Adaptively Sampled Distance Field
-  8. otsu-adaptive  : Otsu (1979) cumulative-moment between-class variance threshold on linear gray
+Nine Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
+-------------------------------------------------------------------------
+  1. raw-unhinted    : Direct FreeType unhinted rendering -> sRGB-to-Linear Gray -> gamma -> threshold
+  2. raw-hinted      : Grid-fitted hinted FreeType rendering -> sRGB-to-Linear Gray -> gamma -> threshold
+  3. svg-potrace     : High-res (10x) linear gray -> threshold -> RETR_TREE Potrace SVG -> aliased fill
+  4. svg-potrace-jfa : Sub-mode of svg-potrace (jfa-marching): 3D 1+JFA + 2x2 Marching Squares + Potrace SVG
+  5. mdf             : High-res (12x) median filter + directional Signed Distance Field -> threshold
+  6. msdf            : Multi-Channel Signed Distance Field (Chlumsky msdfgen 3-Ch RGB corner SDF)
+  7. sdf-smoothstep  : High-res (16x) Euclidean SDF + L2 Jacobian gradient smoothstep (Valve / Boesch)
+  8. adf-biquadratic : MERL Saffron bi-quadratic 9-point Lagrange Adaptively Sampled Distance Field
+  9. otsu-adaptive   : Otsu (1979) cumulative-moment between-class variance threshold on linear gray
   *  all            : Run every offered conversion method (respects char_debug & sheet_debug)
   *  all-debug      : Run every offered conversion method and force dump of all method sheets & chars
 """
@@ -489,13 +493,19 @@ Eight Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
         "--pipeline", "--raster-mode",
         dest="pipeline",
         choices=[
-            "raw-unhinted", "raw-hinted", "svg-potrace", "mdf",
+            "raw-unhinted", "raw-hinted", "svg-potrace", "svg-potrace-jfa", "jfa-marching", "mdf",
             "msdf", "sdf-smoothstep", "adf-biquadratic", "otsu-adaptive",
             "all", "all-debug",
             "autohint-mono", "bytecode-mono", "gray-threshold", "dynamic-threshold",
         ],
         default=None,
-        help="Select bilevel conversion pipeline: raw-unhinted, raw-hinted, svg-potrace, mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive, all, or all-debug",
+        help="Select bilevel conversion pipeline: raw-unhinted, raw-hinted, svg-potrace, svg-potrace-jfa (or jfa-marching), mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive, all, or all-debug",
+    )
+    parser.add_argument(
+        "--potrace-submode",
+        choices=["potrace", "jfa-marching"],
+        default=None,
+        help="Optional sub-mode when using svg-potrace: 'potrace' (standard RETR_TREE B-Spline) or 'jfa-marching' (Jump Flooding Algorithm 1+JFA + 2x2 Marching Squares sub-pixel zero-crossing)",
     )
     parser.add_argument(
         "--threshold",
@@ -614,9 +624,15 @@ Eight Bilevel Resolution-Reduction Pipelines (--pipeline / --raster-mode):
     )
     parser.add_argument(
         "--accel",
-        choices=["auto", "opencl", "umat", "cpu"],
+        choices=["auto", "opencl", "opencl-cpu", "hybrid", "umat", "cpu"],
         default=None,
-        help="Hardware math acceleration backend (default: auto -> OpenCL GPU / UMat / CPU)",
+        help="Hardware math acceleration backend (default: auto -> Hybrid OpenCL GPU+CPU / UMat / CPU)",
+    )
+    parser.add_argument(
+        "--shared-ram-mb",
+        type=int,
+        default=None,
+        help="Host/GPU Shared RAM pool budget in MB for CL_MEM_ALLOC_HOST_PTR zero-copy staging (default: auto from 15.7GB shared RAM)",
     )
     parser.add_argument(
         "--screen-width",
@@ -1061,6 +1077,9 @@ def main() -> None:
         default_ascii_dir = (root_out / "ascii_patches").resolve()
 
     raw_pipe_arg = (args.pipeline or rcfg.get("pipeline") or rcfg.get("raster_mode") or "raw-hinted").strip().lower()
+    potrace_submode = (getattr(args, "potrace_submode", None) or rcfg.get("potrace_submode") or "").strip().lower()
+    if potrace_submode == "jfa-marching" and raw_pipe_arg in ("svg-potrace", "potrace", "svg"):
+        raw_pipe_arg = "svg-potrace-jfa"
     is_all_debug = (raw_pipe_arg == "all-debug")
     dump_each_method_outputs = raw_pipe_arg in ("all", "all-debug")
     run_all_methods = dump_each_method_outputs or (args.workflow == "audit")
@@ -1283,9 +1302,18 @@ def main() -> None:
                 "verbose": args.verbose,
             })
 
+    if getattr(args, "shared_ram_mb", None):
+        import os as _os
+        _os.environ["EPD_FONT_SHARED_RAM_MB"] = str(args.shared_ram_mb)
+    if getattr(args, "accel", None):
+        import os as _os
+        _os.environ["EPD_FONT_ACCEL"] = str(args.accel)
+        select_math_backend(args.accel)
+
     t_start = time.perf_counter()
     max_workers = hw_info.recommended_workers
-    print(f"[*] Processing {len(strike_tasks)} font/icon strikes in parallel across {max_workers} CPU worker processes...")
+    print(f"[*] {describe_hybrid_dispatch_plan(len(strike_tasks), max_workers)}")
+    print(f"[*] Processing {len(strike_tasks)} font/icon strikes in parallel across {max_workers} worker processes...")
 
     compiled_symbols: List[Tuple[str, str, str, int, int]] = []
     compiled_details: List[dict] = []
@@ -1458,4 +1486,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        teardown_math_backends()
+        sys.stderr.write("\n[!] Execution interrupted by user (Ctrl+C). Workers stopped and OpenCL/host memory released cleanly.\n")
+        sys.stderr.flush()
+        sys.exit(130)
+    finally:
+        teardown_math_backends()

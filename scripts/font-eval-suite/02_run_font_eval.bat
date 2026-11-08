@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0..\.."
 
 echo ============================================================================
-echo [Font-Eval 02] Humidyne Labs - Humiditron epd-font v1.0.19c
+echo [Font-Eval 02] Humidyne Labs - Humiditron epd-font v1.0.20
 echo                External Font Directory 8-Pipeline Evaluation
 echo ============================================================================
 

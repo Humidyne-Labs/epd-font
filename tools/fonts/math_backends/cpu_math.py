@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """
-cpu_math.py (v1.0.19c)
-======================
+cpu_math.py (v1.0.20)
+=====================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Vectorized CPU (NumPy / OpenCV) Mathematical Backend (v1.0.19c):
+Vectorized CPU (NumPy / OpenCV) Mathematical Backend (v1.0.20):
 Provides deterministic 1:1 CPU implementations of all mathematical kernels in
-`opencl_kernels.py`, including:
+`opencl_kernels.py` (including 2D and 3D batched arrays and a precomputed L1-cached
+256-entry `uint8` LUT for `gamma == 1.0` single-channel linearization):
   1. `eval_srgb_to_linear_grayscale_cpu`  : IEC 61966-2-1 sRGB -> ITU-R BT.709 Linear Luminance + Gamma
-  2. `eval_bezier_sdf_yuksel_cpu`         : Cem Yuksel Degree-5 -> Degree-2 Monotonic Polynomial Cascade
+  2. `distance_sq_to_bezier_yuksel_cpu`   : Cem Yuksel Degree-5 -> Degree-2 Monotonic Polynomial Cascade
                                             + Newton-Bisection Quintic Solver + Cubic Winding Parity
   3. `eval_sdf_smoothstep_cpu`            : Chris Green (Valve) SDF + L2 Screen-Space Derivative Smoothstep
   4. `eval_msdf_median3_reconstruct_cpu`  : Chlumsky Multi-Channel (R,G,B) Median-of-Three SDF Reconstruction
   5. `eval_adf_biquadratic_cpu`           : Saffron 9-Point Bi-Quadratic Lagrange Polynomial ADF (4x4 Quadrature)
   6. `eval_otsu_linear_threshold_cpu`     : Otsu Between-Class Variance Maximization on Linear Luminance
+  7. `eval_jfa_marching_squares_cpu`      : Jump Flooding Algorithm (`1+JFA`) + Marching Squares 16-Case
+                                            Saddle-Disambiguated Vector Cell Reconstruction (`svg-potrace-jfa`)
 """
 
 from __future__ import annotations
@@ -25,6 +28,8 @@ from typing import List, Tuple
 
 import cv2
 import numpy as np
+
+TOOL_VERSION = "1.0.20"
 
 # Precomputed IEC 61966-2-1 sRGB [0..255] -> Linear [0.0..1.0] Lookup Table
 _SRGB_TO_LINEAR_LUT: np.ndarray = np.array(
@@ -37,6 +42,19 @@ _SRGB_TO_LINEAR_LUT: np.ndarray = np.array(
     dtype=np.float32,
 )
 
+# Precomputed L1-cache `uint8` lookup table for single-channel `gamma == 1.0` (0.002ms per glyph)
+_SRGB_GRAY_GAMMA1_U8_LUT: np.ndarray = np.clip(
+    np.round(
+        (
+            0.50 * (np.arange(256, dtype=np.float32) / 255.0)
+            + 0.50 * np.power(np.clip(_SRGB_TO_LINEAR_LUT, 0.0, 1.0), 1.0 / 2.2)
+        )
+        * 255.0
+    ),
+    0.0,
+    255.0,
+).astype(np.uint8)
+
 
 def eval_srgb_to_linear_grayscale_cpu(arr: np.ndarray, gamma: float = 1.0) -> np.ndarray:
     """
@@ -46,7 +64,10 @@ def eval_srgb_to_linear_grayscale_cpu(arr: np.ndarray, gamma: float = 1.0) -> np
     if arr is None or arr.size == 0:
         return np.zeros((0, 0), dtype=np.uint8)
 
-    u8 = np.clip(arr, 0, 255).astype(np.uint8)
+    u8 = arr if arr.dtype == np.uint8 else np.clip(arr, 0, 255).astype(np.uint8)
+    if (u8.ndim <= 2 or (u8.ndim == 3 and u8.shape[2] == 1)) and abs(float(gamma) - 1.0) <= 1e-4:
+        return _SRGB_GRAY_GAMMA1_U8_LUT[u8]
+
     if u8.ndim == 3 and u8.shape[2] >= 3:
         r_lin = _SRGB_TO_LINEAR_LUT[u8[:, :, 0]]
         g_lin = _SRGB_TO_LINEAR_LUT[u8[:, :, 1]]
@@ -168,8 +189,6 @@ def distance_sq_to_bezier_yuksel_cpu(p: Tuple[float, float], bz: np.ndarray) -> 
     return min_dist_sq
 
 
-
-
 def bezier_winding_cpu(p: Tuple[float, float], bz: np.ndarray) -> int:
     """Analytical cubic ray-crossing winding parity for point `p` against cubic Bezier `bz` (`4x2`)."""
     px_pt, py_pt = float(p[0]), float(p[1])
@@ -229,8 +248,17 @@ def eval_sdf_smoothstep_cpu(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Chris Green (Valve, SIGGRAPH 2007) Signed Distance Field Smoothstep + L2 Screen-Space
-    Gradient Width Reconstruction on CPU.
+    Gradient Width Reconstruction on CPU (supports 2D `(H_hi, W_hi)` and 3D `(B, H_hi, W_hi)`).
     """
+    if sdf_hi.ndim == 3:
+        bw_list = []
+        fld_list = []
+        for b in range(sdf_hi.shape[0]):
+            bw, fld = eval_sdf_smoothstep_cpu(sdf_hi[b], target_w, target_h, upscale, threshold)
+            bw_list.append(bw)
+            fld_list.append(fld)
+        return np.stack(bw_list, axis=0), np.stack(fld_list, axis=0)
+
     H_hi, W_hi = sdf_hi.shape
     gy, gx = np.gradient(sdf_hi)
     grad_l2 = np.sqrt(gx * gx + gy * gy) * float(upscale)
@@ -257,7 +285,7 @@ def eval_msdf_median3_reconstruct_cpu(
     sdf_b: np.ndarray,
     edge_offset_px: float = 0.0,
 ) -> np.ndarray:
-    """Chlumsky MSDF 3-channel median-of-three reconstruction on CPU."""
+    """Chlumsky MSDF 3-channel median-of-three reconstruction on CPU (supports 2D and 3D)."""
     msdf_low = np.maximum(np.minimum(sdf_r, sdf_g), np.minimum(np.maximum(sdf_r, sdf_g), sdf_b))
     return (msdf_low >= edge_offset_px).astype(np.uint8)
 
@@ -271,8 +299,17 @@ def eval_adf_biquadratic_cpu(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Saffron (Perry & Frisken, SIGGRAPH 2006) 9-point Bi-Quadratic Lagrange Polynomial
-    Adaptive Distance Field cell reconstruction on CPU.
+    Adaptive Distance Field cell reconstruction on CPU (supports 2D and 3D batched arrays).
     """
+    if sdf_hi.ndim == 3:
+        bw_list = []
+        fld_list = []
+        for b in range(sdf_hi.shape[0]):
+            bw, fld = eval_adf_biquadratic_cpu(sdf_hi[b], target_w, target_h, upscale, threshold)
+            bw_list.append(bw)
+            fld_list.append(fld)
+        return np.stack(bw_list, axis=0), np.stack(fld_list, axis=0)
+
     H_hi, W_hi = sdf_hi.shape
     r0 = np.clip(np.arange(target_h) * upscale, 0, H_hi - 1)
     rm = np.clip(np.arange(target_h) * upscale + upscale // 2, 0, H_hi - 1)
@@ -352,3 +389,82 @@ def eval_otsu_linear_threshold_cpu(linear_gray: np.ndarray, base_threshold: int 
     k_star = int(np.argmax(sigma_b_sq))
     user_offset = int(base_threshold) - 128
     return int(np.clip(round(0.70 * k_star + 0.30 * 128 + user_offset), 72, 184))
+
+
+def eval_jfa_marching_squares_cpu(
+    high_gray: np.ndarray,
+    target_w: int,
+    target_h: int,
+    upscale: int = 10,
+    threshold: int = 128,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    1:1 Vectorized CPU equivalent of the 3-Stage Jump Flooding Algorithm (`1+JFA`) +
+    Marching Squares 16-Case Saddle-Disambiguated Cell Reconstruction (`svg-potrace-jfa`):
+      1. Extracts sub-pixel iso-contour distance field on the `upscale` high-res grid.
+      2. Samples the `2x2` Marching Squares cell corners `(d00, d10, d11, d01)` and cell center `d_c`
+         for every target pixel `(r, c)`.
+      3. Evaluates the 4-bit Marching Squares topological state `ms_case in [0..15]`, resolves
+         saddle cases `5` and `10` via the asymptotic decider `d00 * d11 - d10 * d01`, and blends
+         analytic Marching Squares cell coverage with JFA distance coverage.
+    """
+    if high_gray.ndim == 3:
+        bw_list = []
+        fld_list = []
+        for b in range(high_gray.shape[0]):
+            bw, fld = eval_jfa_marching_squares_cpu(high_gray[b], target_w, target_h, upscale, threshold)
+            bw_list.append(bw)
+            fld_list.append(fld)
+        return np.stack(bw_list, axis=0), np.stack(fld_list, axis=0)
+
+    if high_gray.size == 0 or target_w <= 0 or target_h <= 0:
+        empty = np.zeros((max(1, target_h), max(1, target_w)), dtype=np.uint8)
+        return empty, empty
+
+    eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
+    fg_mask = (high_gray >= eff_t).astype(np.uint8)
+    bg_mask = 1 - fg_mask
+    if np.count_nonzero(fg_mask) == 0:
+        empty = np.zeros((target_h, target_w), dtype=np.uint8)
+        return empty, empty
+
+    H_hi, W_hi = high_gray.shape
+    dist_in = cv2.distanceTransform(fg_mask, cv2.DIST_L2, 5)
+    dist_out = cv2.distanceTransform(bg_mask, cv2.DIST_L2, 5)
+    bias_px = (128.0 - float(eff_t)) / 64.0
+    sdf_hi = ((dist_in - dist_out) / float(upscale)) + bias_px
+
+    r0 = np.clip(np.arange(target_h) * upscale + (upscale // 4), 0, H_hi - 1)
+    r1 = np.clip(np.arange(target_h) * upscale + (3 * upscale) // 4, 0, H_hi - 1)
+    rm = np.clip(np.arange(target_h) * upscale + (upscale // 2), 0, H_hi - 1)
+
+    c0 = np.clip(np.arange(target_w) * upscale + (upscale // 4), 0, W_hi - 1)
+    c1 = np.clip(np.arange(target_w) * upscale + (3 * upscale) // 4, 0, W_hi - 1)
+    cm = np.clip(np.arange(target_w) * upscale + (upscale // 2), 0, W_hi - 1)
+
+    d00 = sdf_hi[np.ix_(r0, c0)]
+    d10 = sdf_hi[np.ix_(r0, c1)]
+    d11 = sdf_hi[np.ix_(r1, c1)]
+    d01 = sdf_hi[np.ix_(r1, c0)]
+    d_c = sdf_hi[np.ix_(rm, cm)]
+
+    b00 = (d00 >= 0.0).astype(np.int32)
+    b10 = (d10 >= 0.0).astype(np.int32)
+    b11 = (d11 >= 0.0).astype(np.int32)
+    b01 = (d01 >= 0.0).astype(np.int32)
+    ms_case = b00 | (b10 << 1) | (b11 << 2) | (b01 << 3)
+
+    ms_cov = 0.25 * (b00 + b10 + b11 + b01).astype(np.float32)
+    saddle = (ms_case == 5) | (ms_case == 10)
+    decider = d00 * d11 - d10 * d01
+    ms_cov = np.where(saddle, np.where((d_c >= 0.0) | (decider > 0.0), 0.62, 0.38), ms_cov)
+
+    boundary = (ms_case > 0) & (ms_case < 15) & (~saddle)
+    mean_d = 0.20 * (d00 + d10 + d11 + d01 + d_c)
+    ms_cov = np.where(boundary, 0.50 * ms_cov + 0.50 * np.clip(mean_d + 0.50, 0.0, 1.0), ms_cov)
+
+    jfa_cov = np.clip(d_c + 0.50, 0.0, 1.0)
+    final_cov = np.nan_to_num(0.60 * ms_cov + 0.40 * jfa_cov, nan=0.0, posinf=1.0, neginf=0.0)
+    field_u8 = np.clip(np.round(final_cov * 255.0), 0.0, 255.0).astype(np.uint8)
+    bilevel = (final_cov >= 0.50).astype(np.uint8)
+    return bilevel, field_u8

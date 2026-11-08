@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ft_raster.py (v1.0.19c)
+humid1_ft_raster.py (v1.0.20)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -50,7 +50,7 @@ from humid1_runtime import resolve_font_file_recursive
 
 logging.getLogger("fontTools").setLevel(logging.ERROR)
 
-TOOL_VERSION = "1.0.19c"
+TOOL_VERSION = "1.0.20"
 
 
 def _convert_bdf_to_cached_ttf(bdf_path: Path) -> Path:
@@ -85,7 +85,7 @@ def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = F
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.19c `humid1_` symbol naming convention:
+    Canonical v1.0.20 `humid1_` symbol naming convention:
       - Core UI/Telemetry families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Explicit Noto families (noto_sans, noto_cond, noto_mono, noto_serif, noto_math) -> humid1_font_<family>_<role>_<size>
       - Explicit Plex families (plex_sans, plex_cond, plex_mono, plex_serif, plex_math) -> humid1_font_<family>_<role>_<size>
@@ -661,7 +661,7 @@ def rasterize_font_strike(
     verbose: bool = False,
 ) -> Tuple[List[GlyphStrike], int, int, int, int, List[Tuple[int, int, int, int, int]]]:
     """
-    Rasterize a 1-bpp font strike using one of the 8 v1.0.19c resolution-reduction conversion pipelines
+    Rasterize a 1-bpp font strike using one of the 8 v1.0.20 resolution-reduction conversion pipelines
     (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `mdf`, `msdf`, `sdf-smoothstep`, `adf-biquadratic`,
     `otsu-adaptive`, or `exact-mono`) with linear grayscale conversion and optional gamma factor.
     """

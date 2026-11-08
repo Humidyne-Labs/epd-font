@@ -2,10 +2,10 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [07] Humidyne Labs - Humiditron epd-font v1.0.19c - Package & Zip Distribution Bundle
+echo [07] Humidyne Labs - Humiditron epd-font v1.0.20 - Package & Zip Distribution Bundle
 echo      Workflow    : H1OS and humid1-os Firmware Distribution Workflow
 echo      Build Input : build\h1os\
-echo      Dist Output : dist\h1os_distro\ and dist\epd-font_h1os_v1.0.19c.zip
+echo      Dist Output : dist\h1os_distro\ and dist\epd-font_h1os_v1.0.20.zip
 echo ============================================================================
 python tools\fonts\humid1_package_distro.py --build-dir "build\h1os" --dist-dir "dist\h1os_distro" --schemes "scripts\h1os-build-distro\*.scheme.json" --name "h1os" %*
 if errorlevel 1 (

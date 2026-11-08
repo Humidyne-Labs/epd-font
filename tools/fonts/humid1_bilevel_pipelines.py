@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_pipelines.py (v1.0.19c)
+humid1_bilevel_pipelines.py (v1.0.20)
 =====================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Eight-Method Resolution-Reduction Bilevel (1-BPP) Font Conversion Engine & Optical Evaluator:
-  1. `raw-unhinted`   : Direct unhinted FreeType rasterization -> sRGB-to-Linear Grayscale -> gamma -> threshold.
-  2. `raw-hinted`     : Grid-fitted hinted FreeType rasterization -> sRGB-to-Linear Grayscale -> gamma -> threshold.
-  3. `svg-potrace`    : High-res (10x) linear grayscale -> binary threshold -> hierarchical RETR_TREE Potrace /
-                        Cubic B-Spline vector contour tracing (.svg) -> +0.5px center alignment -> aliased fill.
-  4. `mdf`            : High-res (12x) supersampling with median filter + directional/isotropic SDF -> threshold.
-  5. `msdf`           : True Multi-Channel Signed Distance Field generator (Chlumsky msdfgen / Qin et al. I3D 2006)
-                        with 3-channel (R, G, B) sharp-corner edge coloring + median(R, G, B) reconstruction.
-  6. `sdf-smoothstep` : High-res (16x) Euclidean SDF magnification/minification (Chris Green SIGGRAPH 2007) +
-                        L2 Jacobian gradient-normalized smoothstep AA ramp in linear space (Boesch 2025).
-  7. `adf-biquadratic`: MERL Saffron Adaptively Sampled Distance Field (Perry & Frisken) with bi-quadratic
-                        9-point Lagrange cell reconstruction, (-0.50, +0.625) body-type filter, and alpha=1.1 power.
-  8. `otsu-adaptive`  : Nonparametric zeroth/first-order cumulative moment between-class variance maximization
-                        threshold selection on linear grayscale (Nobuyuki Otsu, IEEE Trans. SMC, 1979).
+Nine-Method Resolution-Reduction Bilevel (1-BPP) Font Conversion Engine & Optical Evaluator:
+  1. `raw-unhinted`    : Direct unhinted FreeType rasterization -> sRGB-to-Linear Grayscale -> gamma -> threshold.
+  2. `raw-hinted`      : Grid-fitted hinted FreeType rasterization -> sRGB-to-Linear Grayscale -> gamma -> threshold.
+  3. `svg-potrace`     : High-res (10x) linear grayscale -> binary threshold -> hierarchical RETR_TREE Potrace /
+                         Cubic B-Spline vector contour tracing (.svg) -> +0.5px center alignment -> aliased fill.
+  4. `svg-potrace-jfa` : Sub-mode of `svg-potrace` (`jfa-marching`) implementing 3D OpenCL / CPU Jump Flooding
+                         Algorithm (`1+JFA`, Rong & Tan I3D 2006) + 2x2 Marching Squares sub-pixel zero-crossing
+                         contour extraction + hierarchical RETR_TREE Potrace B-Spline vector SVG synthesis.
+  5. `mdf`             : High-res (12x) supersampling with median filter + directional/isotropic SDF -> threshold.
+  6. `msdf`            : True Multi-Channel Signed Distance Field generator (Chlumsky msdfgen / Qin et al. I3D 2006)
+                         with 3-channel (R, G, B) sharp-corner edge coloring + median(R, G, B) reconstruction.
+  7. `sdf-smoothstep`  : High-res (16x) Euclidean SDF magnification/minification (Chris Green SIGGRAPH 2007) +
+                         L2 Jacobian gradient-normalized smoothstep AA ramp in linear space (Boesch 2025).
+  8. `adf-biquadratic` : MERL Saffron Adaptively Sampled Distance Field (Perry & Frisken) with bi-quadratic
+                         9-point Lagrange cell reconstruction, (-0.50, +0.625) body-type filter, and alpha=1.1 power.
+  9. `otsu-adaptive`   : Nonparametric zeroth/first-order cumulative moment between-class variance maximization
+                         threshold selection on linear grayscale (Nobuyuki Otsu, IEEE Trans. SMC, 1979).
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ from math_backends import (
     describe_math_backend,
     dispatch_adf_biquadratic,
     dispatch_bezier_sdf_yuksel,
+    dispatch_jfa_marching_squares,
     dispatch_median_blur,
     dispatch_morphology_close,
     dispatch_msdf_median3_reconstruct,
@@ -49,12 +53,13 @@ from math_backends import (
     select_math_backend,
 )
 
-TOOL_VERSION = "1.0.19c"
+TOOL_VERSION = "1.0.20"
 
 CANONICAL_PIPELINES: Tuple[str, ...] = (
     "raw-unhinted",
     "raw-hinted",
     "svg-potrace",
+    "svg-potrace-jfa",
     "mdf",
     "msdf",
     "sdf-smoothstep",
@@ -66,11 +71,12 @@ PIPELINE_LABELS: Dict[str, str] = {
     "raw-unhinted": "1. Raw Threshold Unhinted (Linear Gray)",
     "raw-hinted": "2. Raw Threshold Hinted (Linear Gray)",
     "svg-potrace": "3. Custom SVG / Potrace Vector Pipeline",
-    "mdf": "4. MDF (Median + Signed Distance Field)",
-    "msdf": "5. MSDF (Multi-Channel RGB Corner SDF)",
-    "sdf-smoothstep": "6. SDF-Smoothstep (Valve / L2 Gradient AA)",
-    "adf-biquadratic": "7. ADF Bi-Quadratic 9-Pt Lagrange (Saffron)",
-    "otsu-adaptive": "8. Otsu Cumulative-Moment Linear Threshold",
+    "svg-potrace-jfa": "4. SVG / Potrace + 1+JFA Marching Squares",
+    "mdf": "5. MDF (Median + Signed Distance Field)",
+    "msdf": "6. MSDF (Multi-Channel RGB Corner SDF)",
+    "sdf-smoothstep": "7. SDF-Smoothstep (Valve / L2 Gradient AA)",
+    "adf-biquadratic": "8. ADF Bi-Quadratic 9-Pt Lagrange (Saffron)",
+    "otsu-adaptive": "9. Otsu Cumulative-Moment Linear Threshold",
 }
 
 # FreeType bit-flags
@@ -107,6 +113,8 @@ def normalize_pipeline_name(mode: str) -> str:
         return "raw-hinted"
     if m in ("svg-potrace", "potrace", "svg", "custom-svg", "potrace-svg", "vector"):
         return "svg-potrace"
+    if m in ("svg-potrace-jfa", "jfa-marching", "potrace-jfa", "jfa", "marching-squares", "jfa-potrace"):
+        return "svg-potrace-jfa"
     if m in ("mdf", "median-sdf"):
         return "mdf"
     if m in ("msdf", "msdfgen", "multi-channel-sdf"):
@@ -206,6 +214,9 @@ def trace_binary_to_potrace_svg_and_rerasterize(
     alphamax: float = 1.0,
     turdsize: int = 4,
     half_pixel_offset: float = 0.5,
+    sub_mode: str = "potrace",
+    high_gray: Optional[np.ndarray] = None,
+    threshold: int = 128,
 ) -> Tuple[np.ndarray, str, np.ndarray]:
     """
     Execute Steps 3 & 4 of the Custom Potrace SVG Pipeline (`notes/potrace.md`):
@@ -332,7 +343,69 @@ def trace_binary_to_potrace_svg_and_rerasterize(
         f'  <path fill="#000000" fill-rule="evenodd" d="{" ".join(svg_paths)}"/>\n'
         f'</svg>\n'
     )
+    if sub_mode in ("jfa-marching", "svg-potrace-jfa", "jfa"):
+        src_gray = high_gray if (high_gray is not None and high_gray.size > 0) else hi_preview
+        jfa_bw, jfa_field = dispatch_jfa_marching_squares(
+            src_gray,
+            target_w=target_w,
+            target_h=target_h,
+            upscale=upscale,
+            threshold=threshold,
+        )
+        # Fuse topological counter guarantees of RETR_TREE Potrace with 1+JFA + Marching Squares sub-pixel zero-crossing
+        potrace_bw = (low_canvas >= 128).astype(np.uint8)
+        b0_p, b1_p = compute_betti_numbers(potrace_bw)
+        b0_j, b1_j = compute_betti_numbers(jfa_bw)
+        if b1_j >= b1_p and np.count_nonzero(jfa_bw) > 0:
+            return jfa_bw, svg_doc, hi_preview
+        # Preserve interior counter cutouts from RETR_TREE Potrace when 1px apertures are tight
+        fused_bw = np.where((potrace_bw == 0) & (center_sample == 0), 0, jfa_bw).astype(np.uint8)
+        return fused_bw, svg_doc, hi_preview
+
     return (low_canvas >= 128).astype(np.uint8), svg_doc, hi_preview
+
+
+def compute_jfa_marching_squares_bilevel_bitmap(
+    high_gray: np.ndarray,
+    target_w: int,
+    target_h: int,
+    upscale: int = 10,
+    threshold: int = 128,
+    alphamax: float = 1.0,
+) -> Tuple[np.ndarray, str, np.ndarray, np.ndarray]:
+    """
+    Execute the Jump Flooding Algorithm (`1+JFA`) + 2x2 Marching Squares Sub-Mode (`svg-potrace-jfa`):
+      1. Evaluates the 3-stage OpenCL 3D NDRange (`jfa_init_marching_seeds_3d_kernel` ->
+         `jfa_flood_step_3d_kernel` -> `jfa_marching_squares_reconstruct_3d_kernel`) or vectorized CPU
+         `1+JFA` + Marching Squares pipeline to compute the exact sub-pixel zero-crossing distance field.
+      2. Generates hierarchical `cv2.RETR_TREE` Potrace B-Spline SVG vector contours for inspection/export
+         while enforcing topological hole/island parity (`B1` enclosed counters) on the final 1-BPP bitmap.
+    """
+    if high_gray.size == 0 or target_w <= 0 or target_h <= 0:
+        empty = np.zeros((max(1, target_h), max(1, target_w)), dtype=np.uint8)
+        return empty, "", empty, empty
+    eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
+    hi_bin = ((high_gray >= eff_t).astype(np.uint8)) * 255
+    jfa_bw, jfa_field = dispatch_jfa_marching_squares(
+        high_gray,
+        target_w=target_w,
+        target_h=target_h,
+        upscale=upscale,
+        threshold=eff_t,
+    )
+    bw, svg_doc, hi_preview = trace_binary_to_potrace_svg_and_rerasterize(
+        hi_bin,
+        target_w=target_w,
+        target_h=target_h,
+        upscale=upscale,
+        alphamax=alphamax,
+        turdsize=max(2, upscale // 2),
+        half_pixel_offset=0.5,
+        sub_mode="jfa-marching",
+        high_gray=high_gray,
+        threshold=eff_t,
+    )
+    return bw, svg_doc, hi_preview, jfa_field
 
 
 def compute_mdf_bilevel_bitmap(
@@ -518,6 +591,8 @@ def compute_sdf_smoothstep_bilevel_bitmap(
     dist_in = cv2.distanceTransform(fg_mask, cv2.DIST_L2, 5)
     dist_out = cv2.distanceTransform(bg_mask, cv2.DIST_L2, 5)
     sdf_hi = (dist_in - dist_out) / float(upscale)
+    if get_active_math_backend().backend_id == "opencl":
+        return dispatch_sdf_smoothstep(sdf_hi, target_w=target_w, target_h=target_h, upscale=upscale, threshold=threshold)
 
     # Downsample continuous distance field onto target pixel grid
     sdf_area = cv2.resize(sdf_hi, (target_w, target_h), interpolation=cv2.INTER_AREA)
@@ -680,7 +755,7 @@ def render_glyph_via_pipeline(
     if target_h <= 0 or target_w <= 0:
         return np.zeros((0, 0), dtype=np.uint8), b_left, b_top, dbg
 
-    if norm_pipe == "svg-potrace":
+    if norm_pipe in ("svg-potrace", "svg-potrace-jfa"):
         upscale = 10
     elif norm_pipe == "sdf-smoothstep":
         upscale = 16
@@ -713,22 +788,37 @@ def render_glyph_via_pipeline(
     else:
         aligned_hi = cv2.resize(hi_gray_raw, (target_w * upscale, target_h * upscale), interpolation=cv2.INTER_LINEAR)
 
-    if norm_pipe == "svg-potrace":
+    if norm_pipe in ("svg-potrace", "svg-potrace-jfa"):
         hi_bin = ((aligned_hi >= eff_thresh).astype(np.uint8)) * 255
-        bw, svg_str, hi_vec_prev = trace_binary_to_potrace_svg_and_rerasterize(
-            hi_bin,
-            target_w=target_w,
-            target_h=target_h,
-            upscale=upscale,
-            alphamax=1.0,
-            turdsize=max(2, upscale // 2),
-            half_pixel_offset=0.5,
-        )
+        if norm_pipe == "svg-potrace-jfa":
+            bw, svg_str, hi_vec_prev, jfa_fld = compute_jfa_marching_squares_bilevel_bitmap(
+                aligned_hi,
+                target_w=target_w,
+                target_h=target_h,
+                upscale=upscale,
+                threshold=eff_thresh,
+                alphamax=1.0,
+            )
+        else:
+            bw, svg_str, hi_vec_prev = trace_binary_to_potrace_svg_and_rerasterize(
+                hi_bin,
+                target_w=target_w,
+                target_h=target_h,
+                upscale=upscale,
+                alphamax=1.0,
+                turdsize=max(2, upscale // 2),
+                half_pixel_offset=0.5,
+                sub_mode="potrace",
+                high_gray=aligned_hi,
+                threshold=eff_thresh,
+            )
+            jfa_fld = None
         if dbg is not None:
             dbg.high_res_gray = aligned_hi
             dbg.high_res_bin = hi_bin
             dbg.svg_text = svg_str
             dbg.vector_preview = hi_vec_prev
+            dbg.mdf_field = jfa_fld
             dbg.final_binary = bw
         return bw, b_left, b_top, dbg
 
@@ -839,14 +929,14 @@ def save_debug_stage_artifacts(
         svg_path = strike_dbg_dir / f"U+{codepoint:04X}_{glyph_name}_potrace.svg"
         svg_path.write_text(svg_dbg.svg_text, encoding="utf-8")
 
-    card_w, card_h = 1480, 620
+    card_w, card_h = 1480, 660
     img = Image.new("RGB", (card_w, card_h), (248, 250, 252))
     draw = ImageDraw.Draw(img)
     draw.rectangle([0, 0, card_w, 42], fill=(20, 26, 34))
     ch_disp = chr(codepoint) if 0x20 <= codepoint <= 0x7E else f"U+{codepoint:04X}"
     draw.text(
         (16, 12),
-        f"EPD-FONT v{TOOL_VERSION} 8-PIPELINE STAGE DEBUG  |  {strike_symbol}  |  U+{codepoint:04X} '{ch_disp}' ({glyph_name}) @ {size_px}px (Threshold={threshold}, Gamma={gamma:.2f})",
+        f"EPD-FONT v{TOOL_VERSION} 9-PIPELINE STAGE DEBUG  |  {strike_symbol}  |  U+{codepoint:04X} '{ch_disp}' ({glyph_name}) @ {size_px}px (Threshold={threshold}, Gamma={gamma:.2f})",
         fill=(255, 255, 255),
     )
 
@@ -892,21 +982,21 @@ def save_debug_stage_artifacts(
     _paste_array(svg_dbg.vector_preview if svg_dbg else None, 356, y_top, box, "Stage 3: Potrace Tree SVG", is_grid=False)
     _paste_array(msdf_dbg.msdf_rgb if msdf_dbg else None, 524, y_top, box, "Stage 4: MSDF 3-Ch RGB", is_grid=False)
 
-    # Right side: All 8 Final 1-BPP Conversion Outputs (4x2 Grid)
+    # Right side: All 9 Final 1-BPP Conversion Outputs (3x3 Grid)
     x_right = 704
-    sub_box = 172
+    sub_box = 168
     for idx, p_key in enumerate(CANONICAL_PIPELINES):
-        col = idx % 4
-        row = idx // 4
-        px = x_right + col * 188
-        py = 70 + row * 204
+        col = idx % 3
+        row = idx // 3
+        px = x_right + col * 248
+        py = 70 + row * 192
         bw_arr = results[p_key][0]
         _paste_array(bw_arr, px, py, sub_box, f"{idx+1}. {p_key}", is_grid=True)
 
-    # Bottom left metadata summary across all 8 pipelines
-    draw.rectangle([20, 240, 680, 598], fill=(255, 255, 255), outline=(210, 218, 226), width=1)
-    draw.text((32, 250), "8-Pipeline Resolution-Reduction Comparison (Ink Pixels / Mean Stem / Enclosed Counters):", fill=(20, 30, 42))
-    ry = 278
+    # Bottom left metadata summary across all 9 pipelines
+    draw.rectangle([20, 240, 680, 638], fill=(255, 255, 255), outline=(210, 218, 226), width=1)
+    draw.text((32, 250), "9-Pipeline Resolution-Reduction Comparison (Ink Pixels / Mean Stem / Enclosed Counters):", fill=(20, 30, 42))
+    ry = 276
     for p_key in CANONICAL_PIPELINES:
         bw_arr = results[p_key][0]
         ink = int(np.count_nonzero(bw_arr))
@@ -917,7 +1007,7 @@ def save_debug_stage_artifacts(
             f"- {PIPELINE_LABELS[p_key]:<42} | Ink:{ink:>3d}px | Stem:{mean_stem:>4.2f}px (>=2px:{ge2_ratio*100:5.1f}%) | B1:{b1}",
             fill=(45, 55, 68),
         )
-        ry += 36
+        ry += 38
 
     out_png = strike_dbg_dir / f"U+{codepoint:04X}_{glyph_name}_stages.png"
     img.save(str(out_png))

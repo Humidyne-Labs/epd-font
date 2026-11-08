@@ -2,6 +2,33 @@
 
 All notable changes to the `epd-font` repository ([Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)) designed and developed by [Humiditron](https://github.com/humiditron) and the AI/LLM Collaborative Development Partner are documented in this file.
 
+## [v1.0.20] — 2026-11-08
+
+### Added
+- **Multi-Device 3D NDRange OpenCL Kernels & 4-Queue Hardware Compute Striping (`tools/fonts/math_backends/opencl_kernels.py`, `hw_dispatch.py`)**:
+  - Upgraded all six OpenCL C kernels (`srgb_to_linear_gamma_3d_kernel`, `render_bezier_sdf_yuksel_3d_kernel`, `sdf_valve_smoothstep_3d_kernel`, `msdf_median3_reconstruct_3d_kernel`, `adf_biquadratic_9pt_3d_kernel`, and `compute_histogram_local_atomic_3d`) to execute over full **3-Dimensional NDRanges (`work_dim = 3`, `[dim_x, dim_y, dim_z]`)** with 3D local work-groups `(8, 8, 4) = 256` work-items (`4` wavefronts of `64` threads on AMD GCN/Polaris `Ellesmere`), ensuring all `3` Work-Item Dimensions and all `32` GPU Compute Units (`2,048` stream processors) are actively utilized.
+  - Added multi-queue command striping (`4` independent `cl.CommandQueue` instances per GPU context) to distribute kernel launches across multiple hardware compute rings (`Compute 0..3`).
+- **Dynamic `75%` Host/GPU Shared Memory Arena (`SharedHostMemoryArena`, `SHARED_RAM_CAP_RATIO = 0.75`, `CL_MEM_ALLOC_HOST_PTR` + `clEnqueueMapBuffer`)**:
+  - Added `detect_shared_gpu_memory_mb()` and `SharedHostMemoryArena` in `opencl_kernels.py` with a dynamic **`75%` cap on Total WDDM Shared GPU Memory** (`~11,775 MB` out of `15.7 GB` Shared GPU RAM on a `31.4 GB` Windows 11 system, bounded by free physical RAM minus a `512 MB` OS reserve) and persistent `cl.enqueue_map_buffer` (`CL_MAP_WRITE_INVALIDATE_REGION` / `CL_MAP_READ`) staging so batch tensors remain in host-visible GTT Shared GPU Memory rather than promoting into and exhausting the `4.0 GB` Dedicated GPU VRAM.
+- **Jump Flooding Algorithm (`1+JFA`) + `2x2` Marching Squares Sub-Mode (`svg-potrace-jfa` / `--potrace-submode jfa-marching`)**:
+  - Added `svg-potrace-jfa` (`jfa-marching`) as a selectable 9th pipeline and sub-mode of `svg-potrace` (`notes/potrace_break_down.md`), backed by three 3D NDRange OpenCL kernels (`jfa_init_marching_seeds_3d_kernel`, `jfa_flood_step_3d_kernel`, and `jfa_marching_squares_reconstruct_3d_kernel`) and a matching vectorized CPU implementation (`eval_jfa_marching_squares_cpu`). Combines branch-uniform `2x2` Marching Squares sub-pixel zero-crossing seed interpolation and logarithmic `1+JFA` jump flooding with `cv2.RETR_TREE` Potrace B-Spline `.svg` generation while remaining 100% MIT-licensed with zero GPL dependencies.
+- **Heterogeneous GPU + CPU Work-Stealing Dispatcher (`tools/fonts/opencl_dispatcher.py`, `tools/fonts/build_fonts_hybrid.py`, `humid1_runtime.py`)**:
+  - Added `opencl_dispatcher.py` and `build_fonts_hybrid.py` to enumerate and coordinate both discrete GPU OpenCL devices (`[0] Platform 0, Device 0: Ellesmere (ALL | GPU) - 32 CUs`) and host CPU OpenCL runtimes (`[1] Platform 1, Device 0: AMD Ryzen 5 5600G with Radeon Graphics (ALL | CPU) - 12 CUs` installed via the [Intel CPU Runtime for OpenCL Applications](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html)).
+  - Implemented dual-pool deque work-stealing in `run_parallel_tasks()`: a single persistent GPU worker (`EPD_FONT_WORKER_ROLE="gpu"`) pulls heavy icon catalogs (`Tabler`, `Phosphor`, `Lucide`, `FontAwesome 7`), distance-field pipelines, and high point-size strikes (`28..40px`) from the front of the deque while `N-1` CPU workers (`EPD_FONT_WORKER_ROLE="cpu"`) pull `Terminus` bitmap strikes and small text strikes (`10..26px`) from the back of the deque.
+- **OpenCL Runtime Libraries Setup Guide & Hardware Diagnostic Scripts (`README.md`, `scripts/check_PyOpenCL.py`, `scripts/probe_hardware.py`)**:
+  - Documented installation and configuration of runtime OpenCL ICD libraries in `README.md` (Section 2.4 & 2.5), including the [Intel CPU Runtime for OpenCL Applications with SYCL Support](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html), [AMD Software: Adrenalin Edition / ROCm OpenCL Runtime](https://www.amd.com/en/support), [NVIDIA OpenCL ICD Runtime](https://developer.nvidia.com/opencl), and Linux `pocl` / `ocl-icd-libopencl1`.
+  - Replaced legacy `python -m pyopencl.dump` instructions with `scripts/probe_hardware.py` and `scripts/check_PyOpenCL.py`.
+- **Formal Pre-Audit and Post-Audit Reports (`docs/audits/PRE_AUDIT_REPORT_v1.0.19c.md`, `docs/audits/POST_AUDIT_REPORT_v1.0.20.md`)**:
+  - Authored formal Markdown pre-audit (`v1.0.19c` baseline telemetry analysis) and post-audit (`v1.0.20` verification) reports with zero `.docx` files in the repository.
+
+### Fixed
+- **Eliminated `2.0–2.3 GB` Post-Termination GPU Memory Retention & Multi-Process Context Thrashing (`humid1_runtime.py`, `opencl_kernels.py`, `hw_dispatch.py`)**:
+  - Enforced Single-Owner GPU Context isolation (`EPD_FONT_WORKER_ROLE="cpu"` in CPU worker processes) so `ProcessPoolExecutor` no longer spawns 12 competing `cl.Context` instances on the discrete GPU (`12 x ~190 MB = 2.3 GB` Dedicated VRAM).
+  - Added deterministic `teardown_math_backends()` and `OpenCLMathAccelerator.release()` (`atexit` + `finally:` hooks) that flush/finish all queues, explicitly `.release()` every `cl.Buffer`, `cl.Kernel`, `cl.CommandQueue`, `cl.Program`, and `cl.Context`, terminate child worker processes before exit, and invoke `gc.collect()` so `0 MB` of GPU/Shared RAM remains allocated after termination.
+- **Eliminated Noisy `Ctrl+C` (`KeyboardInterrupt`) Worker Tracebacks & Accelerated `raw-hinted` Builds (`humid1_runtime.py`, `build_static_ttf_assets.py`, `cpu_math.py`)**:
+  - Registered `signal.signal(signal.SIGINT, signal.SIG_IGN)` inside child worker process initializers and added explicit `_terminate_executor_processes()` cleanup on `KeyboardInterrupt`, eliminating the interleaved `multiprocessing.process._bootstrap` stack traces when pressing `Ctrl+C`.
+  - Added a precomputed L1-cached 256-byte `uint8` LUT (`_SRGB_GRAY_GAMMA1_U8_LUT`) for `gamma == 1.0` single-channel grayscale conversion, eliminating per-glyph PCIe transfer overhead on `raw-hinted` and `raw-unhinted` text strikes.
+
 ## [v1.0.19c] — 2026-11-07
 
 ### Added

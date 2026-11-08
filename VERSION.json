@@ -7,10 +7,10 @@
     "Humiditron (https://github.com/humiditron)",
     "AI/LLM Collaborative Development Partner"
   ],
-  "version": "1.0.19c",
-  "release_archive_tag": "v1.0.19c",
-  "previous_version": "1.0.19b",
-  "release_date": "2026-11-07",
+  "version": "1.0.20",
+  "release_archive_tag": "v1.0.20",
+  "previous_version": "1.0.19c",
+  "release_date": "2026-11-08",
   "repository_license": "MIT",
   "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
   "lvgl_compatibility": ">= 9.6.0 (backward-compatible with LVGL v8/v9)",
@@ -22,6 +22,7 @@
     "raw-unhinted",
     "raw-hinted",
     "svg-potrace",
+    "svg-potrace-jfa",
     "mdf",
     "msdf",
     "sdf-smoothstep",
@@ -57,7 +58,7 @@
     "audits": "build/audits",
     "ascii_patches": "build/<workflow>/ascii_patches",
     "debug_stages": "build/<workflow>/debug_stages",
-    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.19c.zip"
+    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.20.zip"
   },
   "target_hardware": {
     "chip_name": "ESP32-S3-N8R8",
@@ -67,13 +68,43 @@
   },
   "static_ttf_count": 113,
   "patch_count": 0,
-  "codename": "Eight-Pipeline Resolution-Reduction & Hardware Scheme Edition",
+  "codename": "Nine-Pipeline Multi-Device 3D OpenCL & 75% Shared GPU RAM Edition",
   "target_display_dpi": 188.15,
   "math_backends": [
-    "tools/fonts/math_backends/opencl_kernels.py (PyOpenCL GPU / OpenCL 3.0)",
+    "tools/fonts/math_backends/opencl_kernels.py (PyOpenCL 3D NDRange GPU/CPU + 75% Shared GPU RAM Arena + 1+JFA Marching Squares)",
     "tools/fonts/math_backends/umat_math.py (OpenCV UMat OpenCL)",
-    "tools/fonts/math_backends/cpu_math.py (Vectorized NumPy/OpenCV SIMD CPU)",
-    "tools/fonts/math_backends/hw_dispatch.py (Runtime Hardware Probe & Function Router)"
+    "tools/fonts/math_backends/cpu_math.py (Vectorized NumPy/OpenCV SIMD CPU + L1 LUT + 1+JFA Marching Squares)",
+    "tools/fonts/math_backends/hw_dispatch.py (Multi-Device Runtime Probe & Function Router)"
   ],
-  "requirements_file": "requirements.txt"
+  "requirements_file": "requirements.txt",
+  "opencl_acceleration": {
+    "work_item_dimensions": 3,
+    "ndrange_layout": "3D (dim_x, dim_y, dim_z_batch)",
+    "local_work_group_3d": [
+      8,
+      8,
+      4
+    ],
+    "striped_command_queues": 4,
+    "shared_gpu_memory_flag": "CL_MEM_ALLOC_HOST_PTR",
+    "single_owner_gpu_context": true,
+    "supported_opencl_runtimes": [
+      "AMD Accelerated Parallel Processing (PAL,HSAIL / ROCm OpenCL)",
+      "Intel CPU Runtime for OpenCL Applications with SYCL Support (x86_64 AMD Ryzen & Intel Core/Xeon)",
+      "NVIDIA OpenCL ICD Runtime",
+      "Portable Computing Language (pocl) & Khronos OpenCL ICD Loader"
+    ],
+    "deterministic_teardown": true,
+    "shared_gpu_memory_cap_ratio": 0.75,
+    "shared_gpu_memory_staging": "CL_MEM_ALLOC_HOST_PTR + clEnqueueMapBuffer (Persistent Host-Visible GTT Slots)",
+    "jfa_marching_squares_kernels": [
+      "jfa_init_marching_seeds_3d_kernel",
+      "jfa_flood_step_3d_kernel",
+      "jfa_marching_squares_reconstruct_3d_kernel"
+    ]
+  },
+  "potrace_submodes": [
+    "potrace",
+    "jfa-marching"
+  ]
 }

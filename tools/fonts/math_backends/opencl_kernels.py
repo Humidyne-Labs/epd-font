@@ -973,6 +973,7 @@ class OpenCLMathAccelerator:
         self.global_mem_mb = int(getattr(device, "global_mem_size", 0) // (1024 * 1024))
         self.local_mem_kb = int(getattr(device, "local_mem_size", 0) // 1024)
 
+        ensure_pyopencl()
         total_shared_mb, usable_75pct_mb = detect_shared_gpu_memory_mb()
         self.total_shared_gpu_ram_mb = total_shared_mb
         self.cap_75pct_shared_gpu_ram_mb = int(round(total_shared_mb * SHARED_RAM_CAP_RATIO))

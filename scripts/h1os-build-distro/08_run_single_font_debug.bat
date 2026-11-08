@@ -4,7 +4,7 @@ cd /d "%~dp0..\.."
 echo ============================================================================
 echo [08] Humidyne Labs - Humiditron epd-font v1.0.22 - Single-Font Full Debug Verification
 echo      Scheme     : scripts\h1os-build-distro\h1os_debug.scheme.json
-echo      Features   : 1 Font (IBM Plex Sans Normal 16px & 38px), pipeline=all-debug,
+echo      Features   : 1 Font (IBM Plex Sans Normal 16px and 38px), pipeline=all-debug,
 echo                   sheet_debug=true, char_debug=true, debug_stages=true
 echo      Output Dir : build\h1os_debug\
 echo ============================================================================

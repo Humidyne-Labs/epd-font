@@ -6,7 +6,7 @@
   "spdx_license": "MIT AND OFL-1.1",
   "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
-    "pipeline": "raw-hinted",
+    "pipeline": "otsu-adaptive",
     "math_backend": "auto",
     "threshold": 128,
     "gamma": 1.0,
@@ -15,7 +15,7 @@
     "italic_weight": 600,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/h1os/ascii_patches",
-    "sheet_debug": false,
+    "sheet_debug": true,
     "char_debug": false,
     "debug_stages": false
   },

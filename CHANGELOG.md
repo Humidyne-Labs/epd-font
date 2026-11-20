@@ -23,6 +23,11 @@ All notable changes to the `epd-font` repository ([Humidyne-Labs/epd-font](https
 - Removed v2 cropped-matrix / 1-pipe ASCII patch signature fallbacks from `humid1_ascii_patches.py`, and `"plex_sans_normal_14"` fallback from `humid1_visual_check.py`.
 - Deleted `docs/LEGACY_METHODOLOGY_v1.0.17.md`, 33 historical `docs/audits/*.md` reports (`CHANGELOG.md` is now the sole release history), and the duplicate local `tools/agent/skills/` folder.
 
+### Fixed
+- **LVGL `>= 9.6.0` `CONFIG_LV_FONT_CUSTOM_INCLUDE` Circular-Include & `LV_FONT_CUSTOM_DECLARE` Fix (`humid1_lvgl_bdf_export.py`, `humid1_fw_emit.py`)**:
+  - Guarded `#include "lvgl.h"` inside `humid1_fonts.h` with `#if !defined(LV_CONF_INTERNAL_H)` and switched generated declarations to `struct _lv_font_t;` + `EPD_FONT_EXTERN_DECLARE(<sym>);` (fixing `unknown type name 'lv_font_t'` and `conflicting types` when `lv_conf_internal.h` includes `h1os_fonts.h` before `lv_types.h` and `lv_font.h`).
+  - Replaced `#ifndef LV_FONT_DECLARE` fallbacks in emitted `.c` files with standard `extern const lv_font_t <fallback>;` and aligned `.c` LVGL include detection with the upstream converter (`#ifdef LV_LVGL_H_INCLUDE_SIMPLE`), removing the trailing semicolon on `LV_FONT_CUSTOM_DECLARE` in `h1os_fonts.h`.
+
 ## [v1.0.22] — 2026-11-08
 
 ### Added

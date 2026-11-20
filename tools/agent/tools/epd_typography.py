@@ -666,7 +666,7 @@ def _decode_c_string_literal(raw: str) -> str:
 
 def _simulate_printf_worst_case(fmt: str) -> str:
     s = fmt.replace("%%", "\x00PCT\x00")
-    s = re.sub(r"%\+?0?\d*\.0f", lambda m: "+100" if "+" in m.group(0) else "100", s)
+    s = re.sub(r"%\+?0?\d*\.0f", lambda m: "+72" if "+" in m.group(0) else "72", s)
     s = re.sub(r"%\+?0?\d*\.1f", lambda m: "+72.5" if "+" in m.group(0) else "72.5", s)
     s = re.sub(r"%\+?0?\d*\.2f", lambda m: "+4.12" if "+" in m.group(0) else "4.12", s)
     s = re.sub(r"%\+?0?\d*\.\d+f", "72.50", s)
@@ -674,6 +674,20 @@ def _simulate_printf_worst_case(fmt: str) -> str:
     s = re.sub(r"%0?\d*[l]*[xX]", "FF", s)
     s = s.replace("%s", "CHARGED").replace("%c", "C")
     return s.replace("\x00PCT\x00", "%")
+
+
+def _extract_c_expr(expr: str, str_macros: Dict[str, str]) -> str:
+    parts: List[str] = []
+    for tok_m in re.finditer(r'"((?:[^"\\]|\\.)*)"|([A-Z0-9_]+)', expr):
+        if tok_m.group(1) is not None:
+            parts.append(_decode_c_string_literal(tok_m.group(1)))
+        else:
+            ident = tok_m.group(2)
+            if ident in str_macros:
+                parts.append(str_macros[ident])
+            elif ident in ("PRIu32", "PRId32"):
+                parts.append("lu")
+    return "".join(parts)
 
 
 def audit_screen_strings(
@@ -721,7 +735,27 @@ def audit_screen_strings(
     usable_w = screen_w - (2 * safe_m)
 
     set_text_pat = re.compile(
-        r"lv_label_set_text(?:_fmt)?\s*\(\s*([^,]+?)\s*,\s*((?:(?:\"(?:[^\"\\]|\\.)*\")|(?:[A-Z0-9_]+))(?:\s+(?:(?:\"(?:[^\"\\]|\\.)*\")|(?:[A-Z0-9_]+)))*)\s*[,)]",
+        r"lv_label_set_text(?:_fmt|_static)?\s*\(\s*([^,]+?)\s*,\s*((?:(?:\"(?:[^\"\\]|\\.)*\")|(?:[A-Z0-9_]+))(?:\s+(?:(?:\"(?:[^\"\\]|\\.)*\")|(?:[A-Z0-9_]+)))*)\s*[,)]",
+        re.DOTALL,
+    )
+    ternary_text_pat = re.compile(
+        r"lv_label_set_text(?:_static)?\s*\(\s*([^,]+?)\s*,\s*[^?,]+?\?\s*(\"(?:[^\"\\]|\\.)*\")\s*:\s*(\"(?:[^\"\\]|\\.)*\")\s*\)",
+        re.DOTALL,
+    )
+    snprintf_pat = re.compile(
+        r"snprintf\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*[^,]+?,\s*((?:(?:\"(?:[^\"\\]|\\.)*\")|(?:[A-Z0-9_]+))(?:\s+(?:(?:\"(?:[^\"\\]|\\.)*\")|(?:[A-Z0-9_]+)))*)\s*[,)]",
+        re.DOTALL,
+    )
+    set_text_var_pat = re.compile(
+        r"lv_label_set_text(?:_static)?\s*\(\s*([^,]+?)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)",
+        re.DOTALL,
+    )
+    helper_row_pat = re.compile(
+        r"\badd_[a-z0-9_]*row[a-z0-9_]*\s*\([^;]*?\b([A-Za-z_][A-Za-z0-9_]*)\b[^;]*?\)",
+        re.DOTALL,
+    )
+    qrcode_var_pat = re.compile(
+        r"lv_qrcode_update\s*\(\s*[^,]+?,\s*([A-Za-z_][A-Za-z0-9_]*)\s*,",
         re.DOTALL,
     )
     font_bind_pat = re.compile(
@@ -733,14 +767,50 @@ def audit_screen_strings(
     checked: List[dict] = []
     total_checked = 0
 
+    def _audit_raw_text(c_file: Path, target_var: str, raw_expr_text: str, strike_key: str) -> None:
+        nonlocal total_checked
+        if not raw_expr_text.strip():
+            return
+        sim_str = _simulate_printf_worst_case(raw_expr_text)
+        st_data, st_fbs = strike_cache_local[strike_key]
+        for line_txt in sim_str.split("\n"):
+            line_s = line_txt.strip()
+            if not line_s:
+                continue
+            w_px, _ = measure_string_exact(line_s, st_data, st_fbs)
+            total_checked += 1
+            entry = {
+                "file": c_file.name,
+                "widget": target_var,
+                "strike": strike_key,
+                "line": line_s,
+                "width_px": w_px,
+                "usable_budget_px": usable_w,
+                "clearance_px": usable_w - w_px,
+                "status": "PASS" if w_px <= usable_w else "FAIL",
+            }
+            checked.append(entry)
+            if w_px > usable_w:
+                overflows.append(entry)
+
     for c_file in c_files:
         clean = _strip_c_comments(c_file.read_text(encoding="utf-8", errors="ignore"))
+        qr_vars = {qm.group(1).strip() for qm in qrcode_var_pat.finditer(clean)}
         var_fonts: Dict[str, str] = {}
+        pending_bufs: Dict[str, List[str]] = {}
         events: List[Tuple[int, str, re.Match]] = []
         for m in font_bind_pat.finditer(clean):
             events.append((m.start(), "font", m))
+        for m in snprintf_pat.finditer(clean):
+            events.append((m.start(), "snprintf", m))
+        for m in ternary_text_pat.finditer(clean):
+            events.append((m.start(), "ternary", m))
         for m in set_text_pat.finditer(clean):
             events.append((m.start(), "text", m))
+        for m in set_text_var_pat.finditer(clean):
+            events.append((m.start(), "text_var", m))
+        for m in helper_row_pat.finditer(clean):
+            events.append((m.start(), "helper_row", m))
         events.sort(key=lambda x: x[0])
 
         for _, kind, m in events:
@@ -758,45 +828,45 @@ def audit_screen_strings(
                     pass
                 continue
 
-            target_var = m.group(1).strip()
-            expr = m.group(2).strip()
-            parts: List[str] = []
-            for tok_m in re.finditer(r'"((?:[^"\\]|\\.)*)"|([A-Z0-9_]+)', expr):
-                if tok_m.group(1) is not None:
-                    parts.append(_decode_c_string_literal(tok_m.group(1)))
-                else:
-                    ident = tok_m.group(2)
-                    if ident in str_macros:
-                        parts.append(str_macros[ident])
-                    elif ident in ("PRIu32", "PRId32"):
-                        parts.append("lu")
-            full_raw = "".join(parts)
-            if not full_raw.strip():
+            if kind == "snprintf":
+                buf_var = m.group(1).strip()
+                if buf_var.startswith("qr_") or buf_var in qr_vars:
+                    continue
+                raw_fmt = _extract_c_expr(m.group(2).strip(), str_macros)
+                if raw_fmt.strip():
+                    pending_bufs.setdefault(buf_var, []).append(raw_fmt)
                 continue
 
-            sim_str = _simulate_printf_worst_case(full_raw)
-            active_key = var_fonts.get(target_var, resolved_def_strike)
-            st_data, st_fbs = strike_cache_local[active_key]
+            if kind == "ternary":
+                target_var = m.group(1).strip()
+                active_key = var_fonts.get(target_var, resolved_def_strike)
+                for branch_grp in (2, 3):
+                    _audit_raw_text(c_file, target_var, _extract_c_expr(m.group(branch_grp), str_macros), active_key)
+                continue
 
-            for line_txt in sim_str.split("\n"):
-                line_s = line_txt.strip()
-                if not line_s:
-                    continue
-                w_px, _ = measure_string_exact(line_s, st_data, st_fbs)
-                total_checked += 1
-                entry = {
-                    "file": c_file.name,
-                    "widget": target_var,
-                    "strike": active_key,
-                    "line": line_s,
-                    "width_px": w_px,
-                    "usable_budget_px": usable_w,
-                    "clearance_px": usable_w - w_px,
-                    "status": "PASS" if w_px <= usable_w else "FAIL",
-                }
-                checked.append(entry)
-                if w_px > usable_w:
-                    overflows.append(entry)
+            if kind == "text":
+                target_var = m.group(1).strip()
+                raw_txt = _extract_c_expr(m.group(2).strip(), str_macros)
+                _audit_raw_text(c_file, target_var, raw_txt, var_fonts.get(target_var, resolved_def_strike))
+                continue
+
+            if kind == "text_var":
+                target_var = m.group(1).strip()
+                buf_var = m.group(2).strip()
+                queued = pending_bufs.pop(buf_var, [])
+                if queued:
+                    active_key = var_fonts.get(target_var, resolved_def_strike)
+                    for raw_fmt in queued:
+                        _audit_raw_text(c_file, target_var, raw_fmt, active_key)
+                continue
+
+            if kind == "helper_row":
+                call_txt = m.group(0)
+                for buf_var in list(pending_bufs.keys()):
+                    if re.search(rf"\b{re.escape(buf_var)}\b", call_txt):
+                        queued = pending_bufs.pop(buf_var, [])
+                        for raw_fmt in queued:
+                            _audit_raw_text(c_file, buf_var, raw_fmt, resolved_def_strike)
 
     return {
         "screen_dir": str(resolved_sdir),

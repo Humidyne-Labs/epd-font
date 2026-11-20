@@ -69,7 +69,8 @@ In `v1.0.23`, all resolution-reduction, polynomial root-finding, luminance linea
 ## 3. LVGL `>= 9.6.0` Descriptor & Fallback Chain Specification
 
 Every emitted `.c` module defines `static const lv_font_fmt_txt_dsc_t font_dsc` and `const lv_font_t <symbol>` (LVGL v9+ only, with zero LVGL v6/v7/v8 compatibility shims) with:
-- Validated forward declaration `LV_FONT_DECLARE(<fallback_symbol>);` when a fallback is configured.
+- Validated forward declaration `extern const lv_font_t <fallback_symbol>;` when a fallback is configured.
+- Circular-include-safe strike declarations inside `humid1_fonts.h` using `#if !defined(LV_CONF_INTERNAL_H)`, forward-declared `struct _lv_font_t`, and `EPD_FONT_EXTERN_DECLARE(<symbol>);` so `CONFIG_LV_FONT_CUSTOM_INCLUDE="h1os_fonts.h"` compiles cleanly before `lv_types.h` and `lv_font.h` (with `#define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE(...)` and no trailing semicolon in `h1os_fonts.h`).
 - `.fallback = &<fallback_symbol>` guarded by `#if LVGL_VERSION_MAJOR >= 9`.
 - `.cap_height` and `.x_height` guarded by `#if LV_VERSION_CHECK(9, 6, 0) || LVGL_VERSION_MAJOR >= 10`.
 - `.static_bitmap = 0` guarded by `#if LV_VERSION_CHECK(9, 3, 0) || (LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR >= 3) || LVGL_VERSION_MAJOR > 9`.

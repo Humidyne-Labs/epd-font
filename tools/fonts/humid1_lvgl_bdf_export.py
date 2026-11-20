@@ -196,18 +196,18 @@ def emit_lvgl_c_file(
         " * License: MIT AND OFL-1.1",
         " ******************************************************************************/",
         "",
-        "#if defined(LV_LVGL_H_INCLUDE_SIMPLE)",
-        '#include "lvgl.h"',
-        "#elif defined(__has_include)",
-        '#if __has_include("lvgl.h")',
-        '#include "lvgl.h"',
-        '#elif __has_include("lvgl/lvgl.h")',
-        '#include "lvgl/lvgl.h"',
-        "#else",
-        '#include "lvgl.h"',
+        "#ifdef __has_include",
+        "    #if __has_include(\"lvgl.h\")",
+        "        #ifndef LV_LVGL_H_INCLUDE_SIMPLE",
+        "            #define LV_LVGL_H_INCLUDE_SIMPLE",
+        "        #endif",
+        "    #endif",
         "#endif",
+        "",
+        "#ifdef LV_LVGL_H_INCLUDE_SIMPLE",
+        '    #include "lvgl.h"',
         "#else",
-        '#include "lvgl.h"',
+        '    #include "lvgl/lvgl.h"',
         "#endif",
         "",
         f"#ifndef {guard_macro}",
@@ -228,10 +228,7 @@ def emit_lvgl_c_file(
 
     if valid_fb:
         lines.extend([
-            "#ifndef LV_FONT_DECLARE",
-            "#define LV_FONT_DECLARE(font_name) extern const lv_font_t font_name",
-            "#endif",
-            f"LV_FONT_DECLARE({valid_fb});",
+            f"extern const lv_font_t {valid_fb};",
             "",
         ])
 
@@ -472,8 +469,9 @@ def generate_headers(
 ) -> None:
     """
     Generate drop-in-ready `humid1_fonts.h` (and configured `compat_header` / `h1os_fonts.h`)
-    with circular-include guards (`struct _lv_font_t`, `#ifndef LV_FONT_DECLARE`), universal
-    `__has_include("lvgl.h")` detection, `HUMID1_FONT_*`, `HUMID1_ICON_*`, and `H1OS_FONT_*` aliases.
+    with circular-include guards (`!defined(LV_CONF_INTERNAL_H)`, `struct _lv_font_t`,
+    `EPD_FONT_EXTERN_DECLARE`), universal `__has_include("lvgl.h")` detection,
+    `HUMID1_FONT_*`, `HUMID1_ICON_*`, and `H1OS_FONT_*` aliases.
     """
     sym_set = {item[0] for item in compiled_symbols}
 
@@ -505,31 +503,35 @@ def generate_headers(
             "",
             "#pragma once",
             "",
-            "#if defined(LV_LVGL_H_INCLUDE_SIMPLE)",
-            '#include "lvgl.h"',
-            "#elif defined(__has_include)",
-            '#if __has_include("lvgl.h")',
-            '#include "lvgl.h"',
-            '#elif __has_include("lvgl/lvgl.h")',
-            '#include "lvgl/lvgl.h"',
-            "#else",
-            "#define EPD_FONT_NO_LVGL_HEADER 1",
+            "#if !defined(LV_CONF_INTERNAL_H)",
+            "#ifdef __has_include",
+            '    #if __has_include("lvgl.h")',
+            "        #ifndef LV_LVGL_H_INCLUDE_SIMPLE",
+            "            #define LV_LVGL_H_INCLUDE_SIMPLE",
+            "        #endif",
+            "    #endif",
             "#endif",
+            "#if defined(LV_LVGL_H_INCLUDE_SIMPLE)",
+            '    #include "lvgl.h"',
+            "#elif defined(__has_include)",
+            '    #if __has_include("lvgl/lvgl.h")',
+            '        #include "lvgl/lvgl.h"',
+            "    #endif",
             "#else",
-            '#include "lvgl.h"',
+            '    #include "lvgl/lvgl.h"',
+            "#endif",
             "#endif",
             "",
             "#ifdef __cplusplus",
             'extern "C" {',
             "#endif",
             "",
-            "#ifdef EPD_FONT_NO_LVGL_HEADER",
             "struct _lv_font_t;",
-            "typedef struct _lv_font_t lv_font_t;",
-            "#endif",
             "",
-            "#ifndef LV_FONT_DECLARE",
-            "#define LV_FONT_DECLARE(font_name) extern const lv_font_t font_name",
+            "#ifdef LV_ATTRIBUTE_EXTERN_DATA",
+            "#define EPD_FONT_EXTERN_DECLARE(font_name) LV_ATTRIBUTE_EXTERN_DATA extern const struct _lv_font_t font_name",
+            "#else",
+            "#define EPD_FONT_EXTERN_DECLARE(font_name) extern const struct _lv_font_t font_name",
             "#endif",
             "",
             "/* =========================================================================",
@@ -537,7 +539,7 @@ def generate_headers(
             " * ========================================================================= */",
         ]
         for sym, fam, role, sz, rom_b in compiled_symbols:
-            lines.append(f"LV_FONT_DECLARE({sym}); /* {fam} {role} {sz}px (~{rom_b:,} B ROM) */")
+            lines.append(f"EPD_FONT_EXTERN_DECLARE({sym}); /* {fam} {role} {sz}px (~{rom_b:,} B ROM) */")
 
         role_pairs = [
             ("UI_MICRO",         pick_sym("plex_sans_normal_12", "plex_sans_normal_14")),
@@ -647,7 +649,7 @@ def generate_headers(
             "#endif",
             "",
             "#ifndef LV_FONT_CUSTOM_DECLARE",
-            f"#define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE({default_sym});",
+            f"#define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE({default_sym})",
             "#endif",
             "",
             "#ifndef LV_FONT_DEFAULT",

@@ -2,6 +2,27 @@
 
 All notable changes to the `epd-font` repository ([Humidyne-Labs/epd-font](https://github.com/Humidyne-Labs/epd-font)) designed and developed by [Humiditron](https://github.com/humiditron) and the AI/LLM Collaborative Development Partner are documented in this file.
 
+## [v1.0.23] — 2026-11-19
+
+### Added
+- **Single-Source Typography Inspection Engine & CSV Manifest Packaging (`tools/agent/tools/epd_typography.py`, `humid1_package_distro.py`)**:
+  - Added pure-stdlib `tools/agent/tools/epd_typography.py` supporting both Strike Vaults (`humid1_epd_vault.json.gz`) and packaged per-strike CSV metric manifests (`metrics/char_widths_<sym>.csv`, `metrics/kern_pairs_<sym>.csv`), plus UI screen budget auditing (`audit_screen_strings()`) and full icon catalog search including `icon_tabler_filled`.
+  - Refactored `char_info.py`, `string_info.py` (added `--audit-screens`, `--screen-dir`, `--workspace`, `--metrics-dir`, `--csv`), `icon_search.py`, and `font_catalog_info.py` into thin CLI wrappers delegating to `epd_typography.py`.
+  - Exposed the canonical engine globally through `embedded-ops` MCP tools (`epd_char_info`, `epd_string_budget`, `epd_audit_screens`, `epd_icon_search`, `epd_font_inventory`) and the `embedded-harness` `epd-typography` skill so downstream repositories (`H1OS`, `humid1-os`) use one shared active toolset without local duplicate scripts.
+  - Updated `humid1_package_distro.py` to bundle `metrics/*.csv` cleanly into every `dist/<workflow>_distro/` directory and `.zip` release archive.
+
+### Changed
+- **9-Pipeline Verification & Default Scheme Tuning (`scripts/h1os-build-distro/h1os_full.scheme.json`, `h1os_lite.scheme.json`, `tools/fonts/`)**:
+  - Completed full 9-pipeline GPU/CPU parity, OpenCL kernel batching, scheme validation (`21` schemes, `0` issues), `112` static TTF verification (`112 PASSED, 0 FAILED`), and manual visual inspection across all `108` H1OS strikes (`1,102` comparison/sheet PNGs).
+  - Updated header emission in `humid1_fw_emit.py` and `humid1_lvgl_bdf_export.py` to emit `HUMID1_DEFAULT_FONT` inside configured `compat_header` (`h1os_fonts.h`) and target strictly LVGL `>= 9.6.0` (LVGL v9+).
+  - Bumped repository, hardware schemas, `.scheme.json` profiles, Windows `.bat` workflows, CMake scripts, and documentation to `v1.0.23`.
+
+### Removed (Forward-Rolling Legacy Pruning)
+- Removed LVGL v6/v7/v8 compatibility guards (`#if LVGL_VERSION_MAJOR == 8` glyph cache, `#if LVGL_VERSION_MAJOR >= 8` non-const fallback, `LV_VERSION_CHECK(8, 2, 0)`), `"and v8/v9"` references, `PLEX_FONT_*`, `h1os_font_montserrat_*_1bpp`, hardcoded `plex_fonts.h` compatibility header loops, `legacy_sym_name` fallbacks, and Montserrat width comparison arguments (`montserrat_metrics_dir`, `Legacy Mont`, `mont_widths`, `montserrat_px`).
+- Normalized hardware schema field naming across runtime, emitters, reports, and `VERSION.json` (`partition_1` / `partition_1_bytes` -> `partition_label` / `partition_bytes`).
+- Removed v2 cropped-matrix / 1-pipe ASCII patch signature fallbacks from `humid1_ascii_patches.py`, and `"plex_sans_normal_14"` fallback from `humid1_visual_check.py`.
+- Deleted `docs/LEGACY_METHODOLOGY_v1.0.17.md`, 33 historical `docs/audits/*.md` reports (`CHANGELOG.md` is now the sole release history), and the duplicate local `tools/agent/skills/` folder.
+
 ## [v1.0.22] — 2026-11-08
 
 ### Added

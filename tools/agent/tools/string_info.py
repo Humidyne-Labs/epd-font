@@ -1,86 +1,24 @@
 #!/usr/bin/env python3
 """
-string_info.py (v1.0.22) — Agent-First Deterministic String Layout & Screen Budget Calculator
-============================================================================================
-Computes exact LVGL v9 1-bpp pixel width, kerning adjustments, bounding height, line wrapping,
-and horizontal screen clearance (`usable_width = screen_width - 2 * safe_margin`) for any string
-or left/right telemetry row pair.
-
-Zero guesswork: AI agents must run `string_info.py` before placing labels or choosing font sizes.
+string_info.py (v1.0.23) — Agent-First Deterministic String Layout & Screen Audit Tool
+=======================================================================================
+Thin CLI wrapper over `epd_typography.measure_string_budget()` and
+`epd_typography.audit_screen_strings()`. Validates single labels, two-column
+telemetry rows, and full C/C++ UI screen source directories against display margins.
 """
 
 from __future__ import annotations
 
 import argparse
-import gzip
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-def find_repo_root() -> Path:
-    cur = Path(__file__).resolve().parent
-    for _ in range(5):
-        if (cur / "VERSION.json").is_file() or (cur / "tools" / "fonts").is_dir():
-            return cur
-        cur = cur.parent
-    return Path.cwd()
-
-
-def load_vault(repo_root: Path, vault_arg: Optional[str] = None) -> Dict:
-    candidates = []
-    if vault_arg:
-        candidates.append(Path(vault_arg))
-    candidates.extend([
-        repo_root / "dist" / "humid1_epd_vault.json.gz",
-        repo_root / "dist" / "h1os_distro" / "humid1_epd_vault.json.gz",
-        repo_root / "dist" / "example_distro" / "humid1_epd_vault.json.gz",
-        repo_root / "dist" / "audit_distro" / "humid1_epd_vault.json.gz",
-    ])
-    for c in candidates:
-        if c.is_file():
-            if c.name.endswith(".gz"):
-                with gzip.open(c, "rt", encoding="utf-8") as f:
-                    return json.load(f)
-            return json.loads(c.read_text(encoding="utf-8"))
-    return {"strikes": {}}
-
-
-def measure_string_exact(text: str, strike_data: dict, fallback_data: Optional[dict] = None) -> Tuple[int, List[dict]]:
-    cp_map = {int(g["cp"]): g for g in strike_data.get("glyphs", [])}
-    fb_map = {int(g["cp"]): g for g in (fallback_data or {}).get("glyphs", [])}
-    gid_kern = {(int(k[0]), int(k[1])): int(k[2]) for k in strike_data.get("kern_pairs", [])}
-
-    total_px = 0
-    breakdown = []
-    chars = list(text)
-    for i, ch in enumerate(chars):
-        cp = ord(ch)
-        g = cp_map.get(cp) or fb_map.get(cp)
-        if not g:
-            breakdown.append({"char": ch, "cp": f"0x{cp:04X}", "found": False, "adv_px": 0, "kern_fp4": 0})
-            continue
-        adv_fp4 = int(g["adv_w_fp4"])
-        kern_fp4 = 0
-        if i + 1 < len(chars):
-            next_cp = ord(chars[i + 1])
-            next_g = cp_map.get(next_cp)
-            if next_g and int(g["cp"]) in cp_map:
-                kern_fp4 = gid_kern.get((int(g["gid"]), int(next_g["gid"])), 0)
-        step_px = (adv_fp4 + kern_fp4 + 8) >> 4
-        total_px += step_px
-        breakdown.append({
-            "char": ch,
-            "cp": f"0x{cp:04X}",
-            "found": True,
-            "adv_w_fp4": adv_fp4,
-            "kern_fp4": kern_fp4,
-            "step_px": step_px,
-            "box_w": int(g["box_w"]),
-            "box_h": int(g["box_h"]),
-        })
-    return total_px, breakdown
+from epd_typography import audit_screen_strings, measure_string_budget  # noqa: E402
 
 
 def main() -> None:
@@ -89,94 +27,101 @@ def main() -> None:
         description="Deterministic LVGL v9 1-bpp string pixel width, kerning & screen budget calculator.",
     )
     parser.add_argument("--strike", "-s", type=str, default="humid1_font_plex_sans_normal_14", help="Primary strike symbol (default: plex_sans_normal_14)")
-    parser.add_argument("--text", "-t", type=str, required=True, help="Text string to measure")
+    parser.add_argument("--text", "-t", type=str, default=None, help="Text string to measure (omit when using --audit-screens)")
     parser.add_argument("--right-text", "-r", type=str, default=None, help="Optional right-aligned telemetry string on the same row")
     parser.add_argument("--right-strike", type=str, default=None, help="Optional strike symbol for --right-text (default: same as --strike)")
-    parser.add_argument("-H", "--hw-scheme", type=str, default="esp32s3-N8R8-hw_scheme.json", help="Target hardware scheme JSON (default: esp32s3-N8R8-hw_scheme.json)")
+    parser.add_argument("--audit-screens", action="store_true", help="Scan UI screen C/C++ files for lv_label_set_text[_fmt] budget overflows")
+    parser.add_argument("--screen-dir", type=str, default=None, help="Explicit C/C++ UI screen directory for --audit-screens")
+    parser.add_argument("-H", "--hw-scheme", type=str, default="esp32s3-N8R8-hw_scheme.json", help="Target hardware scheme JSON")
     parser.add_argument("--min-gap", type=int, default=8, help="Minimum required pixel gap between left and right text (default: 8)")
+    parser.add_argument("--workspace", "-w", type=str, default=None, help="Target workspace/repository root")
     parser.add_argument("--vault", "-v", type=str, default=None, help="Optional path to humid1_epd_vault.json.gz")
+    parser.add_argument("--metrics-dir", "-m", type=str, default=None, help="Optional directory containing char_widths_*.csv manifests")
+    parser.add_argument("--csv", action="store_true", help="Prefer CSV metric manifests over Strike Vault")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     args = parser.parse_args()
 
-    repo_root = find_repo_root()
-    vault = load_vault(repo_root, args.vault)
-    strikes = vault.get("strikes", {})
+    if not args.audit_screens and not args.text:
+        parser.error("Provide --text <string> or pass --audit-screens.")
 
-    if args.strike not in strikes:
-        for alt in (f"humid1_font_{args.strike}", f"humid1_{args.strike}", f"humid1_font_plex_{args.strike}"):
-            if alt in strikes:
-                args.strike = alt
-                break
-    if args.strike not in strikes:
-        print(f"[!] Strike '{args.strike}' not found in vault.", file=sys.stderr)
-        sys.exit(1)
-
-    fb_strike = strikes.get("humid1_font_plex_sans_normal_14")
-    left_w, left_bd = measure_string_exact(args.text, strikes[args.strike], fb_strike)
-
-    right_w = 0
-    right_bd = []
-    r_strike_name = args.right_strike or args.strike
-    if args.right_text:
-        if r_strike_name not in strikes:
-            for alt in (f"humid1_font_{r_strike_name}", f"humid1_{r_strike_name}", f"humid1_font_plex_{r_strike_name}"):
-                if alt in strikes:
-                    r_strike_name = alt
-                    break
-        if r_strike_name not in strikes:
-            print(f"[!] Right strike '{r_strike_name}' not found in vault.", file=sys.stderr)
+    if args.audit_screens:
+        try:
+            report = audit_screen_strings(
+                workspace_dir=args.workspace,
+                screen_dir=args.screen_dir,
+                default_strike=args.strike,
+                hw_scheme=args.hw_scheme,
+                vault_path=args.vault,
+                metrics_dir=args.metrics_dir,
+            )
+        except (KeyError, ValueError, FileNotFoundError) as exc:
+            print(f"[!] {exc}", file=sys.stderr)
             sys.exit(1)
-        right_w, right_bd = measure_string_exact(args.right_text, strikes[r_strike_name], fb_strike)
 
-    hw_disp = {"width_px": 200, "safe_margin_px": 6}
-    hw_cand = Path(args.hw_scheme) if Path(args.hw_scheme).is_absolute() else (repo_root / args.hw_scheme)
-    if hw_cand.is_file():
-        hw_disp = json.loads(hw_cand.read_text(encoding="utf-8")).get("display", hw_disp)
-    eff_screen_w = int(hw_disp.get("width_px", 200))
-    eff_safe_m = int(hw_disp.get("safe_margin_px", 6))
-    usable_w = eff_screen_w - (2 * eff_safe_m)
-    combined_w = left_w + right_w
-    clearance_px = usable_w - combined_w
-    needed_gap = args.min_gap if args.right_text else 0
-    fits = clearance_px >= needed_gap
+        if args.json:
+            print(json.dumps(report, indent=2))
+            if report["overflow_count"] > 0:
+                sys.exit(1)
+            return
 
-    payload = {
-        "strike": args.strike,
-        "line_height_px": strikes[args.strike].get("line_height"),
-        "base_line_px": strikes[args.strike].get("base_line"),
-        "text": args.text,
-        "text_width_px": left_w,
-        "right_text": args.right_text,
-        "right_strike": r_strike_name if args.right_text else None,
-        "right_width_px": right_w,
-        "combined_width_px": combined_w,
-        "screen_width_px": eff_screen_w,
-        "safe_margin_px": eff_safe_m,
-        "usable_budget_px": usable_w,
-        "clearance_px": clearance_px,
-        "fits_budget": fits,
-        "status": "PASS" if fits else "OVERFLOW_OR_TIGHT",
-        "glyph_breakdown": left_bd,
-        "right_glyph_breakdown": right_bd,
-    }
+        print("=" * 84)
+        print(f"UI SCREEN STRING BUDGET AUDIT — {report['screen_dir']} (Budget <= {report['usable_budget_px']} px)")
+        print("=" * 84)
+        for ov in report["overflows"]:
+            print(
+                f"  [FAIL] {ov['width_px']:>3d}px > {ov['usable_budget_px']}px | "
+                f"{ov['file']:24s} | {ov['strike']} | '{ov['line']}'"
+            )
+        print(
+            f"Summary: checked {report['total_strings_checked']} line(s) across {len(report['files_scanned'])} file(s), "
+            f"overflows={report['overflow_count']} -> [{report['status']}]"
+        )
+        print("=" * 84)
+        if report["overflow_count"] > 0:
+            sys.exit(1)
+        return
+
+    try:
+        payload = measure_string_budget(
+            strike=args.strike,
+            text=args.text,
+            right_text=args.right_text,
+            right_strike=args.right_strike,
+            hw_scheme=args.hw_scheme,
+            min_gap=args.min_gap,
+            workspace_dir=args.workspace,
+            vault_path=args.vault,
+            metrics_dir=args.metrics_dir,
+            prefer_csv=args.csv,
+        )
+    except (KeyError, ValueError, FileNotFoundError) as exc:
+        print(f"[!] {exc}", file=sys.stderr)
+        sys.exit(1)
 
     if args.json:
         print(json.dumps(payload, indent=2))
         return
 
+    needed_gap = args.min_gap if args.right_text else 0
     print("=" * 78)
-    print(f"STRING PIXEL BUDGET REPORT — {args.strike} (lh={payload['line_height_px']}px)")
+    print(f"STRING PIXEL BUDGET REPORT — {payload['strike']} (lh={payload['line_height_px']}px, src={payload['source']})")
     print("=" * 78)
-    print(f"  Left String     : '{args.text}' -> {left_w} px")
+    print(f"  Left String     : '{args.text}' -> {payload['text_width_px']} px")
     if args.right_text:
-        print(f"  Right String    : '{args.right_text}' ({r_strike_name}) -> {right_w} px")
-    print(f"  Combined Width  : {combined_w} px")
-    print(f"  Display Budget  : {usable_w} px usable (Screen={eff_screen_w}px, Margin=2x{eff_safe_m}px)")
-    print(f"  Clearance       : {clearance_px:+d} px (Min Gap={needed_gap}px) -> [{payload['status']}]")
+        print(f"  Right String    : '{args.right_text}' ({payload['right_strike']}) -> {payload['right_width_px']} px")
+    print(f"  Combined Width  : {payload['combined_width_px']} px")
+    print(f"  Display Budget  : {payload['usable_budget_px']} px usable (Screen={payload['screen_width_px']}px, Margin=2x{payload['safe_margin_px']}px)")
+    print(f"  Clearance       : {payload['clearance_px']:+d} px (Min Gap={needed_gap}px) -> [{payload['status']}]")
+    if payload.get("csv_path"):
+        print(f"  CSV Manifest    : {payload['csv_path']}")
     print("-" * 78)
     print("  Per-Character Breakdown (Left String):")
-    for item in left_bd:
-        print(f"    '{item['char']}' ({item['cp']}) : step={item.get('step_px', 0):2d}px (adv_fp4={item.get('adv_w_fp4', 0):3d}, kern_fp4={item.get('kern_fp4', 0):+3d}, bbox={item.get('box_w', 0)}x{item.get('box_h', 0)})")
+    for item in payload["glyph_breakdown"]:
+        print(
+            f"    '{item['char']}' ({item['cp']}) : step={item.get('step_px', 0):2d}px "
+            f"(adv_fp4={item.get('adv_w_fp4', 0):3d}, kern_fp4={item.get('kern_fp4', 0):+3d}, "
+            f"bbox={item.get('box_w', 0)}x{item.get('box_h', 0)})"
+        )
     print("=" * 78)
 
 

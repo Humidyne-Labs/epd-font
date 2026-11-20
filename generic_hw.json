@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.22",
+  "schema_version": "1.0.23",
   "hw_scheme_id": "generic_hw",
   "description": "Generic target hardware specification scheme for ROM size approximations, evaluation benchmarks, and archival builds with a single 3 MByte (3,145,728 bytes) partition.",
   "chip_name": "Generic-32bit-MCU",

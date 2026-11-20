@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ascii_patches.py (v1.0.22)
+humid1_ascii_patches.py (v1.0.23)
 =================================
 Humidyne Labs / Humiditron `epd-font` Full-Canvas 1:1 Spaced Editable ASCII Patch
 Dumper, Parser & JSON Patch Compiler Module.
@@ -19,7 +19,7 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 # =============================================================================
 # 7. WORKFLOW 2: PATCH (FULL-CANVAS 1:1 SPACED ASCII + UNICODE PREVIEW <-> JSON)
@@ -68,7 +68,7 @@ def dump_strike_to_ascii_folder(
         adv_px = max(1, (g.adv_w_fp4 + 8) >> 4)
 
         matrix_lines = g.rows if (g.box_w > 0 and g.box_h > 0 and g.rows) else []
-        cur_sig = f"{g.box_w},{g.box_h},{g.ofs_x},{g.ofs_y}|" + ("/".join(matrix_lines) if matrix_lines else ".")
+        cur_sig = f"{g.adv_w_fp4}|{g.box_w},{g.box_h},{g.ofs_x},{g.ofs_y}|" + ("/".join(matrix_lines) if matrix_lines else ".")
         orig_sig = orig_signatures.get(g.codepoint, cur_sig) if orig_signatures else cur_sig
 
         # Full canvas horizontal and vertical span
@@ -178,9 +178,8 @@ def dump_strike_to_ascii_folder(
 
 def parse_ascii_glyph_folder(strike_dir: Path, only_modified: bool = False) -> Dict[str, dict]:
     """
-    Parse all `U+*.txt` ASCII glyph files inside `strike_dir` and return a dict keyed by `"0xXXXX"`.
-    Supports both v3.0 `grid_mode: full_canvas` (2-char spaced '# ' / '. ' / '- ' with auto-bounding-box
-    extraction relative to x=0 and y=0) and legacy v2.0 cropped matrices.
+    Parse all `U+*.txt` Full-Canvas 1:1 Spaced ASCII glyph files inside `strike_dir`
+    (`grid_mode: full_canvas`) and return a dict keyed by `"0xXXXX"`.
     """
     patches: Dict[str, dict] = {}
     if not strike_dir.is_dir():
@@ -225,15 +224,13 @@ def parse_ascii_glyph_folder(strike_dir: Path, only_modified: bool = False) -> D
         if not grid_raw_lines:
             continue
 
-        grid_mode = meta.get("grid_mode", "cropped").lower()
         canvas_x0 = int(meta.get("canvas_x0", "0"))
-        canvas_y_top = int(meta.get("canvas_y_top", "0"))
 
         parsed_rows: List[str] = []
         row_y_coords: List[int] = []
 
         for idx, rline in enumerate(grid_raw_lines):
-            y_val = canvas_y_top - idx
+            y_val = int(meta.get("canvas_y_top", "0")) - idx
             if "|" in rline:
                 left_part, right_part = rline.split("|", 1)
                 m_y = re.search(r"y=\s*([+-]?\d+)", right_part)
@@ -263,40 +260,30 @@ def parse_ascii_glyph_folder(strike_dir: Path, only_modified: bool = False) -> D
         if not parsed_rows:
             continue
 
-        if grid_mode == "full_canvas":
-            min_c, max_c = 999999, -1
-            min_r, max_r = 999999, -1
-            for r_i, r_str in enumerate(parsed_rows):
-                for c_i, ch in enumerate(r_str):
-                    if ch == "#":
-                        if c_i < min_c: min_c = c_i
-                        if c_i > max_c: max_c = c_i
-                        if r_i < min_r: min_r = r_i
-                        if r_i > max_r: max_r = r_i
-            if max_c < 0:
-                box_w, box_h, ofs_x, ofs_y = 0, 0, 0, 0
-                cropped_matrix: List[str] = ["."]
-            else:
-                box_w = (max_c - min_c) + 1
-                box_h = (max_r - min_r) + 1
-                ofs_x = canvas_x0 + min_c
-                ofs_y = row_y_coords[max_r]
-                cropped_matrix = [parsed_rows[r][min_c : max_c + 1] for r in range(min_r, max_r + 1)]
+        min_c, max_c = 999999, -1
+        min_r, max_r = 999999, -1
+        for r_i, r_str in enumerate(parsed_rows):
+            for c_i, ch in enumerate(r_str):
+                if ch == "#":
+                    if c_i < min_c: min_c = c_i
+                    if c_i > max_c: max_c = c_i
+                    if r_i < min_r: min_r = r_i
+                    if r_i > max_r: max_r = r_i
+        if max_c < 0:
+            box_w, box_h, ofs_x, ofs_y = 0, 0, 0, 0
+            cropped_matrix: List[str] = ["."]
         else:
-            if parsed_rows == ["."]:
-                box_w, box_h = 0, 0
-                cropped_matrix = ["."]
-            else:
-                box_w = len(parsed_rows[0])
-                box_h = len(parsed_rows)
-                cropped_matrix = parsed_rows
-            ofs_x = int(meta.get("ofs_x", "0"))
-            ofs_y = int(meta.get("ofs_y", "0"))
+            box_w = (max_c - min_c) + 1
+            box_h = (max_r - min_r) + 1
+            ofs_x = canvas_x0 + min_c
+            ofs_y = row_y_coords[max_r]
+            cropped_matrix = [parsed_rows[r][min_c : max_c + 1] for r in range(min_r, max_r + 1)]
 
+        adv_w_fp4 = int(meta.get("adv_w_fp4", "0"))
         if meta.get("patched", "0").strip().lower() in ("1", "true", "yes"):
             was_patched = True
         sig_rows = "." if cropped_matrix == ["."] else "/".join(cropped_matrix)
-        curr_sig = f"{box_w},{box_h},{ofs_x},{ofs_y}|{sig_rows}"
+        curr_sig = f"{adv_w_fp4}|{box_w},{box_h},{ofs_x},{ofs_y}|{sig_rows}"
         if only_modified and orig_sig is not None and curr_sig == orig_sig and not was_patched:
             continue
 
@@ -309,7 +296,7 @@ def parse_ascii_glyph_folder(strike_dir: Path, only_modified: bool = False) -> D
             "bitmap": [] if cropped_matrix == ["."] else cropped_matrix,
         }
         if "adv_w_fp4" in meta:
-            entry["adv_w_fp4"] = int(meta["adv_w_fp4"])
+            entry["adv_w_fp4"] = adv_w_fp4
         patches[hex_key] = entry
 
     return patches
@@ -325,9 +312,9 @@ def build_patches_json_from_ascii_root(
     `U+*.txt` files, and merge them into `out_json_path` (`font_icon_epd_patches.json`).
     """
     manifest: dict = {
-        "$schema": "https://humidyne-labs.github.io/schemas/plex_epd_patches_v3.json",
-        "version": "3.0.0",
-        "description": "Declarative 1-bpp optical bitmap overrides compiled from v3.0 Full-Canvas ASCII glyph folders.",
+        "$schema": "https://humidyne-labs.github.io/schemas/epd_font_patches_v4.json",
+        "version": "1.0.23",
+        "description": "Manual 1-bpp optical bitmap overrides compiled from Full-Canvas 1:1 Spaced ASCII glyph files.",
         "patches": {},
     }
     if out_json_path.is_file():

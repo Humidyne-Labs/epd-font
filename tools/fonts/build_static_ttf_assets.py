@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_static_ttf_assets.py (v1.0.22)
+build_static_ttf_assets.py (v1.0.23)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Multi-Core Raw-to-Static TrueType (`.ttf`) Asset & Metadata Builder.
 
@@ -56,7 +56,7 @@ except ImportError as exc:
     )
     raise SystemExit(1) from exc
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 # =============================================================================
 # 1. DECLARATIVE CONVERSION TABLES
@@ -181,6 +181,8 @@ ICON_CONVERSION_TABLE: List[Tuple[str, str, str, str]] = [
     ("FontAwesome7-Brands.ttf", "fa7", "Font Awesome 7 Brands-Regular-400.otf", "otf2ttf"),
     ("Lucide-Regular.ttf", "lucide", "lucide.ttf", "clean_ttf"),
     ("Phosphor-Regular.ttf", "phosphor", "Phosphor.ttf", "clean_ttf"),
+    ("Phosphor-Light.ttf", "phosphor", "Phosphor-Light.ttf", "clean_ttf"),
+    ("Phosphor-Thin.ttf", "phosphor", "Phosphor-Thin.ttf", "clean_ttf"),
     ("Phosphor-Bold.ttf", "phosphor", "Phosphor-Bold.ttf", "clean_ttf"),
     ("Phosphor-Fill.ttf", "phosphor", "Phosphor-Fill.ttf", "clean_ttf"),
     ("Tabler-Regular.ttf", "tabler", "tabler-icons.ttf", "clean_ttf"),
@@ -719,7 +721,7 @@ def generate_icon_and_font_catalogs(
         "noto_math": ["NotoSansMath-Regular.ttf"],
         "terminus": [row[0] for row in TERMINUS_BDF_CONVERSION_TABLE],
     }
-    for cat_name in ("humid1_font_catalog.json", "plex_catalog.json"):
+    for cat_name in ("humid1_font_catalog.json",):
         (meta_out_dir / cat_name).write_text(
             json.dumps(
                 {

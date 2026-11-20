@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_bilevel_pipelines.py (v1.0.22)
+humid1_bilevel_pipelines.py (v1.0.23)
 =====================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -50,7 +50,7 @@ from math_backends import (
     get_active_math_backend,
 )
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 CANONICAL_PIPELINES: Tuple[str, ...] = (
     "raw-unhinted",
@@ -81,12 +81,9 @@ FT_LOAD_RENDER = 1 << 2
 FT_LOAD_NO_HINTING = 1 << 1
 FT_LOAD_FORCE_AUTOHINT = 1 << 5
 FT_LOAD_MONOCHROME = 1 << 12
-FT_LOAD_NO_AUTOHINT = 1 << 15
 FT_LOAD_TARGET_NORMAL = 0 << 16
-FT_LOAD_TARGET_LIGHT = 1 << 16
 FT_LOAD_TARGET_MONO = 2 << 16
 FT_PIXEL_MODE_MONO = 1
-FT_PIXEL_MODE_GRAY = 2
 
 CANONICAL_MIN_HOLES: Dict[str, int] = {
     "0": 1, "4": 1, "6": 1, "8": 2, "9": 1,
@@ -95,12 +92,9 @@ CANONICAL_MIN_HOLES: Dict[str, int] = {
     "%": 2, "@": 1,
 }
 
-SINGLE_COUNTER_OPEN_TAIL_CHARS = set("0469ADOPQRabdeopq")
-PINCH_FORBIDDEN_CHARS = set("CEFGHIJKLMNSTUVWXYZcfhijlmnrstuvwxyz!()[]{}/\\|<>+-=~")
-
 
 def normalize_pipeline_name(mode: str) -> str:
-    """Normalize CLI or scheme pipeline name to one of the 8 canonical pipelines (or exact-mono)."""
+    """Normalize CLI or scheme pipeline name to one of the 9 canonical pipelines (or exact-mono)."""
     m = (mode or "raw-hinted").lower().strip().replace("_", "-")
     if m in ("exact-mono", "terminus-mono", "bitmap"):
         return "exact-mono"
@@ -161,26 +155,33 @@ class PipelineStageDebug:
     final_binary: Optional[np.ndarray] = None
 
 
-def _extract_ft_grayscale(slot_contents, bmp, gamma: float = 1.0, to_linear: bool = True) -> Tuple[np.ndarray, int, int]:
-    """Extract an 8-bit linear grayscale array (0..255) from a FreeType FT_GlyphSlotRec."""
+def extract_ft_raw_grayscale(slot_contents, bmp) -> Tuple[np.ndarray, int, int]:
+    """Extract a raw 8-bit bitmap array (0..255) from a FreeType FT_GlyphSlotRec without linearization."""
     rows, width = int(bmp.rows), int(bmp.width)
     if rows <= 0 or width <= 0:
         return np.zeros((0, 0), dtype=np.uint8), int(slot_contents.bitmap_left), int(slot_contents.bitmap_top)
-    arr = np.zeros((rows, width), dtype=np.uint8)
     if bmp.pixel_mode == FT_PIXEL_MODE_MONO:
+        arr = np.zeros((rows, width), dtype=np.uint8)
         for r in range(rows):
             for c in range(width):
                 byte_val = bmp.buffer[r * bmp.pitch + (c >> 3)]
                 if (byte_val >> (7 - (c & 7))) & 1:
                     arr[r, c] = 255
         return arr, int(slot_contents.bitmap_left), int(slot_contents.bitmap_top)
-    else:
-        pitch = abs(int(bmp.pitch))
-        raw_bytes = ctypes.string_at(bmp.buffer, rows * pitch)
-        arr = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((rows, pitch))[:, :width].copy()
-        if to_linear:
-            arr = rgb_to_linear_grayscale(arr, gamma=gamma)
-        return arr, int(slot_contents.bitmap_left), int(slot_contents.bitmap_top)
+    pitch = abs(int(bmp.pitch))
+    raw_bytes = ctypes.string_at(bmp.buffer, rows * pitch)
+    arr = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((rows, pitch))[:, :width].copy()
+    return arr, int(slot_contents.bitmap_left), int(slot_contents.bitmap_top)
+
+
+def _extract_ft_grayscale(slot_contents, bmp, gamma: float = 1.0, to_linear: bool = True) -> Tuple[np.ndarray, int, int]:
+    """Extract an 8-bit linear grayscale array (0..255) from a FreeType FT_GlyphSlotRec."""
+    arr, b_left, b_top = extract_ft_raw_grayscale(slot_contents, bmp)
+    if arr.size == 0 or bmp.pixel_mode == FT_PIXEL_MODE_MONO:
+        return arr, b_left, b_top
+    if to_linear:
+        arr = rgb_to_linear_grayscale(arr, gamma=gamma)
+    return arr, b_left, b_top
 
 
 def _compute_contour_tree_depths(hierarchy: np.ndarray) -> List[int]:
@@ -214,6 +215,7 @@ def trace_binary_to_potrace_svg_and_rerasterize(
     sub_mode: str = "potrace",
     high_gray: Optional[np.ndarray] = None,
     threshold: int = 128,
+    precomputed_jfa: Optional[Tuple[np.ndarray, np.ndarray]] = None,
 ) -> Tuple[np.ndarray, str, np.ndarray]:
     """
     Execute Steps 3 & 4 of the Custom Potrace SVG Pipeline (`notes/potrace.md`):
@@ -341,14 +343,17 @@ def trace_binary_to_potrace_svg_and_rerasterize(
         f'</svg>\n'
     )
     if sub_mode in ("jfa-marching", "svg-potrace-jfa", "jfa"):
-        src_gray = high_gray if (high_gray is not None and high_gray.size > 0) else hi_preview
-        jfa_bw, jfa_field = dispatch_jfa_marching_squares(
-            src_gray,
-            target_w=target_w,
-            target_h=target_h,
-            upscale=upscale,
-            threshold=threshold,
-        )
+        if precomputed_jfa is not None:
+            jfa_bw, jfa_field = precomputed_jfa
+        else:
+            src_gray = high_gray if (high_gray is not None and high_gray.size > 0) else hi_preview
+            jfa_bw, jfa_field = dispatch_jfa_marching_squares(
+                src_gray,
+                target_w=target_w,
+                target_h=target_h,
+                upscale=upscale,
+                threshold=threshold,
+            )
         # Fuse topological counter guarantees of RETR_TREE Potrace with 1+JFA + Marching Squares sub-pixel zero-crossing
         potrace_bw = (low_canvas >= 128).astype(np.uint8)
         b0_p, b1_p = compute_betti_numbers(potrace_bw)
@@ -401,6 +406,7 @@ def compute_jfa_marching_squares_bilevel_bitmap(
         sub_mode="jfa-marching",
         high_gray=high_gray,
         threshold=eff_t,
+        precomputed_jfa=(jfa_bw, jfa_field),
     )
     return bw, svg_doc, hi_preview, jfa_field
 

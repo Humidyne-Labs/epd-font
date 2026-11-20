@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_lvgl_bdf_export.py (v1.0.22)
+humid1_lvgl_bdf_export.py (v1.0.23)
 ===================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -25,7 +25,7 @@ from humid1_runtime import (
     load_and_validate_hardware_scheme,
 )
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 
 def export_bdf_strike(
@@ -151,6 +151,41 @@ def emit_lvgl_c_file(
     guard_macro = font_symbol_name.upper()
     valid_fb = fallback_symbol if (fallback_symbol and fallback_symbol != font_symbol_name) else None
 
+    gmap_local = {g.codepoint: g for g in glyphs}
+    g_cap = gmap_local.get(0x48)
+    cap_height = g_cap.box_h if (g_cap and g_cap.box_h > 0) else max(1, int(round(size_px * 0.70)))
+    g_xh = gmap_local.get(0x78)
+    x_height = g_xh.box_h if (g_xh and g_xh.box_h > 0) else max(1, int(round(size_px * 0.52)))
+
+    bitmap_offsets: List[int] = []
+    total_bitmap_bytes = 0
+    needs_large_fmt = False
+    bmp_body_lines: List[str] = []
+    for g in glyphs:
+        bitmap_offsets.append(total_bitmap_bytes)
+        if (
+            total_bitmap_bytes >= (1 << 20)
+            or g.adv_w_fp4 >= (1 << 12)
+            or g.box_w > 255
+            or g.box_h > 255
+            or g.ofs_x < -128
+            or g.ofs_x > 127
+            or g.ofs_y < -128
+            or g.ofs_y > 127
+        ):
+            needs_large_fmt = True
+        packed = g.pack_1bpp_bytes()
+        char_disp = chr(g.codepoint) if 0x20 <= g.codepoint <= 0x7E and chr(g.codepoint) not in ('\\', '"', '*') else ""
+        bmp_body_lines.append(f"    /* U+{g.codepoint:04X} \"{char_disp}\" ({g.box_w}x{g.box_h}) */")
+        if packed:
+            for i in range(0, len(packed), 12):
+                chunk = ", ".join(f"0x{b:02x}" for b in packed[i : i + 12])
+                bmp_body_lines.append(f"    {chunk},")
+        total_bitmap_bytes += len(packed)
+
+    if total_bitmap_bytes == 0:
+        bmp_body_lines.append("    0x00 /* empty font guard for ISO C */")
+
     lines = [
         "/*******************************************************************************",
         f" * Font: {font_symbol_name} ({family} {role})",
@@ -183,6 +218,14 @@ def emit_lvgl_c_file(
         "",
     ]
 
+    if needs_large_fmt:
+        lines.extend([
+            "#if !defined(LV_FONT_FMT_TXT_LARGE) || !LV_FONT_FMT_TXT_LARGE",
+            '#error "This font requires LV_FONT_FMT_TXT_LARGE=1 in lv_conf.h"',
+            "#endif",
+            "",
+        ])
+
     if valid_fb:
         lines.extend([
             "#ifndef LV_FONT_DECLARE",
@@ -198,24 +241,10 @@ def emit_lvgl_c_file(
         " *----------------*/",
         "",
         "static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {",
+        *bmp_body_lines,
+        "};",
+        "",
     ])
-
-    bitmap_offsets: List[int] = []
-    total_bitmap_bytes = 0
-    for g in glyphs:
-        bitmap_offsets.append(total_bitmap_bytes)
-        packed = g.pack_1bpp_bytes()
-        char_disp = chr(g.codepoint) if 0x20 <= g.codepoint <= 0x7E and chr(g.codepoint) not in ('\\', '"', '*') else ""
-        lines.append(f"    /* U+{g.codepoint:04X} \"{char_disp}\" ({g.box_w}x{g.box_h}) */")
-        if packed:
-            for i in range(0, len(packed), 12):
-                chunk = ", ".join(f"0x{b:02x}" for b in packed[i : i + 12])
-                lines.append(f"    {chunk},")
-        total_bitmap_bytes += len(packed)
-
-    if total_bitmap_bytes == 0:
-        lines.append("    0x00")
-    lines.extend(["};", ""])
 
     lines.extend([
         "/*---------------------",
@@ -271,25 +300,29 @@ def emit_lvgl_c_file(
                 ])
         lines.extend(["};", ""])
 
-    has_kern = len(kern_pairs) > 0 and len(glyphs) < 255
+    sorted_kern = sorted(kern_pairs, key=lambda x: (x[0], x[1]))
+    has_kern = len(sorted_kern) > 0
+    max_gid = max((g.glyph_id for g in glyphs), default=0)
+    gid_size = 0 if max_gid < 255 else 1
+    gid_ctype = "uint8_t" if gid_size == 0 else "uint16_t"
     if has_kern:
         lines.extend([
             "/*-----------------",
             " *    KERNING",
             " *----------------*/",
             "",
-            "static const uint8_t kern_pair_glyph_ids[] = {",
+            f"static const {gid_ctype} kern_pair_glyph_ids[] = {{",
         ])
-        for i in range(0, len(kern_pairs), 8):
-            chunk = ", ".join(f"{l_gid}, {r_gid}" for l_gid, r_gid, _, _, _ in kern_pairs[i : i + 8])
+        for i in range(0, len(sorted_kern), 8):
+            chunk = ", ".join(f"{l_gid}, {r_gid}" for l_gid, r_gid, _, _, _ in sorted_kern[i : i + 8])
             lines.append(f"    {chunk},")
         lines.extend([
             "};",
             "",
             "static const int8_t kern_pair_values[] = {",
         ])
-        for i in range(0, len(kern_pairs), 16):
-            chunk = ", ".join(str(k_val) for _, _, _, _, k_val in kern_pairs[i : i + 16])
+        for i in range(0, len(sorted_kern), 16):
+            chunk = ", ".join(str(k_val) for _, _, _, _, k_val in sorted_kern[i : i + 16])
             lines.append(f"    {chunk},")
         lines.extend([
             "};",
@@ -297,8 +330,8 @@ def emit_lvgl_c_file(
             "static const lv_font_fmt_txt_kern_pair_t kern_pairs = {",
             "    .glyph_ids = kern_pair_glyph_ids,",
             "    .values = kern_pair_values,",
-            f"    .pair_cnt = {len(kern_pairs)},",
-            "    .glyph_ids_size = 0",
+            f"    .pair_cnt = {len(sorted_kern)},",
+            f"    .glyph_ids_size = {gid_size}",
             "};",
             "",
         ])
@@ -313,15 +346,7 @@ def emit_lvgl_c_file(
         " *  ALL CUSTOM DATA",
         " *--------------------*/",
         "",
-        "#if LVGL_VERSION_MAJOR == 8",
-        "static lv_font_fmt_txt_glyph_cache_t cache;",
-        "#endif",
-        "",
-        "#if LVGL_VERSION_MAJOR >= 8",
         "static const lv_font_fmt_txt_dsc_t font_dsc = {",
-        "#else",
-        "static lv_font_fmt_txt_dsc_t font_dsc = {",
-        "#endif",
         "    .glyph_bitmap = glyph_bitmap,",
         "    .glyph_dsc = glyph_dsc,",
         f"    .cmaps = {cmaps_ptr},",
@@ -331,36 +356,29 @@ def emit_lvgl_c_file(
         "    .bpp = 1,",
         "    .kern_classes = 0,",
         "    .bitmap_format = 0,",
-        "#if LVGL_VERSION_MAJOR == 8",
-        "    .cache = &cache",
-        "#endif",
         "};",
         "",
         "/*-----------------",
-        " *  PUBLIC FONT (LVGL >= 9.6.0 & v8/v9 Compatible)",
+        " *  PUBLIC FONT (LVGL >= 9.6.0)",
         " *----------------*/",
         "",
-        "#if LVGL_VERSION_MAJOR >= 8",
         f"const lv_font_t {font_symbol_name} = {{",
-        "#else",
-        f"lv_font_t {font_symbol_name} = {{",
-        "#endif",
         "    .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,",
         "    .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,",
         f"    .line_height = {line_height},",
         f"    .base_line = {base_line},",
-        "#if !(LVGL_VERSION_MAJOR == 6 && LVGL_VERSION_MINOR == 0)",
-        "    .subpx = LV_FONT_SUBPX_NONE,",
+        "#if LV_VERSION_CHECK(9, 6, 0) || LVGL_VERSION_MAJOR >= 10",
+        f"    .cap_height = {cap_height},",
+        f"    .x_height = {x_height},",
         "#endif",
-        "#if LV_VERSION_CHECK(7, 4, 0) || LVGL_VERSION_MAJOR >= 8",
+        "    .subpx = LV_FONT_SUBPX_NONE,",
         f"    .underline_position = {underline_pos},",
         f"    .underline_thickness = {underline_thick},",
-        "#endif",
         "#if LV_VERSION_CHECK(9, 3, 0) || (LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR >= 3) || LVGL_VERSION_MAJOR > 9",
         "    .static_bitmap = 0,",
         "#endif",
         "    .dsc = &font_dsc,",
-        "#if LV_VERSION_CHECK(9, 6, 0) || LVGL_VERSION_MAJOR >= 9 || LV_VERSION_CHECK(8, 2, 0)",
+        "#if LVGL_VERSION_MAJOR >= 9",
         f"    .fallback = {fallback_ptr},",
         "#endif",
         "    .user_data = NULL,",
@@ -374,7 +392,7 @@ def emit_lvgl_c_file(
     out_file.write_text("\n".join(lines), encoding="utf-8")
 
     sparse_bytes = sum(len(cm["codes"]) * 2 for cm in cmaps if cm["type"] == "LV_FONT_FMT_TXT_CMAP_SPARSE_TINY")
-    kern_bytes = (len(kern_pairs) * 3 + 16) if has_kern else 0
+    kern_bytes = (len(sorted_kern) * (3 if gid_size == 0 else 5) + 16) if has_kern else 0
     rom_bytes = total_bitmap_bytes + (len(glyphs) + 1) * 8 + len(cmaps) * 20 + sparse_bytes + kern_bytes + 60
     return rom_bytes
 
@@ -453,10 +471,9 @@ def generate_headers(
     scheme_cfg: Optional[dict] = None,
 ) -> None:
     """
-    Generate drop-in-ready `humid1_fonts.h`, `plex_fonts.h`, `epd_fonts.h`, and `h1os_fonts.h`
+    Generate drop-in-ready `humid1_fonts.h` (and configured `compat_header` / `h1os_fonts.h`)
     with circular-include guards (`struct _lv_font_t`, `#ifndef LV_FONT_DECLARE`), universal
-    `__has_include("lvgl.h")` detection, and complete `HUMID1_FONT_*`, `PLEX_FONT_*`,
-    `HUMID1_ICON_*`, and `H1OS_FONT_*` semantic aliases.
+    `__has_include("lvgl.h")` detection, `HUMID1_FONT_*`, `HUMID1_ICON_*`, and `H1OS_FONT_*` aliases.
     """
     sym_set = {item[0] for item in compiled_symbols}
 
@@ -481,7 +498,7 @@ def generate_headers(
             " * @brief Humidyne Labs / Humiditron 1-BPP Bilevel EPD Typography & Iconography Suite",
             " *        A 1-bit EPD font generator and asset pipeline for embedded displays.",
             " *",
-            " * Drop-in ready for H1OS & humid1-os (LVGL >= 9.6.0 & v8/v9 compatible).",
+            " * Drop-in ready for H1OS & humid1-os (LVGL >= 9.6.0).",
             f" * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v{TOOL_VERSION})",
             " * SPDX-License-Identifier: MIT AND OFL-1.1",
             " */",
@@ -496,7 +513,7 @@ def generate_headers(
             '#elif __has_include("lvgl/lvgl.h")',
             '#include "lvgl/lvgl.h"',
             "#else",
-            '#include "lvgl.h"',
+            "#define EPD_FONT_NO_LVGL_HEADER 1",
             "#endif",
             "#else",
             '#include "lvgl.h"',
@@ -506,10 +523,9 @@ def generate_headers(
             'extern "C" {',
             "#endif",
             "",
+            "#ifdef EPD_FONT_NO_LVGL_HEADER",
             "struct _lv_font_t;",
-            "#ifndef LV_FONT_T_DEFINED",
             "typedef struct _lv_font_t lv_font_t;",
-            "#define LV_FONT_T_DEFINED",
             "#endif",
             "",
             "#ifndef LV_FONT_DECLARE",
@@ -582,15 +598,6 @@ def generate_headers(
 
         lines.extend([
             "",
-            "/* =========================================================================",
-            " * 3. Backward-Compatible PLEX_FONT_* Role Aliases",
-            " * ========================================================================= */",
-        ])
-        for suffix, target in role_pairs:
-            lines.append(f"#define PLEX_FONT_{suffix:<18} (&{target})")
-
-        lines.extend([
-            "",
             "#ifdef __cplusplus",
             "}",
             "#endif",
@@ -598,55 +605,78 @@ def generate_headers(
         ])
         return "\n".join(lines)
 
-    for hdr_name in ("humid1_fonts.h", "plex_fonts.h", "epd_fonts.h"):
-        (out_dir / hdr_name).write_text(build_primary_header_text(hdr_name), encoding="utf-8")
+    branding_cfg = (scheme_cfg or {}).get("output_branding", {})
+    primary_h = str(branding_cfg.get("primary_header", "humid1_fonts.h") or "humid1_fonts.h")
+    compat_h = str(branding_cfg.get("compat_header", "") or "").strip()
+    keep_headers = {primary_h, "humid1_fonts.h"}
+    (out_dir / primary_h).write_text(build_primary_header_text(primary_h), encoding="utf-8")
+    if primary_h != "humid1_fonts.h":
+        (out_dir / "humid1_fonts.h").write_text(build_primary_header_text("humid1_fonts.h"), encoding="utf-8")
+    if compat_h and compat_h not in (primary_h, "humid1_fonts.h", "h1os_fonts.h"):
+        keep_headers.add(compat_h)
+        shim_txt = (
+            "/**\n"
+            f" * @file {compat_h}\n"
+            f" * @brief Compatibility forwarding header -> {primary_h}\n"
+            " */\n"
+            "#pragma once\n"
+            f'#include "{primary_h}"\n'
+        )
+        (out_dir / compat_h).write_text(shim_txt, encoding="utf-8")
 
-    h1os_h = out_dir / "h1os_fonts.h"
-    default_sym = pick_sym("plex_sans_normal_14")
-    h_lines = [
-        "/**",
-        " * @file h1os_fonts.h",
-        " * @brief H1OS Build-Time Generated 1-BPP Bilevel Typography Suite (epd-font)",
-        " *",
-        " * Drop-in backward-compatible header for H1OS & humid1-os.",
-        f" * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v{TOOL_VERSION})",
-        " * SPDX-License-Identifier: MIT AND OFL-1.1",
-        " */",
-        "",
-        "#pragma once",
-        "",
-        '#include "humid1_fonts.h"',
-        "",
-        "#ifdef __cplusplus",
-        'extern "C" {',
-        "#endif",
-        "",
-        "#ifndef LV_FONT_CUSTOM_DECLARE",
-        f"#define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE({default_sym});",
-        "#endif",
-        "",
-        "#ifndef LV_FONT_DEFAULT",
-        f"#define LV_FONT_DEFAULT (&{default_sym})",
-        "#endif",
-        "",
-        "/* =========================================================================",
-        " * Backward-Compatible H1OS_FONT_<sz> & Legacy Symbol Aliases",
-        " * ========================================================================= */",
-    ]
-    for sz in range(10, 42, 2):
-        pref = f"plex_sans_bold_{sz}" if sz >= 20 else f"plex_sans_normal_{sz}"
-        target = pick_sym(pref, f"plex_sans_normal_{sz}")
-        s_bold = pick_sym(f"plex_sans_bold_{sz}", target)
-        m_norm = pick_sym(f"plex_mono_normal_{sz}", target)
-        m_bold = pick_sym(f"plex_mono_bold_{sz}", s_bold)
-        h_lines.append(f"#define H1OS_FONT_{sz} (&{target})")
-        h_lines.append(f"#define H1OS_FONT_BOLD_{sz} (&{s_bold})")
-        h_lines.append(f"#define H1OS_FONT_MONO_{sz} (&{m_norm})")
-        h_lines.append(f"#define H1OS_FONT_MONO_BOLD_{sz} (&{m_bold})")
-        h_lines.append(f"#define h1os_font_montserrat_{sz}_1bpp {target}")
+    scheme_id_low = str((scheme_cfg or {}).get("scheme_id", "")).lower()
+    if compat_h == "h1os_fonts.h" or "h1os" in scheme_id_low or not scheme_cfg:
+        keep_headers.add("h1os_fonts.h")
+        h1os_h = out_dir / "h1os_fonts.h"
+        raw_default_font = str(branding_cfg.get("default_font", "plex_sans_normal_14") or "plex_sans_normal_14")
+        default_sym = pick_sym(raw_default_font)
+        h_lines = [
+            "/**",
+            " * @file h1os_fonts.h",
+            " * @brief H1OS Build-Time Generated 1-BPP Bilevel Typography Suite (epd-font)",
+            f" * Auto-generated by tools/fonts/humid1_generate_1bpp.py (v{TOOL_VERSION})",
+            " * SPDX-License-Identifier: MIT AND OFL-1.1",
+            " */",
+            "",
+            "#pragma once",
+            "",
+            '#include "humid1_fonts.h"',
+            "",
+            "#ifdef __cplusplus",
+            'extern "C" {',
+            "#endif",
+            "",
+            "#ifndef LV_FONT_CUSTOM_DECLARE",
+            f"#define LV_FONT_CUSTOM_DECLARE LV_FONT_DECLARE({default_sym});",
+            "#endif",
+            "",
+            "#ifndef LV_FONT_DEFAULT",
+            f"#define LV_FONT_DEFAULT (&{default_sym})",
+            "#endif",
+            "",
+            f"#define HUMID1_DEFAULT_FONT (&{default_sym})",
+            "",
+            "/* =========================================================================",
+            " * H1OS_FONT_<sz> Size/Role Aliases",
+            " * ========================================================================= */",
+        ]
+        for sz in range(10, 42, 2):
+            pref = f"plex_sans_bold_{sz}" if sz >= 20 else f"plex_sans_normal_{sz}"
+            target = pick_sym(pref, f"plex_sans_normal_{sz}")
+            s_bold = pick_sym(f"plex_sans_bold_{sz}", target)
+            m_norm = pick_sym(f"plex_mono_normal_{sz}", target)
+            m_bold = pick_sym(f"plex_mono_bold_{sz}", s_bold)
+            h_lines.append(f"#define H1OS_FONT_{sz} (&{target})")
+            h_lines.append(f"#define H1OS_FONT_BOLD_{sz} (&{s_bold})")
+            h_lines.append(f"#define H1OS_FONT_MONO_{sz} (&{m_norm})")
+            h_lines.append(f"#define H1OS_FONT_MONO_BOLD_{sz} (&{m_bold})")
 
-    h_lines.extend(["", "#ifdef __cplusplus", "}", "#endif", ""])
-    h1os_h.write_text("\n".join(h_lines), encoding="utf-8")
+        h_lines.extend(["", "#ifdef __cplusplus", "}", "#endif", ""])
+        h1os_h.write_text("\n".join(h_lines), encoding="utf-8")
+
+    for old_h in out_dir.glob("*.h"):
+        if old_h.name not in keep_headers:
+            old_h.unlink()
 
 
 def copy_licenses(plex_dir: Optional[Path], font_dir: Path, out_dir: Path) -> List[str]:
@@ -677,7 +707,6 @@ H1OS_CANONICAL_SCREEN_ROWS = [
 def run_screen_width_audit(
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]],
     kern_cache: Dict[str, Dict[Tuple[int, int], int]],
-    montserrat_metrics_dir: Optional[Path] = None,
     screen_width: int = 200,
     screen_height: int = 200,
     safe_margin: int = 6,
@@ -686,20 +715,6 @@ def run_screen_width_audit(
     custom_rows: Optional[List[dict]] = None,
 ) -> List[dict]:
     """Audit horizontal string widths against the target display's usable pixel width budget."""
-    mont_widths: Dict[int, Dict[int, float]] = {14: {}, 20: {}}
-    if montserrat_metrics_dir and montserrat_metrics_dir.is_dir():
-        for sz in (14, 20):
-            p = montserrat_metrics_dir / f"char_widths_montserrat_{sz}.csv"
-            if p.is_file():
-                with p.open("r", encoding="utf-8-sig") as f:
-                    for row in csv.DictReader(f):
-                        mont_widths[sz][int(row["unicode_dec"])] = float(row["width_px"])
-
-    def measure_mont(text: str, sz: int) -> int:
-        if not mont_widths.get(sz):
-            return 0
-        return int(round(sum(mont_widths[sz].get(ord(c), 8.0) for c in text)))
-
     usable_budget = max(32, screen_width - (2 * safe_margin))
     x_max = screen_width - safe_margin
     fb_gmap = strike_cache.get("humid1_font_plex_sans_normal_14", strike_cache.get("plex_sans_normal_14", ({}, 0, 0)))[0]
@@ -710,7 +725,7 @@ def run_screen_width_audit(
         f"(MAX BUDGET: {usable_budget} px [X={safe_margin}..{x_max}])"
     )
     print("=" * 106)
-    print(f"{'Screen / Row':<34} | {'Legacy Mont':>11} | {'Plex Sans':>9} | {'Sans+Mono':>9} | {'Plex Cond':>9} | {'Sans Clr':>8} | {'Status'}")
+    print(f"{'Screen / Row':<34} | {'Plex Sans':>9} | {'Sans+Mono':>9} | {'Plex Cond':>9} | {'Sans Clr':>8} | {'Status'}")
     print("-" * 106)
 
     rows_to_run = H1OS_CANONICAL_SCREEN_ROWS
@@ -733,16 +748,33 @@ def run_screen_width_audit(
             sans_sym = f"humid1_font_{sans_sym}"
         if mono_sym not in strike_cache and f"humid1_font_{mono_sym}" in strike_cache:
             mono_sym = f"humid1_font_{mono_sym}"
-        s_gmap = strike_cache.get(sans_sym, ({}, 0, 0))[0]
-        m_gmap = strike_cache.get(mono_sym, s_gmap if not strike_cache.get(mono_sym) else ({}, 0, 0))
-        if isinstance(m_gmap, tuple):
-            m_gmap = m_gmap[0]
+
+        label = f"{scr_name.split(':')[0]} - {row_desc[:22]}"
+        has_sans_strike = sans_sym in strike_cache
+        has_mono_strike = (mono_sym in strike_cache) or (not r_str)
+        if not has_sans_strike:
+            print(f"{label:<34} | {'N/A':>9} | {'N/A':>9} | {'N/A':>9} | {'N/A':>8} | SKIP (missing strike)")
+            results.append({
+                "screen": scr_name,
+                "row": row_desc,
+                "left_text": l_str,
+                "right_text": r_str,
+                "plex_sans_px": None,
+                "plex_mixed_px": None,
+                "plex_cond_16_px": None,
+                "clearance_px": None,
+                "status": "SKIP (missing strike)",
+            })
+            continue
+
+        s_gmap = strike_cache[sans_sym][0]
+        m_gmap = strike_cache[mono_sym][0] if (mono_sym in strike_cache) else s_gmap
         s_kmap = kern_cache.get(sans_sym, {})
         m_kmap = kern_cache.get(mono_sym, {})
 
         l_sans_px = measure_lvgl_string_px(l_str, s_gmap, s_kmap, fb_gmap)
         r_sans_px = measure_lvgl_string_px(r_str, s_gmap, s_kmap, fb_gmap)
-        r_mono_px = measure_lvgl_string_px(r_str, m_gmap, m_kmap, fb_gmap)
+        r_mono_px = measure_lvgl_string_px(r_str, m_gmap, m_kmap, fb_gmap) if has_mono_strike else r_sans_px
 
         total_sans = l_sans_px + r_sans_px
         total_mixed = l_sans_px + r_mono_px
@@ -755,21 +787,16 @@ def run_screen_width_audit(
             + measure_lvgl_string_px(r_str, cond_gmap, cond_kmap, fb_gmap)
         )
 
-        mont_sz = 20 if "20" in sans_sym else 14
-        total_mont = measure_mont(l_str, mont_sz) + measure_mont(r_str, mont_sz)
-
         clearance = usable_budget - total_sans
         status = "PASS" if clearance >= min_gap else "WARN (TIGHT)"
-        label = f"{scr_name.split(':')[0]} - {row_desc[:22]}"
         print(
-            f"{label:<34} | {total_mont:>9}px | {total_sans:>7}px | {total_mixed:>7}px | {total_cond:>7}px | {clearance:>+6}px | {status}"
+            f"{label:<34} | {total_sans:>7}px | {total_mixed:>7}px | {total_cond:>7}px | {clearance:>+6}px | {status}"
         )
         results.append({
             "screen": scr_name,
             "row": row_desc,
             "left_text": l_str,
             "right_text": r_str,
-            "montserrat_px": total_mont,
             "plex_sans_px": total_sans,
             "plex_mixed_px": total_mixed,
             "plex_cond_16_px": total_cond,
@@ -815,7 +842,7 @@ def write_total_disk_size_report(
             total_c_disk_b += f.stat().st_size
     vault_b = vault_path.stat().st_size if (vault_path and vault_path.is_file()) else 0
 
-    part_bytes = hw_spec.partition_1_bytes
+    part_bytes = hw_spec.partition_bytes
     eff_dpi = dpi if dpi is not None else hw_spec.dpi
     rem_bytes = part_bytes - total_rom_b
     util_pct = (total_rom_b * 100.0) / float(part_bytes)
@@ -829,7 +856,7 @@ def write_total_disk_size_report(
         f"  Scheme ID                    : {scheme_id}",
         f"  Hardware Scheme ID           : {hw_spec.hw_scheme_id} ({hw_spec.hw_scheme_path.name if hw_spec.hw_scheme_path else 'hardware_scheme'})",
         f"  Target Chip Name (chip_name) : {hw_spec.chip_name} ({hw_spec.soc_vendor})",
-        f"  Flash Partition Budget       : {hw_spec.partition_1} ({part_bytes:,} bytes / {part_bytes / 1024.0:.2f} KB / {part_bytes / (1024.0 * 1024.0):.2f} MBytes)",
+        f"  Flash Partition Budget       : {hw_spec.partition_label} ({part_bytes:,} bytes / {part_bytes / 1024.0:.2f} KB / {part_bytes / (1024.0 * 1024.0):.2f} MBytes)",
         f"  Target Display Panel         : {hw_spec.panel} ({hw_spec.width_px}x{hw_spec.height_px} px, usable={hw_spec.usable_width_px} px, {hw_spec.color_depth_bpp}-BPP {hw_spec.lvgl_color_format})",
         f"  Target Display DPI           : {eff_dpi:.1f} DPI (1 typographic pt = 1/72 inch = {eff_dpi/72.0:.3f} px @ {eff_dpi:.1f} DPI)",
         f"  Total Compiled Strikes       : {len(compiled_details)} strikes",
@@ -842,7 +869,7 @@ def write_total_disk_size_report(
         "-" * 120,
         f"  {'Partition Identifier & Label':<44} | {'Budget Bytes':>14} | {'Used (.rodata)':>14} | {'Remaining Free':>16} | {'Utilization':>11} | {'Status'}",
         "-" * 120,
-        f"  {f'partition_1 ({hw_spec.partition_1} / {hw_spec.chip_name})':<44} | {part_bytes:>12,d} B | {total_rom_b:>12,d} B | {f'{rem_bytes / 1024.0:+,.1f} KB':>16} | {util_pct:>10.2f}% | {status_str}",
+        f"  {f'{hw_spec.hw_scheme_id} ({hw_spec.partition_label} / {hw_spec.chip_name})':<44} | {part_bytes:>12,d} B | {total_rom_b:>12,d} B | {f'{rem_bytes / 1024.0:+,.1f} KB':>16} | {util_pct:>10.2f}% | {status_str}",
         "-" * 120,
         "",
         "2. APPROXIMATE ROM SPACE PER FONT FILE PAIR (NORMAL + BOLD BY FAMILY AND SIZE VS. 3 MBYTE PARTITION)",

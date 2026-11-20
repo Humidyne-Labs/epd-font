@@ -2,18 +2,18 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [06] Humidyne Labs - Humiditron epd-font v1.0.22 - Rebuild Icon and Font Metadata Catalogs
+echo [06] Humidyne Labs - Humiditron epd-font v1.0.23 - Rebuild Icon and Font Metadata Catalogs
 echo      Workflow   : General Embedded Display Example Distribution Workflow
 echo      Source Dir : assets\
 echo      Output Dir : build\static_ttfs\ and build\metadata\
 echo ============================================================================
-python3 tools\fonts\generate_char_manifests.py --static-dir build\static_ttfs --out-dir build\metadata
+python tools\fonts\generate_char_manifests.py --static-dir build\static_ttfs --out-dir build\metadata
 if errorlevel 1 (
     echo [!] Character manifest generation failed.
     if "%EPD_NO_PAUSE%"=="" pause
     exit /b 1
 )
-python3 tools\fonts\build_static_ttf_assets.py --src-dir assets --out-dir build\static_ttfs --meta-out-dir build\metadata --families icons terminus --force --verify %*
+python tools\fonts\build_static_ttf_assets.py --src-dir assets --out-dir build\static_ttfs --meta-out-dir build\metadata --families icons terminus --force --verify %*
 if errorlevel 1 (
     echo [!] Icon catalog rebuild failed.
     if "%EPD_NO_PAUSE%"=="" pause

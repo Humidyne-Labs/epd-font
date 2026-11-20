@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_runtime.py (v1.0.22)
+humid1_runtime.py (v1.0.23)
 ==========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -11,7 +11,7 @@ Host Hardware Detection (Multi-Device OpenCL GPU/CPU + Shared GPU RAM + Multi-Co
 Target Embedded Hardware Scheme Validator (`esp32s3-N8R8-hw_scheme.json` & `generic_hw.json`),
 Single-Owner GPU + Multi-Core CPU Work-Stealing Dispatcher (`run_parallel_tasks`),
 Clean Signal/Ctrl-C Interruption Handler (Zero Worker Traceback Noise + Deterministic Teardown),
-Recursive Asset/License Discovery, and Strict Zero-Default Argument/Path Validation Module (`v1.0.22`).
+Recursive Asset/License Discovery, and Strict Zero-Default Argument/Path Validation Module (`v1.0.23`).
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 REPO_NAME = "epd-font"
 PROJECT_TAGLINE = "A 1-bit EPD font generator and asset pipeline for embedded displays"
 PUBLIC_REPO_URL = "https://github.com/Humidyne-Labs/epd-font"
@@ -133,7 +133,7 @@ def parse_partition_size_string(val: Any, source_label: str) -> int:
     if val is None:
         fail_gracefully(
             f"Missing required partition size attribute in {source_label}.",
-            "Specify `\"partition_1\": \"3 MBytes\"` and `\"partition_1_bytes\": 3145728` (or `\"target_partition_bytes\": 3145728`).",
+            "Specify `\"partition_bytes\": 3145728` in hardware scheme JSON.",
         )
     if isinstance(val, (int, float)):
         b_val = int(val)
@@ -142,7 +142,7 @@ def parse_partition_size_string(val: Any, source_label: str) -> int:
         if not s:
             fail_gracefully(
                 f"Empty partition size attribute in {source_label}.",
-                "Specify `\"partition_1\": \"3 MBytes\"` (3,145,728 bytes).",
+                "Specify `\"partition_bytes\": 3145728` (3 MBytes).",
             )
         m = re.match(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]*)\s*$", s)
         if not m:
@@ -194,11 +194,7 @@ class TargetHardwareSpec:
     lvgl_color_format: str
 
     @property
-    def partition_1_bytes(self) -> int:
-        return self.partition_bytes
-
-    @property
-    def partition_1(self) -> str:
+    def partition_label(self) -> str:
         return f"{self.partition_bytes // (1024 * 1024)} MBytes"
 
 
@@ -276,7 +272,7 @@ VALID_MATH_BACKEND_VALUES = {
 def validate_scheme_config(scheme_cfg: Any, scheme_path: Optional[Path] = None) -> dict:
     """
     Strictly validate a profile `.scheme.json` dictionary against the Singular Configuration
-    Variable Matrix (`v1.0.22`) with ZERO assumed defaults and ZERO dangling/unknown keys.
+    Variable Matrix (`v1.0.23`) with ZERO assumed defaults and ZERO dangling/unknown keys.
     """
     s_name = scheme_path.name if scheme_path else "scheme.json"
     if not isinstance(scheme_cfg, dict):
@@ -366,6 +362,16 @@ def validate_scheme_config(scheme_cfg: Any, scheme_path: Optional[Path] = None) 
                 f"Invalid `raster_config.{s_key}` in `{s_name}`.",
                 "Must be a non-empty relative path string.",
             )
+
+    allowed_strike_pipes = (VALID_PIPELINE_VALUES - {"all", "all-debug"}) | {"exact-mono"}
+    for idx, st in enumerate(scheme_cfg.get("strikes", [])):
+        if isinstance(st, dict) and "pipeline" in st and st["pipeline"] is not None:
+            sp_val = str(st["pipeline"]).strip().lower()
+            if sp_val not in allowed_strike_pipes:
+                fail_gracefully(
+                    f"Invalid per-strike `strikes[{idx}].pipeline` value `'{st['pipeline']}'` in `{s_name}`.",
+                    f"Must be one of: {sorted(allowed_strike_pipes)}.",
+                )
 
     return rcfg
 
@@ -604,8 +610,10 @@ def _worker_process_init_gpu() -> None:
         from math_backends import select_math_backend, teardown_math_backends
         select_math_backend("gpu")
         atexit.register(teardown_math_backends)
-    except Exception:
-        pass
+    except Exception as exc:
+        sys.stderr.write(f"[!] Fatal GPU Worker OpenCL initialization error: {exc}\n")
+        sys.stderr.flush()
+        raise
 
 
 def _worker_process_init_cpu() -> None:
@@ -722,11 +730,12 @@ def run_parallel_tasks(
         )
 
     # Release any parent-process probe context before spawning worker processes
-    try:
-        from math_backends import teardown_math_backends
-        teardown_math_backends()
-    except Exception:
-        pass
+    if eff_mode != "sync":
+        try:
+            from math_backends import teardown_math_backends
+            teardown_math_backends()
+        except Exception:
+            pass
 
     # 1. Synchronous single-process mode (`math_backend = "sync"`)
     if eff_mode == "sync":
@@ -827,16 +836,26 @@ def run_parallel_tasks(
     #    All vector/distance-field/thresholding tasks run in the persistent GPU worker (`EPD_FONT_ACCEL="gpu"`),
     #    while native pre-gridded bitmap strikes (`exact-mono` / `Terminus`) run in 1 helper CPU worker.
     if eff_mode == "gpu":
+        has_mono = any(
+            isinstance(t, dict)
+            and (
+                str(t.get("family", "")).lower() in ("terminus", "unifont")
+                or str(t.get("pipeline", "")).lower() == "exact-mono"
+            )
+            for t in tasks
+        )
         prev_sig = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        cpu_pool = None
         try:
             gpu_pool = concurrent.futures.ProcessPoolExecutor(
                 max_workers=1,
                 initializer=_worker_process_init_gpu,
             )
-            cpu_pool = concurrent.futures.ProcessPoolExecutor(
-                max_workers=1,
-                initializer=_worker_process_init_cpu,
-            )
+            if has_mono:
+                cpu_pool = concurrent.futures.ProcessPoolExecutor(
+                    max_workers=1,
+                    initializer=_worker_process_init_cpu,
+                )
         finally:
             signal.signal(signal.SIGINT, prev_sig)
 
@@ -845,7 +864,7 @@ def run_parallel_tasks(
             for orig_idx, t in indexed_tasks:
                 fam = str(t.get("family", "")).lower() if isinstance(t, dict) else ""
                 pipe = str(t.get("pipeline", "")).lower() if isinstance(t, dict) else ""
-                if fam in ("terminus", "unifont") or pipe == "exact-mono":
+                if cpu_pool is not None and (fam in ("terminus", "unifont") or pipe == "exact-mono"):
                     fut = cpu_pool.submit(worker_fn, t)
                 else:
                     fut = gpu_pool.submit(worker_fn, t)
@@ -862,15 +881,18 @@ def run_parallel_tasks(
             except Exception:
                 pass
             gpu_pool.shutdown(wait=True)
-            cpu_pool.shutdown(wait=True)
+            if cpu_pool is not None:
+                cpu_pool.shutdown(wait=True)
             return ordered_results
         except KeyboardInterrupt:
             for fut in futures_map_gpu:
                 fut.cancel()
             _terminate_executor_processes(gpu_pool)
-            _terminate_executor_processes(cpu_pool)
+            if cpu_pool is not None:
+                _terminate_executor_processes(cpu_pool)
             gpu_pool.shutdown(wait=False, cancel_futures=True)
-            cpu_pool.shutdown(wait=False, cancel_futures=True)
+            if cpu_pool is not None:
+                cpu_pool.shutdown(wait=False, cancel_futures=True)
             try:
                 from math_backends import teardown_math_backends
                 teardown_math_backends()
@@ -885,9 +907,11 @@ def run_parallel_tasks(
             for fut in futures_map_gpu:
                 fut.cancel()
             _terminate_executor_processes(gpu_pool)
-            _terminate_executor_processes(cpu_pool)
+            if cpu_pool is not None:
+                _terminate_executor_processes(cpu_pool)
             gpu_pool.shutdown(wait=False, cancel_futures=True)
-            cpu_pool.shutdown(wait=False, cancel_futures=True)
+            if cpu_pool is not None:
+                cpu_pool.shutdown(wait=False, cancel_futures=True)
             raise
         finally:
             try:
@@ -898,18 +922,20 @@ def run_parallel_tasks(
             gc.collect()
 
     # 4. Hybrid Dual-Pool Work-Stealing Execution (`math_backend = "auto"` or `"hybrid"` with OpenCL GPU):
-    #    `1` Persistent GPU Worker (heavy front of deque) + `max_workers - 1` CPU Workers (lightweight back of deque)
-    cpu_workers = max(1, max_workers - 1)
+    #    `1` Persistent GPU Worker (heavy front of deque) + `min(max_workers - 1, len(tasks) - 1)` CPU Workers
+    cpu_workers = min(max(1, max_workers - 1), max(0, len(tasks) - 1))
     prev_sig = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    cpu_pool = None
     try:
         gpu_pool = concurrent.futures.ProcessPoolExecutor(
             max_workers=1,
             initializer=_worker_process_init_gpu,
         )
-        cpu_pool = concurrent.futures.ProcessPoolExecutor(
-            max_workers=cpu_workers,
-            initializer=_worker_process_init_cpu,
-        )
+        if cpu_workers > 0:
+            cpu_pool = concurrent.futures.ProcessPoolExecutor(
+                max_workers=cpu_workers,
+                initializer=_worker_process_init_cpu,
+            )
     finally:
         signal.signal(signal.SIGINT, prev_sig)
     task_deque: deque[Tuple[int, dict]] = deque(indexed_tasks)
@@ -920,11 +946,12 @@ def run_parallel_tasks(
             o_idx, t_item = task_deque.popleft()
             in_flight[gpu_pool.submit(worker_fn, t_item)] = (o_idx, "gpu")
 
-        for _ in range(cpu_workers):
-            if not task_deque:
-                break
-            o_idx, t_item = task_deque.pop()
-            in_flight[cpu_pool.submit(worker_fn, t_item)] = (o_idx, "cpu")
+        if cpu_pool is not None:
+            for _ in range(cpu_workers):
+                if not task_deque:
+                    break
+                o_idx, t_item = task_deque.pop()
+                in_flight[cpu_pool.submit(worker_fn, t_item)] = (o_idx, "cpu")
 
         while in_flight:
             if _INTERRUPTED:
@@ -937,7 +964,7 @@ def run_parallel_tasks(
                 o_idx, pool_tag = in_flight.pop(fut)
                 ordered_results[o_idx] = fut.result()
                 if task_deque:
-                    if pool_tag == "gpu":
+                    if pool_tag == "gpu" or cpu_pool is None:
                         next_idx, next_task = task_deque.popleft()
                         in_flight[gpu_pool.submit(worker_fn, next_task)] = (next_idx, "gpu")
                     else:
@@ -949,15 +976,18 @@ def run_parallel_tasks(
         except Exception:
             pass
         gpu_pool.shutdown(wait=True)
-        cpu_pool.shutdown(wait=True)
+        if cpu_pool is not None:
+            cpu_pool.shutdown(wait=True)
         return ordered_results
     except KeyboardInterrupt:
         for fut in in_flight:
             fut.cancel()
         _terminate_executor_processes(gpu_pool)
-        _terminate_executor_processes(cpu_pool)
+        if cpu_pool is not None:
+            _terminate_executor_processes(cpu_pool)
         gpu_pool.shutdown(wait=False, cancel_futures=True)
-        cpu_pool.shutdown(wait=False, cancel_futures=True)
+        if cpu_pool is not None:
+            cpu_pool.shutdown(wait=False, cancel_futures=True)
         try:
             from math_backends import teardown_math_backends
             teardown_math_backends()
@@ -972,9 +1002,11 @@ def run_parallel_tasks(
         for fut in in_flight:
             fut.cancel()
         _terminate_executor_processes(gpu_pool)
-        _terminate_executor_processes(cpu_pool)
+        if cpu_pool is not None:
+            _terminate_executor_processes(cpu_pool)
         gpu_pool.shutdown(wait=False, cancel_futures=True)
-        cpu_pool.shutdown(wait=False, cancel_futures=True)
+        if cpu_pool is not None:
+            cpu_pool.shutdown(wait=False, cancel_futures=True)
         try:
             from math_backends import teardown_math_backends
             teardown_math_backends()

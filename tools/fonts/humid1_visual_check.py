@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_visual_check.py (v1.0.22)
+humid1_visual_check.py (v1.0.23)
 ================================
 Humidyne Labs / Humiditron `epd-font` Visual Diagnostic Inspection Sheet,
 Multi-Method Comparison Sheet, Single-Character Blueprint & 188.15 DPI E-Ink Specimen Renderer Module.
@@ -22,7 +22,7 @@ from humid1_ft_raster import (
     safe_glyph_filename,
 )
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 _UI_FONTS_CACHE: Dict[str, dict] = {}
 
@@ -376,7 +376,7 @@ def render_multi_method_comparison_sheet_png(
     methods = list(method_strikes.keys())
     n_methods = len(methods)
     has_hi = bool(hi_method_strikes)
-    row_h = 158
+    row_h = max(158, 74 + (hi_size_px * 2 if has_hi else size_px * 2) + 12)
     W = 1960 if has_hi else 1560
     H = 104 + n_methods * row_h + 28
     img = Image.new("RGB", (W, H), (244, 246, 250))
@@ -800,8 +800,10 @@ def render_char_by_char_folder(
 def render_specimen_sheet(
     preview_path: Path,
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]],
+    static_dir: Optional[Path] = None,
 ) -> None:
     """Render master 188.15-DPI 1-bpp specimen contact sheet & simulated 200x200 SSD1681 panel."""
+    ui_fonts = _load_ui_fonts(static_dir)
     W, H = 1420, 1020
     img = Image.new("RGB", (W, H), (246, 247, 249))
     draw = ImageDraw.Draw(img)
@@ -820,7 +822,6 @@ def render_specimen_sheet(
             "humid1_font_plex_sans_normal_12",
             "humid1_font_terminus_normal_16",
             "humid1_font_terminus_normal_12",
-            "plex_sans_normal_14",
         ]
         for c in cands:
             if c in strike_cache:
@@ -865,6 +866,7 @@ def render_specimen_sheet(
         fg: Tuple[int, int, int] = (15, 20, 25),
         scale: int = 1,
         fallback_sym: str = "humid1_font_plex_sans_normal_14",
+        max_x: Optional[int] = None,
     ) -> int:
         r_sym = _resolve_sym(sym)
         if not r_sym or r_sym not in strike_cache:
@@ -880,6 +882,9 @@ def render_specimen_sheet(
             g = gmap.get(code) or fb_gmap.get(code) or icon_map.get(code)
             if not g:
                 continue
+            adv = ((g.adv_w_fp4 + 8) >> 4) * scale
+            if max_x is not None and cx + max(adv, (g.ofs_x + g.box_w) * scale) > max_x:
+                break
             if g.box_w > 0 and g.box_h > 0:
                 gx0 = cx + g.ofs_x * scale
                 gy0 = baseline_y - (g.ofs_y + g.box_h) * scale
@@ -898,12 +903,22 @@ def render_specimen_sheet(
                                     ],
                                     fill=fg,
                                 )
-            cx += ((g.adv_w_fp4 + 8) >> 4) * scale
+            cx += adv
         return cx
 
     draw.rectangle([0, 0, W, 68], fill=(18, 22, 28))
-    draw_strike_text(28, 16, f"HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v{TOOL_VERSION} (188.15 DPI)", "humid1_font_plex_sans_bold_20", fg=(255, 255, 255))
-    draw_strike_text(28, 44, "Engine: 8-Pipeline Resolution-Reduction + Linear Grayscale + Full-Canvas ASCII Patching  •  200x200 Panel", "humid1_font_plex_mono_normal_14", fg=(180, 195, 210))
+    draw.text(
+        (28, 14),
+        f"HUMIDYNE LABS / HUMIDITRON  |  1-BPP BILEVEL EPD TYPOGRAPHY SUITE v{TOOL_VERSION} (188.15 DPI)",
+        fill=(255, 255, 255),
+        font=ui_fonts["title"],
+    )
+    draw.text(
+        (28, 42),
+        "Engine: 9-Pipeline Resolution-Reduction + Linear Grayscale + Full-Canvas ASCII Patching  •  200x200 Panel",
+        fill=(180, 195, 210),
+        font=ui_fonts["subtitle"],
+    )
 
     panel_x, panel_y = 28, 90
     draw.rectangle([panel_x - 4, panel_y - 4, panel_x + 404, panel_y + 404], fill=(40, 45, 52), outline=(18, 22, 28), width=2)
@@ -969,8 +984,8 @@ def render_specimen_sheet(
 
     box_y = 552
     draw.rectangle([28, box_y, 642, 992], fill=(255, 255, 255), outline=(200, 208, 218), width=1)
-    draw_strike_text(44, box_y + 14, "1-BIT MONOCHROME ENGINE + ASCII PATCH VERIFICATION (6x Pixel Grid)", "humid1_font_plex_sans_bold_14")
-    draw_strike_text(44, box_y + 36, "8-Pipeline Resolution-Reduction + font_icon_epd_patches.json:", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
+    draw_strike_text(44, box_y + 14, "1-BIT MONOCHROME ENGINE + ASCII PATCH VERIFICATION (6x Pixel Grid)", "humid1_font_plex_sans_bold_14", max_x=632)
+    draw_strike_text(44, box_y + 36, "9-Pipeline Resolution-Reduction + font_icon_epd_patches.json:", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95), max_x=632)
 
     showcase_glyphs = [
         ("humid1_font_plex_sans_normal_14", 0x0040, "Sans 14 '@'"),
@@ -987,23 +1002,27 @@ def render_specimen_sheet(
         g_obj = strike_cache.get(r_sk, ({}, 0, 0))[0].get(code_c) if r_sk else None
         if not g_obj:
             continue
-        draw_strike_text(px_x, box_y + 64, label, "humid1_font_plex_sans_bold_12")
-        cell = 7
+        cell = min(7, max(3, 64 // max(1, g_obj.box_w, g_obj.box_h)))
+        grid_px_w = max(1, g_obj.box_w) * cell
+        step_w = max(82, grid_px_w + 14)
+        if px_x + grid_px_w > 630:
+            break
+        draw.text((px_x, box_y + 62), label, fill=(24, 32, 44), font=ui_fonts["mono_sm"])
         gy0 = box_y + 86
         for r_i, r_s in enumerate(g_obj.rows):
             for c_i, ch_p in enumerate(r_s):
                 rx = px_x + c_i * cell
                 ry = gy0 + r_i * cell
                 fill_c = (15, 20, 25) if ch_p == "#" else (238, 242, 246)
-                draw.rectangle([rx, ry, rx + cell - 2, ry + cell - 2], fill=fill_c)
-        px_x += 83
+                draw.rectangle([rx, ry, rx + max(1, cell - 2), ry + max(1, cell - 2)], fill=fill_c)
+        px_x += step_w
 
-    draw_strike_text(44, box_y + 196, "1:1 Native 188.15 DPI Readout (8-Pipeline Bilevel + Manual ASCII Patching):", "humid1_font_plex_sans_bold_14")
-    draw_strike_text(44, box_y + 222, "Sans 12px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y ± µ °", "humid1_font_plex_sans_normal_12")
-    draw_strike_text(44, box_y + 246, "Sans 14px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y", "humid1_font_plex_sans_normal_14")
-    draw_strike_text(44, box_y + 272, "Term 12px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s g y", "humid1_font_terminus_normal_12")
-    draw_strike_text(44, box_y + 296, "Mono 14px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", "humid1_font_plex_mono_normal_14")
-    draw_strike_text(44, box_y + 324, "Math 16px:  ΔT = +0.15°C  •  ∀x ∈ ℝ : ∑ f(x) ≈ √π ± ∞  •  α β γ δ ε θ λ μ π σ ω Ω", "humid1_font_plex_math_regular_16")
+    draw_strike_text(44, box_y + 196, "1:1 Native 188.15 DPI Readout (9-Pipeline Bilevel + Manual ASCII Patching):", "humid1_font_plex_sans_bold_14", max_x=632)
+    draw_strike_text(44, box_y + 222, "Sans 12px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y ± µ °", "humid1_font_plex_sans_normal_12", max_x=632)
+    draw_strike_text(44, box_y + 246, "Sans 14px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y", "humid1_font_plex_sans_normal_14", max_x=632)
+    draw_strike_text(44, box_y + 272, "Term 12px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s g y", "humid1_font_terminus_normal_12", max_x=632)
+    draw_strike_text(44, box_y + 296, "Mono 14px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", "humid1_font_plex_mono_normal_14", max_x=632)
+    draw_strike_text(44, box_y + 324, "Math 16px:  ΔT = +0.15°C  •  ∀x ∈ ℝ : ∑ f(x) ≈ √π ± ∞  •  α β γ δ ε θ λ μ π σ ω Ω", "humid1_font_plex_math_regular_16", max_x=632)
 
     icon_strip_str = "\uf043 \uf021 \uf240 \uf241 \uf242 \uf243 \uf244 \uf287 \uf0e7 \uf013 \uf071 \uf058 \uf00c \uf00d \uf1eb \uf2db"
     icon_strip_sym = "humid1_icon_fa7_solid_16"
@@ -1022,7 +1041,7 @@ def render_specimen_sheet(
                 icon_strip_str = " ".join(chr(c) for c in sample_cps)
                 break
     draw_strike_text(44, box_y + 354, "Icons 16px:", "humid1_font_plex_sans_bold_14")
-    draw_strike_text(132, box_y + 354, icon_strip_str, icon_strip_sym)
+    draw_strike_text(132, box_y + 354, icon_strip_str, icon_strip_sym, max_x=632)
 
     # Also render Filled Icon Showcase Strip if Tabler-Filled or Phosphor-Fill is in strike_cache
     for filled_cand in ("humid1_icon_tabler_filled_16", "humid1_icon_phosphor_fill_16", "humid1_icon_phosphor_fill_20"):
@@ -1030,12 +1049,12 @@ def render_specimen_sheet(
             f_cps = sorted(c for c in strike_cache[filled_cand][0].keys() if c >= 0xE000)[:16]
             f_str = " ".join(chr(c) for c in f_cps)
             draw_strike_text(44, box_y + 382, "Filled Icons:", "humid1_font_plex_sans_bold_14")
-            draw_strike_text(142, box_y + 382, f_str, filled_cand)
+            draw_strike_text(142, box_y + 382, f_str, filled_cand, max_x=632)
             break
 
     rx0 = 664
     draw.rectangle([rx0, 90, 1392, 992], fill=(255, 255, 255), outline=(200, 208, 218), width=1)
-    draw_strike_text(rx0 + 20, 106, "HUMID1 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS @ 188.15 DPI)", "humid1_font_plex_sans_bold_16")
+    draw.text((rx0 + 20, 104), "HUMID1 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS @ 188.15 DPI)", fill=(24, 32, 44), font=ui_fonts["section"])
 
     ladder_rows = [
         ("Sans Normal 12px (4.6pt@188.15dpi, Manual Patch Ready)", "humid1_font_plex_sans_normal_12", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
@@ -1047,7 +1066,7 @@ def render_specimen_sheet(
         ("Sans Bold 20px (7.6pt@188.15dpi, Section Hero)", "humid1_font_plex_sans_bold_20", "72.4°F   \uf043 46.8% RH   \uf240 4.12V"),
         ("Sans Bold 24px (9.2pt@188.15dpi, Primary Readout)", "humid1_font_plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
         ("Sans Bold 32px (12.2pt@188.15dpi, Jumbo Metric)", "humid1_font_plex_sans_bold_32", "72.4°F   46.8%"),
-        (f"Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", f"boot: humid1-os v{TOOL_VERSION}  |  SPI0 40MHz  |  0x0040 @%#08"),
+        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", f"boot: humid1-os v{TOOL_VERSION}  |  SPI0 40MHz  |  0x0040 @%#08"),
         ("Terminus Normal 16px (8x16 Native Console)", "humid1_font_terminus_normal_16", "root@humid1:~# dmesg | grep epd -> 200x200 OK"),
         ("Mono Normal 14px (Telemetry Log)", "humid1_font_plex_mono_normal_14", "2026-11-08 20:24:55  |  328K Free  |  @%#08"),
         ("Mono Bold 20px (Tabular Readout)", "humid1_font_plex_mono_bold_20", "72.4°F   46.8% RH   12.6 hPa"),
@@ -1057,17 +1076,31 @@ def render_specimen_sheet(
         ("Math Regular 16px (Scientific Formula)", "humid1_font_plex_math_regular_16", "e_s(T) = 6.1094 · exp(17.625·T / (T + 243.04))   [ΔT ≤ 0.15°C]"),
     ]
 
-    label_font_sym = _resolve_sym("humid1_font_plex_mono_normal_12") or _resolve_sym("humid1_font_terminus_normal_12") or _resolve_sym("humid1_font_plex_sans_normal_12")
+    matched_rows = [row for row in ladder_rows if row[1] in strike_cache]
+    if len(matched_rows) < 6:
+        seen_syms = {row[1] for row in matched_rows}
+        for sym_k in sorted(strike_cache.keys()):
+            if sym_k in seen_syms:
+                continue
+            gmap_k, lh_k, _ = strike_cache[sym_k]
+            if "icon_" in sym_k:
+                ic_cps = sorted(c for c in gmap_k.keys() if c >= 0xE000)[:16]
+                s_txt = " ".join(chr(c) for c in ic_cps) if ic_cps else "0123456789"
+            else:
+                s_txt = "0123456789 AaBbCcGgQqWw @%#&$80 72.4°F 46.8%"
+            matched_rows.append((f"{sym_k} (lh={lh_k}px, {len(gmap_k)} glyphs)", sym_k, s_txt))
+            seen_syms.add(sym_k)
+            if len(matched_rows) >= 8:
+                break
+
     cy = 136
-    for label, sym, sample in ladder_rows:
-        if sym not in strike_cache:
-            continue
-        if cy > 945:
-            break
-        draw_strike_text(rx0 + 20, cy, label, label_font_sym, fg=(100, 112, 128))
-        cy += 15
+    for label, sym, sample in matched_rows:
         _, lh, _ = strike_cache[sym]
-        draw_strike_text(rx0 + 20, cy, sample, sym, fg=(10, 14, 18))
+        if cy + lh + 20 > 980:
+            break
+        draw.text((rx0 + 20, cy), label, fill=(100, 112, 128), font=ui_fonts["mono_sm"])
+        cy += 16
+        draw_strike_text(rx0 + 20, cy, sample, sym, fg=(10, 14, 18), max_x=1376)
         cy += lh + 7
         draw.line([(rx0 + 20, cy - 3), (1372, cy - 3)], fill=(232, 236, 242), width=1)
 
@@ -1089,9 +1122,9 @@ def render_master_char_icon_map_png(
     """
     ui_fonts = _load_ui_fonts(static_dir)
     strikes_sorted = sorted(strike_cache.items(), key=lambda x: x[0])
-    row_h = 44
+    row_heights = [max(44, lh + 14) for _, (_, lh, _) in strikes_sorted]
     W = 1480
-    H = max(360, 110 + len(strikes_sorted) * row_h + 32)
+    H = max(360, 110 + sum(row_heights) + 32)
     img = Image.new("RGB", (W, H), (246, 248, 252))
     draw = ImageDraw.Draw(img)
 
@@ -1111,19 +1144,20 @@ def render_master_char_icon_map_png(
 
     y = 84
     for idx, (sym, (gmap, lh, bl)) in enumerate(strikes_sorted):
+        row_h = row_heights[idx]
         bg = (255, 255, 255) if (idx % 2 == 0) else (240, 244, 250)
         draw.rectangle([20, y, W - 20, y + row_h - 4], fill=bg, outline=(216, 224, 234), width=1)
-        draw.text((32, y + 12), f"{sym:<40} ({len(gmap):>4d} glyphs, lh={lh}px)", fill=(24, 32, 44), font=ui_fonts["mono"])
+        draw.text((32, y + max(10, (row_h - 18) // 2)), f"{sym:<40} ({len(gmap):>4d} glyphs, lh={lh}px)", fill=(24, 32, 44), font=ui_fonts["mono"])
 
         cx = 540
-        by = y + 8 + min(28, lh - bl)
+        by = y + 6 + (lh - bl)
         sample_cps = sorted(c for c in gmap.keys() if c > 0x20)[:36]
         for cp in sample_cps:
             g = gmap[cp]
             if g.box_w > 0 and g.box_h > 0 and cx + g.box_w < W - 36:
                 gx0 = cx + max(0, g.ofs_x)
                 gy0 = by - (g.ofs_y + g.box_h)
-                gy0 = max(y + 4, min(y + row_h - 8 - g.box_h, gy0))
+                gy0 = max(y + 4, min(y + row_h - 6 - g.box_h, gy0))
                 for rr, r_str in enumerate(g.rows):
                     for cc, px in enumerate(r_str):
                         if px == "#":

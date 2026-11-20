@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.22",
+  "schema_version": "1.0.23",
   "hw_scheme_id": "esp32s3-N8R8",
   "description": "Target hardware specification scheme for Espressif ESP32-S3-N8R8 (H1OS & humid1-os reference hardware platform) with a single 3 MByte (3,145,728 bytes) font/asset Flash partition.",
   "chip_name": "ESP32-S3-N8R8",

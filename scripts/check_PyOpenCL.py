@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/check_PyOpenCL.py (v1.0.22)
+scripts/check_PyOpenCL.py (v1.0.23)
 ==================================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -21,6 +21,7 @@ OpenCL Runtime & Multi-Device 3D NDRange / Shared-RAM / Teardown Verification Ut
 
 from __future__ import annotations
 
+import argparse
 import gc
 import sys
 import warnings
@@ -49,11 +50,11 @@ from math_backends import (
 )
 
 
-def inspect_pyopencl() -> int:
+def inspect_pyopencl(stress_shared_mb: int = 256, hold_seconds: float = 0.0) -> int:
     total_shared_mb, usable_shared_mb = detect_shared_gpu_memory_mb()
     cap_75_mb = int(round(total_shared_mb * SHARED_RAM_CAP_RATIO))
     print("============================================================================")
-    print("Humidyne Labs - epd-font v1.0.22 - PyOpenCL 3D NDRange & Shared-RAM Inspector")
+    print("Humidyne Labs - epd-font v1.0.23 - PyOpenCL 3D NDRange & Shared-RAM Inspector")
     print(
         f"Host Shared GPU Memory (CL_MEM_ALLOC_HOST_PTR): {total_shared_mb:,} MB total "
         f"({total_shared_mb / 1024.0:.2f} GB) | 75% Arena Cap: {cap_75_mb:,} MB "
@@ -76,6 +77,7 @@ def inspect_pyopencl() -> int:
         return 0
 
     global_dev_idx = 0
+    all_passed = True
     for p_idx, platform in enumerate(platforms):
         print(f"\n================ Platform {p_idx}: {platform.name} ================")
         print(f"  Vendor:  {platform.vendor}")
@@ -87,12 +89,14 @@ def inspect_pyopencl() -> int:
             dev_type = cl.device_type.to_string(device.type)
             max_dims = int(getattr(device, "max_work_item_dimensions", 3))
             cus = int(getattr(device, "max_compute_units", 1))
+            is_gpu = bool(device.type & cl.device_type.GPU)
+            max_alloc_mb = int(getattr(device, "max_mem_alloc_size", 0) // (1024 * 1024))
             print(f"\n  --- [{global_dev_idx}] Platform {p_idx}, Device {d_idx}: {device.name.strip()} [{dev_type}] ---")
             print(f"  Driver Version:               {device.driver_version}")
             print(f"  OpenCL C Version:             {device.opencl_c_version}")
             print(f"  Compute Units:                {cus}")
             print(f"  Max Clock Frequency:          {device.max_clock_frequency} MHz")
-            print(f"  Dedicated Global Memory:      {device.global_mem_size / (1024**2):.2f} MB")
+            print(f"  Dedicated Global Memory:      {device.global_mem_size / (1024**2):.2f} MB (Max Single Alloc: {max_alloc_mb:,} MB)")
             print(f"  Host Shared GPU Memory:       {total_shared_mb:.2f} MB ({total_shared_mb / 1024.0:.2f} GB via CL_MEM_ALLOC_HOST_PTR)")
             print(f"  75% Shared RAM Arena Cap:     {cap_75_mb:.2f} MB ({cap_75_mb / 1024.0:.2f} GB usable)")
             print(f"  Local / Work-Group Memory:    {device.local_mem_size / 1024:.2f} KB")
@@ -102,7 +106,7 @@ def inspect_pyopencl() -> int:
             print(f"  Double Precision (FP64):      {'cl_khr_fp64' in device.extensions}")
             print(f"  Half Precision (FP16):        {'cl_khr_fp16' in device.extensions}")
 
-            # Live 3D NDRange + 4-Queue + 75% Shared-RAM + 1+JFA Marching Squares + Teardown Test
+            # Live 3D NDRange + 4-Queue + 75% Shared-RAM + Batched 3D Pipelines + WDDM Teardown Test
             ctx = None
             accel = None
             try:
@@ -110,22 +114,43 @@ def inspect_pyopencl() -> int:
                     if hasattr(cl, "CompilerWarning"):
                         warnings.filterwarnings("ignore", category=cl.CompilerWarning)
                     ctx = cl.Context([device])
-                    n_queues = 4 if (device.type & cl.device_type.GPU) else 2
+                    n_queues = 4 if is_gpu else 2
                     accel = OpenCLMathAccelerator(ctx, device, num_queues=n_queues, shared_ram_mb=usable_shared_mb)
 
-                # Dispatch a 3D batch tensor (batch_z = max(32, cus * 2), H = 32, W = 32) across all 3 dimensions
+                # 1. Dispatch a 3D batch tensor across all 3 dimensions
                 batch_z = max(32, cus * 2)
                 test_3d = np.linspace(0, 255, batch_z * 32 * 32, dtype=np.uint8).reshape((batch_z, 32, 32))
                 gpu_out = accel.eval_srgb_to_linear_grayscale(test_3d, gamma=1.0)
                 cpu_out = eval_srgb_to_linear_grayscale_cpu(test_3d, gamma=1.0)
                 max_err = int(np.max(np.abs(gpu_out.astype(np.int32) - cpu_out.astype(np.int32))))
 
-                # Also test 3D SDF Smoothstep batch and 3-Stage 1+JFA + Marching Squares (`svg-potrace-jfa`)
+                # 2. Test 3D SDF Smoothstep, JFA Marching Squares, and full batched 3D pipelines
                 sdf_batch = np.zeros((min(16, batch_z), 64, 64), dtype=np.float32)
-                bw_3d, fld_3d = accel.eval_sdf_smoothstep(sdf_batch, target_w=16, target_h=16, upscale=4, threshold=128)
-                jfa_gray = np.zeros((64, 64), dtype=np.uint8)
-                jfa_gray[16:48, 16:48] = 240
-                jfa_bw, jfa_fld = accel.eval_jfa_marching_squares(jfa_gray, target_w=16, target_h=16, upscale=4, threshold=128)
+                bw_3d, _ = accel.eval_sdf_smoothstep(sdf_batch, target_w=16, target_h=16, upscale=4, threshold=128)
+
+                batch_hi = np.zeros((8, 120, 120), dtype=np.uint8)
+                batch_hi[:, 24:96, 24:96] = 240
+                batch_hi[:, 44:76, 44:76] = 0
+                batch_dims = np.full((8, 2), 120, dtype=np.int32)
+                batch_summary = {}
+                for bpipe in ("sdf-smoothstep", "adf-biquadratic", "mdf", "msdf", "svg-potrace-jfa"):
+                    up = 10 if bpipe == "svg-potrace-jfa" else 12
+                    b_bw, _ = accel.eval_pipeline_batch_3d(
+                        bpipe, batch_hi, batch_dims, target_w=120 // up, target_h=120 // up, upscale=up, threshold=128
+                    )
+                    ink_px = int(np.count_nonzero(b_bw)) if b_bw is not None else 0
+                    batch_summary[bpipe] = ink_px
+                    if ink_px <= 0:
+                        raise RuntimeError(f"3D batch pipeline '{bpipe}' produced 0 ink pixels")
+
+                otsu_hi = np.zeros((4, 32, 32), dtype=np.uint8)
+                otsu_hi[:, 4:28, 4:28] = 220
+                otsu_dims = np.full((4, 2), 32, dtype=np.int32)
+                o_bw, _ = accel.eval_pipeline_batch_3d(
+                    "otsu-adaptive", otsu_hi, otsu_dims, target_w=32, target_h=32, upscale=1, threshold=128
+                )
+                batch_summary["otsu-adaptive"] = int(np.count_nonzero(o_bw)) if o_bw is not None else 0
+
                 glob_3d = accel._round_global_3d(16, 16, min(16, batch_z))
                 loc_3d = accel._effective_local_3d(min(16, batch_z))
                 arena_bytes = getattr(
@@ -139,10 +164,19 @@ def inspect_pyopencl() -> int:
                 print(f"  Shared RAM Arena Budget:      {arena_bytes // (1024 * 1024):,} MB (75% WDDM Shared GPU RAM Cap)")
                 print(
                     f"  3D Kernel Parity Check:       PASS (max_abs_err={max_err} LSB, "
-                    f"batch_shape={bw_3d.shape}, jfa_marching_ink={int(np.count_nonzero(jfa_bw))}px)"
+                    f"batch_shape={bw_3d.shape}, batched_3d={batch_summary})"
                 )
+
+                if is_gpu and stress_shared_mb > 0:
+                    wddm = accel.touch_shared_memory_mb(stress_shared_mb, hold_seconds=hold_seconds)
+                    print(
+                        f"  WDDM Shared GPU RAM Test:     ALLOC={wddm['allocated_mb']:.1f} MB | "
+                        f"Dedicated(before/active/after)={wddm['dedicated_before_mb']}/{wddm['dedicated_active_mb']}/{wddm['dedicated_after_mb']} MB | "
+                        f"Shared(before/active/after)={wddm['shared_before_mb']}/{wddm['shared_active_mb']}/{wddm['shared_after_mb']} MB"
+                    )
             except Exception as exc:
-                print(f"  3D Kernel Parity Check:       SKIPPED ({exc})")
+                all_passed = False
+                print(f"  3D Kernel Parity Check:       FAIL ({exc})")
             finally:
                 if accel is not None:
                     accel.release()
@@ -153,8 +187,26 @@ def inspect_pyopencl() -> int:
             global_dev_idx += 1
 
     teardown_math_backends()
-    return 0
+    return 0 if all_passed else 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="PyOpenCL 3D NDRange & WDDM Shared GPU RAM Inspector")
+    parser.add_argument(
+        "--stress-shared-mb",
+        type=int,
+        default=256,
+        help="Megabytes of CL_MEM_ALLOC_HOST_PTR WDDM Shared GPU Memory to allocate, touch, and release on GPU (default: 256, 0 disables)",
+    )
+    parser.add_argument(
+        "--hold-seconds",
+        type=float,
+        default=0.0,
+        help="Seconds to hold the touched Shared GPU Memory allocation for Task Manager observation (default: 0.0)",
+    )
+    args = parser.parse_args()
+    return inspect_pyopencl(stress_shared_mb=args.stress_shared_mb, hold_seconds=args.hold_seconds)
 
 
 if __name__ == "__main__":
-    sys.exit(inspect_pyopencl())
+    sys.exit(main())

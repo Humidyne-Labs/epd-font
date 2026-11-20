@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-hw_dispatch.py (v1.0.22)
+hw_dispatch.py (v1.0.23)
 ========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -8,7 +8,7 @@ Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Par
 License    : MIT License
 
 Multi-Device Hardware Capability Check, 3D NDRange GPU/CPU Dispatcher, 75% Shared RAM Arena &
-Deterministic Teardown (`v1.0.22`):
+Deterministic Teardown (`v1.0.23`):
   - Enumerates all available OpenCL platforms and devices (e.g., `[0] Ellesmere (GPU - 32 CUs)` and
     `[1] AMD Ryzen 5 5600G with Radeon Graphics (CPU - 12 CUs)` installed via Intel CPU Runtime for OpenCL).
   - Enforces Single-Owner GPU Context isolation (`EPD_FONT_WORKER_ROLE="cpu"` in child CPU workers) so
@@ -27,15 +27,14 @@ from __future__ import annotations
 import atexit
 import gc
 import os
+import sys
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import cv2
 import numpy as np
 
 from .cpu_math import (
-    bezier_winding_cpu,
-    distance_sq_to_bezier_yuksel_cpu,
     eval_adf_biquadratic_cpu,
     eval_jfa_marching_squares_cpu,
     eval_msdf_median3_reconstruct_cpu,
@@ -53,7 +52,7 @@ from .opencl_kernels import (
 )
 from .umat_math import is_opencv_umat_opencl_active, umat_median_blur, umat_morphology_close
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 
 @dataclass
@@ -245,12 +244,16 @@ def _probe_and_init_backend(preferred: Optional[str] = None) -> MathBackendStatu
                         if not (getattr(d, "available", 1) and getattr(d, "compiler_available", 1)):
                             continue
                         dtype = int(getattr(d, "type", 0))
-                        if (dtype & getattr(cl.device_type, "GPU", 4)) and gpu_dev is None:
-                            gpu_dev = d
-                            gpu_plat = plat
-                        elif (dtype & getattr(cl.device_type, "CPU", 2)) and cpu_ocl_dev is None:
-                            cpu_ocl_dev = d
-                            cpu_ocl_plat = plat
+                        dname = str(getattr(d, "name", ""))
+                        dcus = int(getattr(d, "max_compute_units", 0))
+                        if dtype & getattr(cl.device_type, "GPU", 4):
+                            if gpu_dev is None or "Ellesmere" in dname or dcus > int(getattr(gpu_dev, "max_compute_units", 0)):
+                                gpu_dev = d
+                                gpu_plat = plat
+                        elif dtype & getattr(cl.device_type, "CPU", 2):
+                            if cpu_ocl_dev is None or dcus > int(getattr(cpu_ocl_dev, "max_compute_units", 0)):
+                                cpu_ocl_dev = d
+                                cpu_ocl_plat = plat
                         elif (dtype & getattr(cl.device_type, "ACCELERATOR", 8)) and accel_dev is None:
                             accel_dev = d
                             accel_plat = plat
@@ -311,7 +314,7 @@ def _probe_and_init_backend(preferred: Optional[str] = None) -> MathBackendStatu
                         pass
                 _ACTIVE_ACCEL = None
 
-    if pref in ("auto", "umat", "gpu") and worker_role != "cpu" and is_opencv_umat_opencl_active():
+    if pref in ("auto", "umat", "gpu") and pref != "opencl" and worker_role != "cpu" and is_opencv_umat_opencl_active():
         dev_name = "OpenCV UMat OpenCL Device"
         try:
             dev = cv2.ocl.Device.getDefault()
@@ -394,14 +397,62 @@ def describe_math_backend() -> str:
     )
 
 
+_WARNED_DISPATCH_OPS: Set[str] = set()
+
+
+def _handle_opencl_dispatch_error(op_name: str, exc: Exception) -> None:
+    if os.environ.get("EPD_FONT_ACCEL", "").strip().lower() == "gpu":
+        raise RuntimeError(f"OpenCL GPU dispatch failed in {op_name}: {exc}") from exc
+    if op_name not in _WARNED_DISPATCH_OPS:
+        _WARNED_DISPATCH_OPS.add(op_name)
+        sys.stderr.write(f"[!] Warning: OpenCL dispatch failed in {op_name} ({exc}); falling back to CPU.\n")
+
+
+def get_math_backend_telemetry() -> Dict[str, Any]:
+    if _ACTIVE_ACCEL is not None:
+        return _ACTIVE_ACCEL.get_telemetry()
+    return {}
+
+
 # ---------------------------------------------------------------------------
 # Hardware-Checked Dynamic 3D NDRange Mathematical Dispatch Functions
 # ---------------------------------------------------------------------------
+def dispatch_pipeline_batch_3d(
+    pipeline: str,
+    raw_batch_u8: np.ndarray,
+    glyph_dims: np.ndarray,
+    target_w: int,
+    target_h: int,
+    upscale: int = 1,
+    threshold: int = 128,
+    gamma: float = 1.0,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Dispatch an entire strike batch `(B, H, W)` to the 3D NDRange OpenCL GPU pipeline."""
+    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu":
+        return None, None
+    st = get_active_math_backend()
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None:
+        try:
+            return _ACTIVE_ACCEL.eval_pipeline_batch_3d(
+                pipeline=pipeline,
+                raw_batch_u8=raw_batch_u8,
+                glyph_dims=glyph_dims,
+                target_w=target_w,
+                target_h=target_h,
+                upscale=upscale,
+                threshold=threshold,
+                gamma=gamma,
+            )
+        except Exception as exc:
+            _handle_opencl_dispatch_error(f"pipeline_batch_3d({pipeline})", exc)
+    return None, None
+
+
 def dispatch_srgb_to_linear_grayscale(arr: np.ndarray, gamma: float = 1.0) -> np.ndarray:
     """
     Dispatch IEC 61966-2-1 sRGB -> ITU-R BT.709 Linear Luminance + Gamma.
-    Uses L1-cached CPU LUT for small single-glyph buffers (`< 65,536` px) to avoid PCIe overhead,
-    and dispatches large / 3D-batched buffers (`>= 65,536` px) to 3D NDRange OpenCL GPU.
+    Uses L1-cached CPU LUT for small single-glyph buffers (`< 4,096` px) to avoid PCIe overhead,
+    and dispatches large / 3D-batched buffers (`>= 4,096` px) to 3D NDRange OpenCL GPU.
     """
     if arr is None or arr.size == 0:
         return np.zeros((0, 0), dtype=np.uint8)
@@ -415,8 +466,8 @@ def dispatch_srgb_to_linear_grayscale(arr: np.ndarray, gamma: float = 1.0) -> np
     if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and (force_gpu or arr.size >= 4096):
         try:
             return _ACTIVE_ACCEL.eval_srgb_to_linear_grayscale(arr, gamma=gamma)
-        except Exception:
-            pass
+        except Exception as exc:
+            _handle_opencl_dispatch_error("srgb_to_linear_grayscale", exc)
     return eval_srgb_to_linear_grayscale_cpu(arr, gamma=gamma)
 
 
@@ -434,8 +485,8 @@ def dispatch_sdf_smoothstep(
     if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and sdf_hi.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_sdf_smoothstep(sdf_hi, target_w, target_h, upscale, threshold)
-        except Exception:
-            pass
+        except Exception as exc:
+            _handle_opencl_dispatch_error("sdf_smoothstep", exc)
     return eval_sdf_smoothstep_cpu(sdf_hi, target_w, target_h, upscale, threshold)
 
 
@@ -453,8 +504,8 @@ def dispatch_msdf_median3_reconstruct(
     if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and msdf_rgb_or_r.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_msdf_median3_reconstruct(msdf_rgb_or_r, sdf_g, sdf_b, threshold, edge_offset_px)
-        except Exception:
-            pass
+        except Exception as exc:
+            _handle_opencl_dispatch_error("msdf_median3_reconstruct", exc)
     return eval_msdf_median3_reconstruct_cpu(msdf_rgb_or_r, sdf_g, sdf_b, threshold, edge_offset_px)
 
 
@@ -472,8 +523,8 @@ def dispatch_adf_biquadratic(
     if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and sdf_hi.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_adf_biquadratic(sdf_hi, target_w, target_h, upscale, threshold)
-        except Exception:
-            pass
+        except Exception as exc:
+            _handle_opencl_dispatch_error("adf_biquadratic", exc)
     return eval_adf_biquadratic_cpu(sdf_hi, target_w, target_h, upscale, threshold)
 
 
@@ -485,8 +536,8 @@ def dispatch_otsu_linear_threshold(linear_gray: np.ndarray, base_threshold: int 
     if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and linear_gray is not None and linear_gray.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_otsu_linear_threshold(linear_gray, base_threshold)
-        except Exception:
-            pass
+        except Exception as exc:
+            _handle_opencl_dispatch_error("otsu_linear_threshold", exc)
     return eval_otsu_linear_threshold_cpu(linear_gray, base_threshold)
 
 
@@ -507,67 +558,36 @@ def dispatch_jfa_marching_squares(
     if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and high_gray is not None and high_gray.size >= 256:
         try:
             return _ACTIVE_ACCEL.eval_jfa_marching_squares(high_gray, target_w, target_h, upscale, threshold)
-        except Exception:
-            pass
+        except Exception as exc:
+            _handle_opencl_dispatch_error("jfa_marching_squares", exc)
     return eval_jfa_marching_squares_cpu(high_gray, target_w, target_h, upscale, threshold)
 
 
 def dispatch_median_blur(arr: np.ndarray, ksize: int) -> np.ndarray:
-    """Dispatch median filtering to OpenCV UMat OpenCL queue or CPU."""
-    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu" or arr.size < 256:
+    """Dispatch median filtering to the active OpenCL queue (never spawning a second UMat context) or CPU."""
+    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu" or arr.size < 256 or ksize <= 1:
         return cv2.medianBlur(arr, ksize) if (ksize > 1 and arr.size > 0) else arr
     st = get_active_math_backend()
-    if st.backend_id in ("opencl", "umat"):
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and arr.size >= 4096:
+        try:
+            return _ACTIVE_ACCEL.eval_median_blur(arr, ksize)
+        except Exception as exc:
+            _handle_opencl_dispatch_error("median_blur", exc)
+    elif st.backend_id == "umat":
         return umat_median_blur(arr, ksize)
     return cv2.medianBlur(arr, ksize) if (ksize > 1 and arr.size > 0) else arr
 
 
 def dispatch_morphology_close(arr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
-    """Dispatch morphological closing to OpenCV UMat OpenCL queue or CPU."""
+    """Dispatch morphological closing to the active OpenCL queue (never spawning a second UMat context) or CPU."""
     if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() == "cpu" or arr.size < 256:
         return cv2.morphologyEx(arr, cv2.MORPH_CLOSE, kernel)
     st = get_active_math_backend()
-    if st.backend_id in ("opencl", "umat"):
+    if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None and arr.size >= 4096:
+        try:
+            return _ACTIVE_ACCEL.eval_morphology_close(arr, kernel)
+        except Exception as exc:
+            _handle_opencl_dispatch_error("morphology_close", exc)
+    elif st.backend_id == "umat":
         return umat_morphology_close(arr, kernel)
     return cv2.morphologyEx(arr, cv2.MORPH_CLOSE, kernel)
-
-
-def dispatch_bezier_sdf_yuksel(
-    curves_f32: np.ndarray,
-    target_w: int,
-    target_h: int,
-    threshold: int = 128,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Dispatch Cem Yuksel's degree-5 to degree-2 monotonic derivative cascade for exact
-    cubic Bezier SDF evaluation to 3D NDRange OpenCL GPU (`render_bezier_sdf_yuksel_3d_kernel`) or CPU.
-    """
-    if os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() != "cpu":
-        st = get_active_math_backend()
-        if st.backend_id == "opencl" and _ACTIVE_ACCEL is not None:
-            try:
-                return _ACTIVE_ACCEL.eval_bezier_sdf_yuksel(curves_f32, target_w, target_h, threshold)
-            except Exception:
-                pass
-
-    if curves_f32.size == 0 or target_w <= 0 or target_h <= 0:
-        empty = np.zeros((max(1, target_h), max(1, target_w)), dtype=np.uint8)
-        return empty, empty
-
-    eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
-    bias_px = (128.0 - float(eff_t)) / 64.0
-    bilevel = np.zeros((target_h, target_w), dtype=np.uint8)
-    field_u8 = np.zeros((target_h, target_w), dtype=np.uint8)
-    for r in range(target_h):
-        py = r + 0.5
-        for c in range(target_w):
-            px = c + 0.5
-            min_d_sq = min(distance_sq_to_bezier_yuksel_cpu((px, py), bz) for bz in curves_f32)
-            winding = sum(bezier_winding_cpu((px, py), bz) for bz in curves_f32)
-            d_mag = float(np.sqrt(max(min_d_sq, 0.0)))
-            signed_d = (d_mag if (winding & 1) != 0 else -d_mag) + bias_px
-            t = float(np.clip((signed_d + 0.55) / 1.10, 0.0, 1.0))
-            alpha = t * t * (3.0 - 2.0 * t)
-            field_u8[r, c] = int(round(alpha * 255.0))
-            bilevel[r, c] = 1 if alpha >= 0.50 else 0
-    return bilevel, field_u8

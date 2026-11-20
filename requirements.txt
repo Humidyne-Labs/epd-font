@@ -1,4 +1,4 @@
-# Core required packages for epd-font (v1.0.19c) asset generation, rasterization & evaluation
+# Core required packages for epd-font (v1.0.23) asset generation, rasterization & evaluation
 fonttools>=4.40.0
 Pillow>=10.0.0
 freetype-py>=2.4.0

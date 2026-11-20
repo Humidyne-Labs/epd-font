@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-humid1_ft_raster.py (v1.0.22)
+humid1_ft_raster.py (v1.0.23)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -29,19 +29,27 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fontTools.ttLib import TTFont, TTLibFileIsCollectionError
+import cv2
 
 from humid1_bilevel_pipelines import (
+    FT_LOAD_FORCE_AUTOHINT,
+    FT_LOAD_NO_HINTING,
+    FT_LOAD_RENDER,
+    FT_LOAD_TARGET_NORMAL,
     binary_array_to_rows,
+    extract_ft_raw_grayscale,
     normalize_pipeline_name,
     render_glyph_via_pipeline,
     save_debug_stage_artifacts,
+    trace_binary_to_potrace_svg_and_rerasterize,
     trim_binary_array,
 )
 from humid1_runtime import resolve_font_file_recursive
+from math_backends import dispatch_pipeline_batch_3d, get_active_math_backend
 
 logging.getLogger("fontTools").setLevel(logging.ERROR)
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 
 def _convert_bdf_to_cached_ttf(bdf_path: Path) -> Path:
@@ -76,7 +84,7 @@ def open_ttfont_safe(font_path: Path | str, font_number: int = 0, lazy: bool = F
 
 def format_strike_symbol(family: str, role: str, size_px: int) -> str:
     """
-    Canonical v1.0.22 `humid1_` symbol naming convention:
+    Canonical v1.0.23 `humid1_` symbol naming convention:
       - Core UI/Telemetry families (sans, cond, mono, serif, math) -> humid1_font_plex_<family>_<role>_<size>
       - Explicit Noto families (noto_sans, noto_cond, noto_mono, noto_serif, noto_math) -> humid1_font_<family>_<role>_<size>
       - Explicit Plex families (plex_sans, plex_cond, plex_mono, plex_serif, plex_math) -> humid1_font_<family>_<role>_<size>
@@ -102,22 +110,6 @@ def format_strike_symbol(family: str, role: str, size_px: int) -> str:
 RANGE_UI_STR = (
     "0x20-0x7E,0xB0,0xB1,0xB2,0xB3,0xB5,0x0394,"
     "0x2010-0x2014,0x2022,0x2190-0x2193"
-)
-
-RANGE_MATH_STR = (
-    "0x20-0x7E,0xB0,0xB1,0xB2,0xB3,0xB5,"
-    "0x0391-0x03A1,0x03A3-0x03A9,0x03B1-0x03C9,"
-    "0x2126,0x2190-0x2193,0x2200,0x2202,0x2203,0x2205,0x2206,"
-    "0x2208,0x2209,0x2211,0x221A,0x221E,0x2248,0x2260,0x2264,0x2265"
-)
-
-DEFAULT_FONTAWESOME_ICONS = (
-    "61441,61448,61451,61452,61453,61457,61459,61461,61465,61468,"
-    "61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,"
-    "61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,"
-    "61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,"
-    "61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,"
-    "62018,62019,62020,62087,62099,62212,62189,62810,63426,63650"
 )
 
 COMPLEX_15_CODEPOINTS = {
@@ -642,7 +634,7 @@ def rasterize_font_strike(
     verbose: bool = False,
 ) -> Tuple[List[GlyphStrike], int, int, int, int, List[Tuple[int, int, int, int, int]]]:
     """
-    Rasterize a 1-bpp font strike using one of the 8 v1.0.22 resolution-reduction conversion pipelines
+    Rasterize a 1-bpp font strike using one of the 8 v1.0.23 resolution-reduction conversion pipelines
     (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `mdf`, `msdf`, `sdf-smoothstep`, `adf-biquadratic`,
     `otsu-adaptive`, or `exact-mono`) with linear grayscale conversion and optional gamma factor.
     """
@@ -696,49 +688,14 @@ def rasterize_font_strike(
     code_to_gid: Dict[int, int] = {}
     debug_emitted_count = 0
 
-    def render_single(f_ptr, f_path: Path, t_cmap, t_hmtx, t_upem, t_has_bc: bool, code: int, p_mode: str, gid: int) -> Optional[GlyphStrike]:
-        nonlocal debug_emitted_count
-        gname = t_cmap.get(code)
-        if not gname or gname not in t_hmtx:
-            return None
-        gidx = ft.FT_Get_Char_Index(f_ptr, code)
-        if gidx == 0:
-            return None
-        adv_fp4 = int(round(t_hmtx[gname][0] * size_px * 16.0 / float(t_upem)))
-
-        bw_arr, b_left, b_top, _ = render_glyph_via_pipeline(
-            ft=ft,
-            face_ptr=f_ptr,
-            codepoint=code,
-            gidx=gidx,
-            size_px=size_px,
-            pipeline=p_mode,
-            threshold=eff_thresh,
-            gamma=gamma,
-            has_bytecode_hints=t_has_bc,
-            capture_debug=False,
-        )
-
-        if (
-            debug_stages_dir is not None
-            and debug_emitted_count < 8
-            and (code in COMPLEX_15_CODEPOINTS or code in (0x0041, 0x0048, 0x004D, 0x0057) or debug_emitted_count < 3)
-        ):
-            sym_lbl = strike_symbol or f"{f_path.stem}_{size_px}"
-            save_debug_stage_artifacts(
-                debug_dir=debug_stages_dir,
-                strike_symbol=sym_lbl,
-                codepoint=code,
-                glyph_name=get_semantic_glyph_name(code, family),
-                ft=ft,
-                face_ptr=f_ptr,
-                gidx=gidx,
-                size_px=size_px,
-                threshold=eff_thresh,
-                gamma=gamma,
-            )
-            debug_emitted_count += 1
-
+    def _build_glyph_strike(
+        code: int,
+        gid: int,
+        adv_fp4: int,
+        bw_arr: np.ndarray,
+        b_left: int,
+        b_top: int,
+    ) -> Optional[GlyphStrike]:
         raw_h = int(bw_arr.shape[0]) if bw_arr.size > 0 else 0
         cropped_arr, box_w, box_h, ofs_x, ofs_y = trim_binary_array(bw_arr, b_left, b_top - raw_h)
         trimmed_rows = binary_array_to_rows(cropped_arr)
@@ -775,6 +732,146 @@ def rasterize_font_strike(
             patched=is_patched,
         )
 
+    def _maybe_emit_debug_stages(f_ptr, f_path: Path, code: int, gidx: int) -> None:
+        nonlocal debug_emitted_count
+        if (
+            debug_stages_dir is not None
+            and debug_emitted_count < 8
+            and (code in COMPLEX_15_CODEPOINTS or code in (0x0041, 0x0048, 0x004D, 0x0057) or debug_emitted_count < 3)
+        ):
+            sym_lbl = strike_symbol or f"{f_path.stem}_{size_px}"
+            save_debug_stage_artifacts(
+                debug_dir=debug_stages_dir,
+                strike_symbol=sym_lbl,
+                codepoint=code,
+                glyph_name=get_semantic_glyph_name(code, family),
+                ft=ft,
+                face_ptr=f_ptr,
+                gidx=gidx,
+                size_px=size_px,
+                threshold=eff_thresh,
+                gamma=gamma,
+            )
+            ft.FT_Set_Pixel_Sizes(f_ptr, 0, size_px)
+            debug_emitted_count += 1
+
+    def render_single(f_ptr, f_path: Path, t_cmap, t_hmtx, t_upem, t_has_bc: bool, code: int, p_mode: str, gid: int) -> Optional[GlyphStrike]:
+        gname = t_cmap.get(code)
+        if not gname or gname not in t_hmtx:
+            return None
+        gidx = ft.FT_Get_Char_Index(f_ptr, code)
+        if gidx == 0:
+            return None
+        adv_fp4 = int(round(t_hmtx[gname][0] * size_px * 16.0 / float(t_upem)))
+
+        bw_arr, b_left, b_top, _ = render_glyph_via_pipeline(
+            ft=ft,
+            face_ptr=f_ptr,
+            codepoint=code,
+            gidx=gidx,
+            size_px=size_px,
+            pipeline=p_mode,
+            threshold=eff_thresh,
+            gamma=gamma,
+            has_bytecode_hints=t_has_bc,
+            capture_debug=False,
+        )
+        _maybe_emit_debug_stages(f_ptr, f_path, code, gidx)
+        return _build_glyph_strike(code, gid, adv_fp4, bw_arr, b_left, b_top)
+
+    if norm_pipe in ("svg-potrace", "svg-potrace-jfa"):
+        batch_upscale = 10
+    elif norm_pipe == "sdf-smoothstep":
+        batch_upscale = 16
+    elif norm_pipe in ("mdf", "msdf", "adf-biquadratic"):
+        batch_upscale = 12
+    else:
+        batch_upscale = 1
+
+    def extract_raw_single(
+        f_ptr,
+        f_path: Path,
+        t_cmap,
+        t_hmtx,
+        t_upem,
+        t_has_bc: bool,
+        lookup_code: int,
+        target_code: int,
+        p_mode: str,
+        is_secondary: bool = False,
+    ) -> Optional[dict]:
+        gname = t_cmap.get(lookup_code)
+        if not gname or gname not in t_hmtx:
+            return None
+        gidx = ft.FT_Get_Char_Index(f_ptr, lookup_code)
+        if gidx == 0:
+            return None
+        adv_fp4 = int(round(t_hmtx[gname][0] * size_px * 16.0 / float(t_upem)))
+        _maybe_emit_debug_stages(f_ptr, f_path, target_code, gidx)
+
+        ft.FT_Set_Pixel_Sizes(f_ptr, 0, int(size_px))
+        if p_mode == "raw-unhinted":
+            flags = FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_NORMAL
+            if ft.FT_Load_Glyph(f_ptr, gidx, flags) != 0:
+                return {"code": target_code, "adv_fp4": adv_fp4, "b_left": 0, "b_top": 0, "tw": 0, "th": 0, "raw_arr": np.zeros((0, 0), dtype=np.uint8), "is_secondary": is_secondary, "fallback_bw": None}
+            slot = f_ptr.contents.glyph.contents
+            raw_arr, b_left, b_top = extract_ft_raw_grayscale(slot, slot.bitmap)
+            th, tw = raw_arr.shape
+            return {"code": target_code, "adv_fp4": adv_fp4, "b_left": b_left, "b_top": b_top, "tw": tw, "th": th, "raw_arr": raw_arr, "is_secondary": is_secondary, "fallback_bw": None}
+
+        if p_mode in ("raw-hinted", "otsu-adaptive"):
+            flags = (
+                (FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL)
+                if (t_has_bc and size_px >= 14)
+                else (FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL)
+            )
+            if ft.FT_Load_Glyph(f_ptr, gidx, flags) != 0:
+                return {"code": target_code, "adv_fp4": adv_fp4, "b_left": 0, "b_top": 0, "tw": 0, "th": 0, "raw_arr": np.zeros((0, 0), dtype=np.uint8), "is_secondary": is_secondary, "fallback_bw": None}
+            slot = f_ptr.contents.glyph.contents
+            raw_arr, b_left, b_top = extract_ft_raw_grayscale(slot, slot.bitmap)
+            th, tw = raw_arr.shape
+            return {"code": target_code, "adv_fp4": adv_fp4, "b_left": b_left, "b_top": b_top, "tw": tw, "th": th, "raw_arr": raw_arr, "is_secondary": is_secondary, "fallback_bw": None}
+
+        base_flags = FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_NORMAL
+        if ft.FT_Load_Glyph(f_ptr, gidx, base_flags) != 0:
+            return {"code": target_code, "adv_fp4": adv_fp4, "b_left": 0, "b_top": 0, "tw": 0, "th": 0, "raw_arr": np.zeros((0, 0), dtype=np.uint8), "is_secondary": is_secondary, "fallback_bw": None}
+        base_slot = f_ptr.contents.glyph.contents
+        base_raw, b_left, b_top = extract_ft_raw_grayscale(base_slot, base_slot.bitmap)
+        th, tw = base_raw.shape
+        if th <= 0 or tw <= 0:
+            return {"code": target_code, "adv_fp4": adv_fp4, "b_left": b_left, "b_top": b_top, "tw": 0, "th": 0, "raw_arr": np.zeros((0, 0), dtype=np.uint8), "is_secondary": is_secondary, "fallback_bw": None}
+
+        ft.FT_Set_Pixel_Sizes(f_ptr, 0, int(size_px * batch_upscale))
+        if ft.FT_Load_Glyph(f_ptr, gidx, base_flags) != 0:
+            ft.FT_Set_Pixel_Sizes(f_ptr, 0, int(size_px))
+            fb_bw, fb_left, fb_top, _ = render_glyph_via_pipeline(
+                ft=ft, face_ptr=f_ptr, codepoint=lookup_code, gidx=gidx, size_px=size_px,
+                pipeline=p_mode, threshold=eff_thresh, gamma=gamma, has_bytecode_hints=t_has_bc, capture_debug=False,
+            )
+            return {"code": target_code, "adv_fp4": adv_fp4, "b_left": fb_left, "b_top": fb_top, "tw": tw, "th": th, "raw_arr": np.zeros((0, 0), dtype=np.uint8), "is_secondary": is_secondary, "fallback_bw": fb_bw}
+
+        hi_slot = f_ptr.contents.glyph.contents
+        hi_raw, hi_left, hi_top = extract_ft_raw_grayscale(hi_slot, hi_slot.bitmap)
+        ft.FT_Set_Pixel_Sizes(f_ptr, 0, int(size_px))
+
+        aligned_hi = np.zeros((th * batch_upscale, tw * batch_upscale), dtype=np.uint8)
+        dx = hi_left - (b_left * batch_upscale)
+        dy = (b_top * batch_upscale) - hi_top
+        src_r0 = max(0, -dy)
+        src_c0 = max(0, -dx)
+        dst_r0 = max(0, dy)
+        dst_c0 = max(0, dx)
+        copy_h = min(hi_raw.shape[0] - src_r0, aligned_hi.shape[0] - dst_r0)
+        copy_w = min(hi_raw.shape[1] - src_c0, aligned_hi.shape[1] - dst_c0)
+        if copy_h > 0 and copy_w > 0:
+            aligned_hi[dst_r0 : dst_r0 + copy_h, dst_c0 : dst_c0 + copy_w] = hi_raw[
+                src_r0 : src_r0 + copy_h, src_c0 : src_c0 + copy_w
+            ]
+        elif hi_raw.size > 0:
+            aligned_hi = cv2.resize(hi_raw, (tw * batch_upscale, th * batch_upscale), interpolation=cv2.INTER_LINEAR)
+
+        return {"code": target_code, "adv_fp4": adv_fp4, "b_left": b_left, "b_top": b_top, "tw": tw, "th": th, "raw_arr": aligned_hi, "is_secondary": is_secondary, "fallback_bw": None}
+
     secondary_faces = []
     fdir = eff_font_path.parent
     fname_low = eff_font_path.name.lower()
@@ -809,57 +906,215 @@ def rasterize_font_strike(
             s_meta = _get_cached_tt_meta(sp, font_number=0, need_kern=False)
             secondary_faces.append((s_ptr, sp, s_meta["cmap"], s_meta["hmtx"], s_meta["upem"], s_meta["has_bytecode"]))
 
+    use_opencl_batch = (
+        norm_pipe != "exact-mono"
+        and os.environ.get("EPD_FONT_WORKER_ROLE", "").strip().lower() != "cpu"
+        and get_active_math_backend().backend_id == "opencl"
+    )
+
     try:
         next_gid = 1
-        for code in sorted(set(codepoints)):
-            gs = render_single(face_ptr, eff_font_path, cmap, hmtx, upem, has_bytecode, code, norm_pipe, next_gid)
-            if gs is None and code in HOMOGLYPH_EQUIVALENTS:
-                for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
-                    gs_alt = render_single(face_ptr, eff_font_path, cmap, hmtx, upem, has_bytecode, alt_cp, norm_pipe, next_gid)
-                    if gs_alt is not None:
-                        gs_alt.codepoint = code
-                        gs = gs_alt
-                        break
-            if gs is None and secondary_faces:
-                for s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc in secondary_faces:
-                    gs_sec = render_single(s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc, code, norm_pipe, next_gid)
-                    if gs_sec is None and code in HOMOGLYPH_EQUIVALENTS:
-                        for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
-                            gs_sec = render_single(s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc, alt_cp, norm_pipe, next_gid)
-                            if gs_sec is not None:
-                                gs_sec.codepoint = code
-                                break
-                    if gs_sec is not None:
-                        if mono_cell_adv_fp4 is not None and gs_sec.box_w <= (mono_cell_adv_fp4 >> 4):
-                            gs_sec.adv_w_fp4 = mono_cell_adv_fp4
-                            cell_px = mono_cell_adv_fp4 >> 4
-                            gs_sec.ofs_x = max(0, (cell_px - gs_sec.box_w) // 2)
-                        gs = gs_sec
-                        break
-            if gs is None and code == 0xF8A2 and fname_low.startswith("fontawesome7-"):
-                gs = _synthesize_new_line_glyph(size_px, next_gid)
+        if use_opencl_batch:
+            raw_records: List[dict] = []
+            seen_codes = set()
+            for code in sorted(set(codepoints)):
+                rec = extract_raw_single(face_ptr, eff_font_path, cmap, hmtx, upem, has_bytecode, code, code, norm_pipe, False)
+                if rec is None and code in HOMOGLYPH_EQUIVALENTS:
+                    for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
+                        rec = extract_raw_single(face_ptr, eff_font_path, cmap, hmtx, upem, has_bytecode, alt_cp, code, norm_pipe, False)
+                        if rec is not None:
+                            break
+                if rec is None and secondary_faces:
+                    for s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc in secondary_faces:
+                        rec = extract_raw_single(s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc, code, code, norm_pipe, True)
+                        if rec is None and code in HOMOGLYPH_EQUIVALENTS:
+                            for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
+                                rec = extract_raw_single(s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc, alt_cp, code, norm_pipe, True)
+                                if rec is not None:
+                                    break
+                        if rec is not None:
+                            break
+                if rec is None and code == 0xF8A2 and fname_low.startswith("fontawesome7-"):
+                    raw_records.append({"code": code, "pre_gs": _synthesize_new_line_glyph(size_px, next_gid)})
+                    seen_codes.add(code)
+                    continue
+                if rec is not None:
+                    raw_records.append(rec)
+                    seen_codes.add(code)
 
-            if gs is not None:
-                glyphs.append(gs)
-                code_to_gid[code] = next_gid
-                next_gid += 1
+            if fa_path and fa_path.is_file() and fa_codepoints:
+                fa_face_ptr = ctypes.POINTER(FT_FaceRec)()
+                if ft.FT_New_Face(ft_lib, str(fa_path).encode("utf-8"), 0, ctypes.byref(fa_face_ptr)) == 0:
+                    try:
+                        ft.FT_Set_Pixel_Sizes(fa_face_ptr, 0, size_px)
+                        fa_meta = _get_cached_tt_meta(fa_path, font_number=0, need_kern=False)
+                        for code in sorted(set(fa_codepoints)):
+                            if code in seen_codes:
+                                continue
+                            rec = extract_raw_single(
+                                fa_face_ptr, fa_path, fa_meta["cmap"], fa_meta["hmtx"], fa_meta["upem"],
+                                False, code, code, norm_pipe, False,
+                            )
+                            if rec is not None:
+                                raw_records.append(rec)
+                                seen_codes.add(code)
+                    finally:
+                        ft.FT_Done_Face(fa_face_ptr)
 
-        if fa_path and fa_path.is_file() and fa_codepoints:
-            fa_face_ptr = ctypes.POINTER(FT_FaceRec)()
-            if ft.FT_New_Face(ft_lib, str(fa_path).encode("utf-8"), 0, ctypes.byref(fa_face_ptr)) == 0:
-                try:
-                    ft.FT_Set_Pixel_Sizes(fa_face_ptr, 0, size_px)
-                    fa_meta = _get_cached_tt_meta(fa_path, font_number=0, need_kern=False)
-                    for code in sorted(set(fa_codepoints)):
-                        if code in code_to_gid:
-                            continue
-                        gs = render_single(fa_face_ptr, fa_path, fa_meta["cmap"], fa_meta["hmtx"], fa_meta["upem"], False, code, norm_pipe, next_gid)
-                        if gs is not None:
-                            glyphs.append(gs)
+            batch_indices = [
+                idx for idx, r in enumerate(raw_records)
+                if "pre_gs" not in r and r["fallback_bw"] is None and r["tw"] > 0 and r["th"] > 0 and r["raw_arr"].size > 0
+            ]
+            bw_batch = None
+            aux_batch = None
+            if batch_indices:
+                max_tw = max(raw_records[idx]["tw"] for idx in batch_indices)
+                max_th = max(raw_records[idx]["th"] for idx in batch_indices)
+                batch_h = max_th * batch_upscale
+                batch_w = max_tw * batch_upscale
+                batch_raw = np.zeros((len(batch_indices), batch_h, batch_w), dtype=np.uint8)
+                glyph_dims = np.zeros((len(batch_indices), 2), dtype=np.int32)
+                for b_idx, r_idx in enumerate(batch_indices):
+                    arr_r = raw_records[r_idx]["raw_arr"]
+                    rh, rw = arr_r.shape
+                    batch_raw[b_idx, :rh, :rw] = arr_r
+                    glyph_dims[b_idx, 0] = rw
+                    glyph_dims[b_idx, 1] = rh
+
+                bw_batch, aux_batch = dispatch_pipeline_batch_3d(
+                    pipeline=norm_pipe,
+                    raw_batch_u8=batch_raw,
+                    glyph_dims=glyph_dims,
+                    target_w=max_tw,
+                    target_h=max_th,
+                    upscale=batch_upscale,
+                    threshold=eff_thresh,
+                    gamma=gamma,
+                )
+
+            batch_pos_map = {r_idx: b_idx for b_idx, r_idx in enumerate(batch_indices)}
+            for r_idx, rec in enumerate(raw_records):
+                if "pre_gs" in rec:
+                    gs = rec["pre_gs"]
+                    gs.glyph_id = next_gid
+                    glyphs.append(gs)
+                    code_to_gid[gs.codepoint] = next_gid
+                    next_gid += 1
+                    continue
+
+                code = rec["code"]
+                tw, th = rec["tw"], rec["th"]
+                if rec["fallback_bw"] is not None:
+                    bw_arr = rec["fallback_bw"]
+                elif tw <= 0 or th <= 0 or r_idx not in batch_pos_map:
+                    bw_arr = np.zeros((0, 0), dtype=np.uint8)
+                else:
+                    b_idx = batch_pos_map[r_idx]
+                    if bw_batch is None and aux_batch is None:
+                        # Only reachable if auto mode had an OpenCL error and fell back to CPU
+                        gs_fb = render_single(face_ptr, eff_font_path, cmap, hmtx, upem, has_bytecode, code, norm_pipe, next_gid)
+                        if gs_fb is not None:
+                            glyphs.append(gs_fb)
                             code_to_gid[code] = next_gid
                             next_gid += 1
-                finally:
-                    ft.FT_Done_Face(fa_face_ptr)
+                        continue
+                    if norm_pipe == "svg-potrace":
+                        assert aux_batch is not None
+                        lin_hi = aux_batch[b_idx, : th * batch_upscale, : tw * batch_upscale]
+                        hi_bin = ((lin_hi >= eff_thresh).astype(np.uint8)) * 255
+                        bw_arr, _, _ = trace_binary_to_potrace_svg_and_rerasterize(
+                            hi_bin,
+                            target_w=tw,
+                            target_h=th,
+                            upscale=batch_upscale,
+                            alphamax=1.0,
+                            turdsize=max(2, batch_upscale // 2),
+                            half_pixel_offset=0.5,
+                            sub_mode="potrace",
+                            high_gray=lin_hi,
+                            threshold=eff_thresh,
+                        )
+                    elif norm_pipe == "svg-potrace-jfa":
+                        assert bw_batch is not None and aux_batch is not None
+                        jfa_bw_i = bw_batch[b_idx, :th, :tw]
+                        lin_hi = aux_batch[b_idx, : th * batch_upscale, : tw * batch_upscale]
+                        hi_bin = ((lin_hi >= eff_thresh).astype(np.uint8)) * 255
+                        bw_arr, _, _ = trace_binary_to_potrace_svg_and_rerasterize(
+                            hi_bin,
+                            target_w=tw,
+                            target_h=th,
+                            upscale=batch_upscale,
+                            alphamax=1.0,
+                            turdsize=max(2, batch_upscale // 2),
+                            half_pixel_offset=0.5,
+                            sub_mode="jfa-marching",
+                            high_gray=lin_hi,
+                            threshold=eff_thresh,
+                            precomputed_jfa=(jfa_bw_i, jfa_bw_i * 255),
+                        )
+                    else:
+                        assert bw_batch is not None
+                        bw_arr = bw_batch[b_idx, :th, :tw]
+
+                gs = _build_glyph_strike(code, next_gid, rec["adv_fp4"], bw_arr, rec["b_left"], rec["b_top"])
+                if gs is not None:
+                    if rec["is_secondary"] and mono_cell_adv_fp4 is not None and gs.box_w <= (mono_cell_adv_fp4 >> 4):
+                        gs.adv_w_fp4 = mono_cell_adv_fp4
+                        cell_px = mono_cell_adv_fp4 >> 4
+                        gs.ofs_x = max(0, (cell_px - gs.box_w) // 2)
+                    glyphs.append(gs)
+                    code_to_gid[code] = next_gid
+                    next_gid += 1
+        else:
+            for code in sorted(set(codepoints)):
+                gs = render_single(face_ptr, eff_font_path, cmap, hmtx, upem, has_bytecode, code, norm_pipe, next_gid)
+                if gs is None and code in HOMOGLYPH_EQUIVALENTS:
+                    for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
+                        gs_alt = render_single(face_ptr, eff_font_path, cmap, hmtx, upem, has_bytecode, alt_cp, norm_pipe, next_gid)
+                        if gs_alt is not None:
+                            gs_alt.codepoint = code
+                            gs = gs_alt
+                            break
+                if gs is None and secondary_faces:
+                    for s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc in secondary_faces:
+                        gs_sec = render_single(s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc, code, norm_pipe, next_gid)
+                        if gs_sec is None and code in HOMOGLYPH_EQUIVALENTS:
+                            for alt_cp in HOMOGLYPH_EQUIVALENTS[code]:
+                                gs_sec = render_single(s_ptr, s_path, s_cmap, s_hmtx, s_upem, s_bc, alt_cp, norm_pipe, next_gid)
+                                if gs_sec is not None:
+                                    gs_sec.codepoint = code
+                                    break
+                        if gs_sec is not None:
+                            if mono_cell_adv_fp4 is not None and gs_sec.box_w <= (mono_cell_adv_fp4 >> 4):
+                                gs_sec.adv_w_fp4 = mono_cell_adv_fp4
+                                cell_px = mono_cell_adv_fp4 >> 4
+                                gs_sec.ofs_x = max(0, (cell_px - gs_sec.box_w) // 2)
+                            gs = gs_sec
+                            break
+                if gs is None and code == 0xF8A2 and fname_low.startswith("fontawesome7-"):
+                    gs = _synthesize_new_line_glyph(size_px, next_gid)
+
+                if gs is not None:
+                    glyphs.append(gs)
+                    code_to_gid[code] = next_gid
+                    next_gid += 1
+
+            if fa_path and fa_path.is_file() and fa_codepoints:
+                fa_face_ptr = ctypes.POINTER(FT_FaceRec)()
+                if ft.FT_New_Face(ft_lib, str(fa_path).encode("utf-8"), 0, ctypes.byref(fa_face_ptr)) == 0:
+                    try:
+                        ft.FT_Set_Pixel_Sizes(fa_face_ptr, 0, size_px)
+                        fa_meta = _get_cached_tt_meta(fa_path, font_number=0, need_kern=False)
+                        for code in sorted(set(fa_codepoints)):
+                            if code in code_to_gid:
+                                continue
+                            gs = render_single(fa_face_ptr, fa_path, fa_meta["cmap"], fa_meta["hmtx"], fa_meta["upem"], False, code, norm_pipe, next_gid)
+                            if gs is not None:
+                                glyphs.append(gs)
+                                code_to_gid[code] = next_gid
+                                next_gid += 1
+                    finally:
+                        ft.FT_Done_Face(fa_face_ptr)
     finally:
         for s_ptr, _, _, _, _, _ in secondary_faces:
             ft.FT_Done_Face(s_ptr)

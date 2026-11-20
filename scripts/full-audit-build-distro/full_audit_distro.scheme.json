@@ -1,12 +1,12 @@
 {
-  "schema_version": "1.0.22",
+  "schema_version": "1.0.23",
   "scheme_id": "full_audit_10_40px_step2",
   "project_brand": "Humidyne Labs / Humiditron Complete 10px-40px (Step 2px) Audit & Distribution Suite",
-  "description": "Exhaustive 10px-40px (step size 2px) audit build across all text families (IBM Plex, Google Noto, Terminus) and all 4 icon suites (Font Awesome 7, Lucide, Phosphor, Tabler) evaluating all 8 bilevel resolution-reduction pipelines (raw-unhinted, raw-hinted, svg-potrace, mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive).",
+  "description": "Exhaustive 10px-40px (step size 2px) audit build across all text families (IBM Plex, Google Noto, Terminus) and all 4 icon suites (Font Awesome 7, Lucide, Phosphor, Tabler) evaluating all 9 bilevel resolution-reduction pipelines (raw-unhinted, raw-hinted, svg-potrace, mdf, msdf, sdf-smoothstep, adf-biquadratic, otsu-adaptive).",
   "spdx_license": "MIT AND OFL-1.1",
   "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {
-    "pipeline": "all-debug",
+    "pipeline": "all",
     "math_backend": "auto",
     "threshold": 128,
     "gamma": 1.0,
@@ -15,7 +15,7 @@
     "italic_weight": 600,
     "patches_file": "font_icon_epd_patches.json",
     "ascii_patches_dir": "build/audit/ascii_patches",
-    "sheet_debug": false,
+    "sheet_debug": true,
     "char_debug": false,
     "debug_stages": false
   },
@@ -46,28 +46,24 @@
       "description": "Standard Printable ASCII (U+0020..U+007E)",
       "ranges": "0x0020-0x007E"
     },
-    "digits_telemetry": {
-      "description": "Tabular Digits, Signs, Decimal, Units & Colon",
-      "ranges": "0x0020,0x002B,0x002D-0x003A,0x0043,0x0046,0x0056,0x006D,0x00B0,0x00B2,0x00B3,0x00B5"
-    },
     "latin1_units": {
-      "description": "Scientific & Technical & Environmental Units (\u00b0, \u00b1, \u00b2, \u00b3, \u00b5, \u00b7, \u00d7, \u00f7)",
+      "description": "Scientific & Technical & Environmental Units (°, ±, ², ³, µ, ·, ×, ÷)",
       "ranges": "0x00B0,0x00B1,0x00B2,0x00B3,0x00B5,0x00B7,0x00D7,0x00F7"
     },
     "greek_scientific": {
-      "description": "Greek Telemetry & Scientific Symbols (\u0394, \u03a9, \u03b1, \u03b2, \u03b3, \u03b4, \u03b8, \u03bb, \u03bc, \u03c0, \u03c3, \u03c4, \u03c6, \u03c9)",
+      "description": "Greek Telemetry & Scientific Symbols (Δ, Ω, α, β, γ, δ, θ, λ, μ, π, σ, τ, φ, ω)",
       "ranges": "0x0394,0x03A9,0x03B1-0x03B5,0x03B8,0x03BB,0x03BC,0x03C0,0x03C3,0x03C4,0x03C6,0x03C9"
     },
     "arrows_punctuation": {
-      "description": "General Punctuation, En/Em Dashes, Bullet, Permille, Arrows (\u2190\u2191\u2192\u2193)",
+      "description": "General Punctuation, En/Em Dashes, Bullet, Permille, Arrows (←↑→↓)",
       "ranges": "0x2013,0x2014,0x2018,0x2019,0x201C,0x201D,0x2022,0x2026,0x2030,0x2190-0x2193"
     },
     "math_operators": {
-      "description": "Mathematical Operators (\u2200, \u2202, \u2203, \u2205, \u2206, \u2207, \u2208, \u2211, \u2212, \u221a, \u221d, \u221e, \u2227, \u2228, \u2229, \u222a, \u222b, \u2248, \u2260, \u2261, \u2264, \u2265)",
+      "description": "Mathematical Operators (∀, ∂, ∃, ∅, ∆, ∇, ∈, ∑, −, √, ∝, ∞, ∧, ∨, ∩, ∪, ∫, ≈, ≠, ≡, ≤, ≥)",
       "ranges": "0x2126,0x2200,0x2202,0x2203,0x2205-0x2209,0x220F,0x2211,0x2212,0x221A,0x221D,0x221E,0x2227-0x222B,0x2248,0x2260,0x2261,0x2264,0x2265"
     },
     "fa7_core": {
-      "description": "Font Awesome v7.2.0 Core Embedded UI & Telemetry Icons",
+      "description": "Font Awesome v7.3.1 Core Embedded UI & Telemetry Icons",
       "vendor": "icon_fa7",
       "icons": [
         "check",
@@ -116,7 +112,7 @@
       "ranges": "0xF001,0xF008,0xF00B,0xF00C,0xF00D,0xF011,0xF013,0xF015,0xF017,0xF019,0xF01C,0xF021,0xF023,0xF026-0xF028,0xF03E,0xF043,0xF044,0xF048,0xF04B-0xF04D,0xF051-0xF054,0xF058,0xF05A,0xF067,0xF068,0xF06E,0xF070,0xF071,0xF074,0xF077-0xF079,0xF07B,0xF093,0xF095,0xF0C4,0xF0C5,0xF0C7,0xF0C9,0xF0E0,0xF0E7,0xF0EA,0xF0F3,0xF11C,0xF120,0xF124,0xF15B,0xF185,0xF1DE,0xF1EB,0xF1F8,0xF201,0xF240-0xF244,0xF287,0xF293,0xF294,0xF2C9,0xF2DB,0xF2ED,0xF304,0xF55A,0xF625,0xF72E,0xF7C2,0xF8A2"
     },
     "lucide_core": {
-      "description": "Lucide v1.16.0 Core Embedded UI & Sensor Icons",
+      "description": "Lucide v1.67.0 Core Embedded UI & Sensor Icons",
       "vendor": "icon_lucide",
       "icons": [
         "activity",
@@ -150,7 +146,7 @@
         "heart",
         "home",
         "info",
-        "layers",
+        "layers-2",
         "lock",
         "menu",
         "moon",
@@ -278,7 +274,7 @@
       "ranges": "0xE002,0xE026,0xE036,0xE03E,0xE058,0xE06C,0xE094,0xE098,0xE09A,0xE09C,0xE09E,0xE0A0,0xE0A4,0xE0CE,0xE0DA,0xE0FE,0xE108,0xE13E,0xE14E,0xE15A,0xE15E,0xE196,0xE1AA,0xE1B0,0xE1B4,0xE1C8,0xE1E6,0xE1F4,0xE208,0xE20A,0xE220,0xE232,0xE242,0xE250,0xE270,0xE272,0xE292,0xE2A6,0xE2B2,0xE2B8,0xE2DE,0xE2E2,0xE2F0,0xE2FE,0xE32A,0xE32E,0xE336,0xE3B6,0xE3D0,0xE3D4,0xE3DA,0xE480,0xE482,0xE4EA,0xE4EC,0xE4EE,0xE4F0,0xE4F2,0xE4F4,0xE4F6,0xE60C"
     },
     "tabler_core": {
-      "description": "Tabler v3.41.1 Core Embedded UI & Telemetry Icons",
+      "description": "Tabler v3.50.0 Core Embedded UI & Telemetry Icons",
       "vendor": "icon_tabler",
       "icons": [
         "activity",
@@ -361,11 +357,9 @@
         "calendar",
         "camera",
         "chart-area",
-        "chart-bar",
         "chart-bubble",
         "chart-candle",
         "chart-donut",
-        "chart-line",
         "chart-pie",
         "circle-check",
         "circle-x",
@@ -373,7 +367,6 @@
         "cloud",
         "compass",
         "copy",
-        "cpu",
         "credit-card",
         "crown",
         "dashboard",
@@ -404,7 +397,6 @@
         "hourglass",
         "info-circle",
         "key",
-        "layers-linked",
         "layout-dashboard",
         "location",
         "lock",
@@ -413,41 +405,32 @@
         "message",
         "microphone",
         "moon",
-        "music",
+        "file-music",
         "navigation",
         "palette",
-        "pause",
         "phone",
         "photo",
         "pin",
         "player-pause",
         "player-play",
         "player-stop",
-        "plug",
         "point",
-        "power",
+        "file-power",
         "presentation",
         "puzzle",
         "radar",
-        "radio",
-        "refresh",
-        "rocket",
-        "rss",
+        "radioactive",
         "scale",
         "send",
-        "server",
         "settings",
         "shield",
         "shield-check",
         "shield-lock",
         "shopping-cart",
         "sitemap",
-        "speakerphone",
         "star",
         "sun",
         "tag",
-        "temperature",
-        "terminal",
         "thumb-up",
         "trash",
         "trophy",
@@ -455,40 +438,10 @@
         "umbrella",
         "user",
         "video",
-        "volume",
-        "wallet",
-        "wifi",
-        "wind",
         "yin-yang",
-        "zap",
         "zoom-in"
       ],
       "ranges": "0xEE80,0xF327,0xF667-0xF69F,0xF6A0-0xF6BF"
-    },
-    "fa7_all": {
-      "description": "All 2,043+ Font Awesome v7.3.1 Icons",
-      "vendor": "icon_fa7",
-      "scope": "all"
-    },
-    "lucide_all": {
-      "description": "All 2,043 Lucide v1.67.0 Icons",
-      "vendor": "icon_lucide",
-      "scope": "all"
-    },
-    "phosphor_all": {
-      "description": "All 1,513 Phosphor v2.1.0 Icons",
-      "vendor": "icon_phosphor",
-      "scope": "all"
-    },
-    "tabler_all": {
-      "description": "All 5,203 Tabler v3.50.0 Outline Icons",
-      "vendor": "icon_tabler",
-      "scope": "all"
-    },
-    "tabler_filled_all": {
-      "description": "All 1,054 Tabler v3.50.0 Filled Icons",
-      "vendor": "icon_tabler_filled",
-      "scope": "all"
     }
   },
   "strikes": [

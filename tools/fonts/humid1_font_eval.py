@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-humid1_font_eval.py (v1.0.22)
+humid1_font_eval.py (v1.0.23)
 =============================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
 Authors    : Humiditron (https://github.com/humiditron) & AI/LLM Development Partner
 License    : MIT License
 
-Multi-Core 9-Pipeline Font & Wnine Evaluation Suite (v1.0.22):
-  - Evaluates ALL EIGHT bilevel resolution-reduction pipelines per font and per pixel size:
+Multi-Core 9-Pipeline Font & Weight Evaluation Suite (v1.0.23):
+  - Evaluates ALL NINE bilevel resolution-reduction pipelines per font and per pixel size:
       1. `raw-unhinted`    : Raw Threshold Pipeline without Hinting (Linear Grayscale + Gamma)
       2. `raw-hinted`      : Raw Threshold Pipeline with Hinting (Linear Grayscale + Gamma)
       3. `svg-potrace`     : Custom SVG / Potrace Vector Pipeline (RETR_TREE Hierarchical Contours)
-      4. `mdf`             : MDF (Median-Filtered + Signed Distance Field) Pipeline
-      5. `msdf`            : Multi-Channel Signed Distance Field (Chlumsky/msdfgen 3-Channel R,G,B Median)
-      6. `sdf-smoothstep`  : Supersampled Signed Distance Field + Hermite Smoothstep Reconstruction
-      7. `adf-biquadratic` : Adaptive Distance Field (Quadtree Biquadratic Surface Reconstruction)
-      8. `otsu-adaptive`   : Linear-Luminance Otsu + Sauvola Local Adaptive Thresholding
+      4. `svg-potrace-jfa` : SVG / Potrace + 3D 1+JFA Marching Squares Sub-Pixel Vectorization
+      5. `mdf`             : MDF (Median-Filtered + Signed Distance Field) Pipeline
+      6. `msdf`            : Multi-Channel Signed Distance Field (Chlumsky/msdfgen 3-Channel R,G,B Median)
+      7. `sdf-smoothstep`  : Supersampled Signed Distance Field + Hermite Smoothstep Reconstruction
+      8. `adf-biquadratic` : Adaptive Distance Field (Quadtree Biquadratic Surface Reconstruction)
+      9. `otsu-adaptive`   : Linear-Luminance Otsu + Sauvola Local Adaptive Thresholding
   - Recursively discovers `.ttf`, `.otf`, `.ttc`, and `.bdf` font files in `--src-dir`.
   - Computes per-pipeline and per-size optical metrics (`8x` HQ IoU Confidence, `>=2px` Stem
     Survival, Enclosed Counter Topology Survival via Betti number B1, Mean Stem Width, Ink Mass,
@@ -70,7 +71,7 @@ def _early_accel_scan() -> None:
 
 _early_accel_scan()
 
-from math_backends import describe_math_backend, select_math_backend
+from math_backends import describe_math_backend, select_math_backend, teardown_math_backends
 from humid1_bilevel_pipelines import (
     CANONICAL_MIN_HOLES,
     CANONICAL_PIPELINES,
@@ -101,9 +102,7 @@ from humid1_runtime import (
 )
 
 EVAL_BENCHMARK_CHARS = "0124689ABCDHIJMNOPQRWabcefghijlmnoqrstvwxyz$%&()[]{}/\\|!<>+="
-EVAL_COUNTER_CHARS = set("04689ABDOPQRabdegopq$%&")
-EVAL_SPECIMEN_STRING = "H1OS v1.0.22 (08B$) [aeg] {WwMm} <=>"
-EVAL_ZOOM_STRIP_CHARS = "WwMmABCfgrs$()[]08"
+EVAL_SPECIMEN_STRING = "H1OS v1.0.23 (08B$) [aeg] {WwMm} <=>"
 
 
 @dataclass
@@ -219,16 +218,17 @@ def _render_hq_reference_map(ft: ctypes.CDLL, ft_lib: ctypes.c_void_p, font_path
     return out
 
 
-def _render_per_font_8pipeline_sheet(
+def _render_per_font_9pipeline_sheet(
     sheet_path: Path,
     summary: FontEvalSummary,
     strikes_by_pipe_sz: Dict[str, Dict[int, List[GlyphStrike]]],
     sizes: Sequence[int],
 ) -> None:
-    """Render a visual comparison sheet showing all 8 conversion pipelines across all evaluated sizes."""
+    """Render a visual comparison sheet showing all 9 conversion pipelines across all evaluated sizes."""
     W = 1560
-    size_block_h = 44 + len(CANONICAL_PIPELINES) * 28 + 14
-    H = 114 + len(sizes) * size_block_h + 30
+    pipe_row_heights = {sz: max(28, sz + 8) for sz in sizes}
+    size_block_heights = {sz: 44 + len(CANONICAL_PIPELINES) * pipe_row_heights[sz] + 14 for sz in sizes}
+    H = 114 + sum(size_block_heights.values()) + 30
     img = Image.new("RGB", (W, H), (246, 248, 252))
     draw = ImageDraw.Draw(img)
     f_default = ImageFont.load_default()
@@ -236,7 +236,7 @@ def _render_per_font_8pipeline_sheet(
     draw.rectangle([0, 0, W, 78], fill=(18, 24, 34))
     draw.text(
         (24, 14),
-        f"EPD-FONT v{TOOL_VERSION} 8-PIPELINE EVALUATION  |  {summary.label} ({summary.font_file}, wght={summary.weight_class}, gamma={summary.gamma:.2f})",
+        f"EPD-FONT v{TOOL_VERSION} 9-PIPELINE EVALUATION  |  {summary.label} ({summary.font_file}, wght={summary.weight_class}, gamma={summary.gamma:.2f})",
         fill=(255, 255, 255),
         font=f_default,
     )
@@ -253,6 +253,8 @@ def _render_per_font_8pipeline_sheet(
 
     y = 92
     for sz in sizes:
+        size_block_h = size_block_heights[sz]
+        pipe_row_h = pipe_row_heights[sz]
         draw.rectangle([20, y, W - 20, y + size_block_h - 10], fill=(255, 255, 255), outline=(208, 216, 226), width=1)
         draw.rectangle([20, y, W - 20, y + 26], fill=(234, 240, 248))
         draw.text((32, y + 6), f"STRIKE SIZE: {sz} px   |   Specimen: \"{EVAL_SPECIMEN_STRING}\"", fill=(20, 28, 40), font=f_default)
@@ -269,11 +271,11 @@ def _render_per_font_8pipeline_sheet(
                 f"Stem:{pm.mean_stem_width_px:4.2f}px (>=2px:{pm.stem_2px_pct:5.1f}%) | Cnt:{pm.counter_pct:5.1f}%"
                 if pm else f"{p_name:<15}"
             )
-            draw.text((32, ry + 4), m_txt, fill=status_col, font=f_default)
+            draw.text((32, ry + max(4, (pipe_row_h - 12) // 2)), m_txt, fill=status_col, font=f_default)
 
             # Render 1:1 specimen string at x=590
             cx = 590
-            by = ry + max(14, int(sz * 0.8))
+            by = ry + max(14, int(sz * 0.85))
             for ch in EVAL_SPECIMEN_STRING:
                 g = gmap.get(ord(ch))
                 if not g:
@@ -288,7 +290,7 @@ def _render_per_font_8pipeline_sheet(
                                 draw.point((gx0 + cc, gy0 + rr), fill=(12, 16, 22))
                 cx += max(1, (g.adv_w_fp4 + 8) >> 4)
 
-            ry += 28
+            ry += pipe_row_h
         y += size_block_h
 
     sheet_path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,7 +298,7 @@ def _render_per_font_8pipeline_sheet(
 
 
 def _worker_evaluate_font(task: dict) -> FontEvalSummary:
-    """ProcessPoolExecutor worker that evaluates a single font across ALL 8 pipelines and all sizes."""
+    """ProcessPoolExecutor worker that evaluates a single font across ALL 9 pipelines and all sizes."""
     ft, ft_lib = load_freetype()
     font_path = Path(task["font_path"])
     label = task["label"]
@@ -419,7 +421,7 @@ def _worker_evaluate_font(task: dict) -> FontEvalSummary:
         by_pipeline_size=by_pipeline_size,
         sheet_png=str(sheet_png_path.name),
     )
-    _render_per_font_8pipeline_sheet(sheet_png_path, summary, strikes_by_pipe_sz, sizes)
+    _render_per_font_9pipeline_sheet(sheet_png_path, summary, strikes_by_pipe_sz, sizes)
     return summary
 
 
@@ -440,7 +442,7 @@ def render_master_comparison_sheet(
     draw.rectangle([0, 0, W, 72], fill=(18, 24, 34))
     draw.text(
         (24, 14),
-        f"HUMIDYNE LABS / HUMIDITRON epd-font v{TOOL_VERSION}  |  MASTER 8-PIPELINE FONT EVALUATION SCORECARD (@ {ref_sz}px)",
+        f"HUMIDYNE LABS / HUMIDITRON epd-font v{TOOL_VERSION}  |  MASTER 9-PIPELINE FONT EVALUATION SCORECARD (@ {ref_sz}px)",
         fill=(255, 255, 255),
         font=f_def,
     )
@@ -488,7 +490,7 @@ def generate_markdown_report(summaries: Sequence[FontEvalSummary], sizes: Sequen
         "",
         f"## 1. Master 9-Pipeline Scorecard Summary (`@ {ref_sz} px` & Viable Size Floors)",
         "",
-        f"| Rank | Font Cut (`File Type`) | Wnine | Best Pipeline (`@ {ref_sz}px`) | {pipe_headers} |",
+        f"| Rank | Font Cut (`File Type`) | Weight | Best Pipeline (`@ {ref_sz}px`) | {pipe_headers} |",
         f"| ---: | :--- | ---: | :--- | {pipe_align} |",
     ]
 
@@ -529,7 +531,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         prog="humid1_font_eval.py",
         description=(
             f"Humidyne Labs / Humiditron `epd-font` v{TOOL_VERSION} — 9-Pipeline Multi-Font & Multi-Size Evaluator.\n"
-            f"Evaluates all 8 bilevel conversion methods ({', '.join(CANONICAL_PIPELINES)})\n"
+            f"Evaluates all 9 bilevel conversion methods ({', '.join(CANONICAL_PIPELINES)})\n"
             "per font and per pixel size."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -541,8 +543,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--threshold", type=int, default=128, help="Binarization threshold 1..254 (default: 128)")
     parser.add_argument("--gamma", type=float, default=1.0, help="Linear grayscale gamma factor in [0.1..5.0] (default: 1.0)")
     parser.add_argument("-H", "--hw-scheme", type=str, default=None, help="Optional hardware scheme JSON file (e.g. esp32s3-N8R8-hw_scheme.json or generic_hw.json)")
-    parser.add_argument("--accel", choices=["auto", "opencl", "umat", "cpu"], default=None, help="Hardware math acceleration backend (default: auto or from EPD_FONT_ACCEL)")
+    parser.add_argument("--accel", choices=["auto", "cpu", "gpu", "hybrid", "sync"], default=None, help="Hardware math acceleration backend (default: auto or from EPD_FONT_ACCEL)")
     parser.add_argument("-j", "--jobs", type=int, default=None, help="Number of parallel CPU worker processes")
+    parser.add_argument("--update-docs", action="store_true", help="Also write a versioned FONT_EVAL_BENCHMARK_v*.md copy inside --out-dir")
     return parser
 
 
@@ -581,7 +584,7 @@ def main() -> None:
             repo_root=repo_root,
             scheme_path=None,
         )
-        print(f"[+] Loaded hardware scheme: {hw_spec.hw_scheme_id} ({hw_spec.chip_name}, {hw_spec.partition_1} partition)")
+        print(f"[+] Loaded hardware scheme: {hw_spec.hw_scheme_id} ({hw_spec.chip_name}, {hw_spec.partition_label} partition)")
 
     eff_accel = getattr(args, "accel", None) or os.environ.get("EPD_FONT_ACCEL") or "auto"
     os.environ["EPD_FONT_ACCEL"] = eff_accel
@@ -593,16 +596,17 @@ def main() -> None:
                 cv2.ocl.setUseOpenCL(False)
         except Exception:
             pass
-    select_math_backend(eff_accel)
+    select_math_backend("auto" if eff_accel == "sync" else eff_accel)
     hw_info = detect_host_hardware(args.jobs)
     print(f"[*] Active Mathematical Backend: {describe_math_backend()}")
-    max_workers = hw_info.recommended_workers
+    max_workers = 1 if eff_accel == "sync" else hw_info.recommended_workers
     print(
         f"[*] Evaluating {len(candidates)} font cuts across sizes {args.sizes} and ALL {len(CANONICAL_PIPELINES)} pipelines "
-        f"({', '.join(CANONICAL_PIPELINES)} @ threshold={args.threshold}, gamma={args.gamma:.2f}) using {max_workers} CPU workers..."
+        f"({', '.join(CANONICAL_PIPELINES)} @ threshold={args.threshold}, gamma={args.gamma:.2f}) using {max_workers} worker(s)..."
     )
 
     t0 = time.perf_counter()
+    max_eval_sz = max(args.sizes) if args.sizes else 24
     tasks = [
         {
             "label": lbl,
@@ -611,6 +615,8 @@ def main() -> None:
             "weight_class": wght,
             "is_italic": is_it,
             "sizes": list(args.sizes),
+            "sz": max_eval_sz,
+            "run_all_methods": True,
             "threshold": args.threshold,
             "gamma": args.gamma,
             "sheets_dir": str(sheets_dir),
@@ -618,7 +624,7 @@ def main() -> None:
         for (lbl, fpath, fg, wght, is_it) in candidates
     ]
 
-    summaries: List[FontEvalSummary] = run_parallel_tasks(_worker_evaluate_font, tasks, max_workers=max_workers)
+    summaries: List[FontEvalSummary] = run_parallel_tasks(_worker_evaluate_font, tasks, max_workers=max_workers, math_backend=eff_accel)
     for idx, s in enumerate(summaries, 1):
         scores_str = " | ".join(f"{p}={s.score_16px_by_pipeline.get(p, 0):.1f}(fl:{s.floor_by_pipeline.get(p, 24)}px)" for p in CANONICAL_PIPELINES)
         print(f"    [{idx:>3}/{len(summaries):<3}] {s.label:34s} [{s.file_type:<4}] | Best: {s.best_pipeline:<15} | {scores_str}")
@@ -627,9 +633,9 @@ def main() -> None:
     md_path = out_dir / "font_eval_report.md"
     md_path.write_text(md_report, encoding="utf-8")
 
-    audit_md_path = repo_root / "docs" / "audits" / f"FONT_EVAL_BENCHMARK_v{TOOL_VERSION}.md"
-    audit_md_path.parent.mkdir(parents=True, exist_ok=True)
-    audit_md_path.write_text(md_report, encoding="utf-8")
+    if args.update_docs:
+        audit_md_path = out_dir / f"FONT_EVAL_BENCHMARK_v{TOOL_VERSION}.md"
+        audit_md_path.write_text(md_report, encoding="utf-8")
 
     csv_path = out_dir / "font_eval_report.csv"
     with open(csv_path, "w", newline="", encoding="utf-8") as cf:
@@ -663,4 +669,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        teardown_math_backends()

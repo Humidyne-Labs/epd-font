@@ -3,12 +3,12 @@ setlocal
 cd /d "%~dp0..\.."
 
 echo ============================================================================
-echo [Font-Eval 01] Humidyne Labs - Humiditron epd-font v1.0.22
+echo [Font-Eval 01] Humidyne Labs - Humiditron epd-font v1.0.23
 echo                9-Pipeline Evaluation Suite (Static TTF Corpus)
 echo                HW Config : esp32s3-N8R8-hw_scheme.json
 echo ============================================================================
 
-python3 tools\fonts\humid1_font_eval.py ^
+python tools\fonts\humid1_font_eval.py ^
     --hw-scheme esp32s3-N8R8-hw_scheme.json ^
     --src-dir build\static_ttfs ^
     --out-dir build\evals\static_ttfs ^

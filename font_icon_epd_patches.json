@@ -1,6 +1,6 @@
 {
   "$schema": "https://humidyne-labs.github.io/schemas/epd_font_patches_v4.json",
-  "version": "1.0.18",
+  "version": "1.0.23",
   "description": "Manual 1-bpp optical bitmap overrides compiled from Full-Canvas 1:1 Spaced ASCII glyph files (auto-tuner retired in v1.0.18).",
   "patches": {}
 }

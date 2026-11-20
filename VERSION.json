@@ -7,13 +7,13 @@
     "Humiditron (https://github.com/humiditron)",
     "AI/LLM Collaborative Development Partner"
   ],
-  "version": "1.0.22",
-  "release_archive_tag": "v1.0.22",
-  "previous_version": "1.0.21",
-  "release_date": "2026-11-08",
+  "version": "1.0.23",
+  "release_archive_tag": "v1.0.23",
+  "previous_version": "1.0.22",
+  "release_date": "2026-11-19",
   "repository_license": "MIT",
   "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
-  "lvgl_compatibility": ">= 9.6.0 (backward-compatible with LVGL v8/v9)",
+  "lvgl_compatibility": ">= 9.6.0 (LVGL v9+)",
   "supported_platforms": [
     "Windows (Primary)",
     "Linux (Supported)"
@@ -50,22 +50,22 @@
     "distro_packager": "tools/fonts/humid1_package_distro.py"
   },
   "build_hierarchy": {
-    "static_ttfs": "build/static_ttfs (113 static .ttf files including 10px-40px Terminus strikes)",
+    "static_ttfs": "build/static_ttfs (112 static .ttf files including 10px-40px Terminus strikes)",
     "metadata": "build/metadata",
     "cache": "build/cache",
     "evals": "build/evals",
     "audits": "build/audits",
     "ascii_patches": "build/<workflow>/ascii_patches",
     "debug_stages": "build/<workflow>/debug_stages",
-    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.22.zip"
+    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.23.zip"
   },
   "target_hardware": {
     "chip_name": "ESP32-S3-N8R8",
-    "partition_1": "3 MBytes",
-    "partition_1_bytes": 3145728,
+    "partition_label": "3 MBytes",
+    "partition_bytes": 3145728,
     "allow_hardcoded_defaults": false
   },
-  "static_ttf_count": 113,
+  "static_ttf_count": 112,
   "patch_count": 0,
   "codename": "Singular Configuration Matrix, 5-Mode Hardware Delegation & Structured Visual Audit Edition",
   "target_display_dpi": 188.15,

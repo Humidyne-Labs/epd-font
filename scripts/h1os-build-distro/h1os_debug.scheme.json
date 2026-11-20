@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.0.22",
+  "schema_version": "1.0.23",
   "scheme_id": "h1os_epd_v1_debug_single_font",
   "project_brand": "Humidyne Labs H1OS Single-Font Full-Pipeline Debug & Verification Scheme",
-  "description": "Fast v1.0.22 single-font (IBM Plex Sans Normal @ 16px low-detail & 38px high-detail) verification scheme with pipeline='all-debug', sheet_debug=true, char_debug=true, and debug_stages=true.",
+  "description": "Fast v1.0.23 single-font (IBM Plex Sans Normal @ 16px low-detail & 38px high-detail) verification scheme with pipeline='all-debug', sheet_debug=true, char_debug=true, and debug_stages=true.",
   "spdx_license": "MIT AND OFL-1.1",
   "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
   "raster_config": {

@@ -2,12 +2,12 @@
 setlocal
 cd /d "%~dp0..\.."
 echo ============================================================================
-echo [04] Humidyne Labs - Humiditron epd-font v1.0.22 - Dump Full-Canvas 1:1 ASCII Patches
+echo [04] Humidyne Labs - Humiditron epd-font v1.0.23 - Dump Full-Canvas 1:1 ASCII Patches
 echo      Workflow   : General Embedded Display Example Distribution Workflow
 echo      Scheme     : scripts\example-build-distro\example.scheme.json (Hardware: generic_hw.json)
 echo      Output Dir : build\example\ascii_patches\
 echo ============================================================================
-python3 tools\fonts\humid1_generate_1bpp.py --workflow patch --dump --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" %*
+python tools\fonts\humid1_generate_1bpp.py --workflow patch --dump --scheme "scripts\example-build-distro\example.scheme.json" --src-dir build\static_ttfs --out-dir "build\example" %*
 if errorlevel 1 (
     echo [!] ASCII patch dump failed.
     if "%EPD_NO_PAUSE%"=="" pause

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-generate_char_manifests.py (v1.0.7)
+generate_char_manifests.py (v1.0.23)
 ===================================
 Humidyne Labs / Humiditron `epd-font` Version-Specific Master Font Character Manifest Generator.
 
@@ -40,7 +40,7 @@ from typing import Dict, List, Optional, Tuple
 
 from fontTools.ttLib import TTFont
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 
 MASTER_FAMILIES_SPEC = [
     {
@@ -97,6 +97,30 @@ MASTER_FAMILIES_SPEC = [
         "master_files": ["IBMPlexMath-Regular.ttf"],
         "min_cp": 0x0020,
         "max_cp": 0x10FFFF,
+        "cmap_aliases": {},
+    },
+    {
+        "family_id": "noto",
+        "version": "2.013",
+        "category": "font_assets",
+        "rel_dir": "assets/font_assets/noto_v2.013",
+        "manifest_name": "char_manifest_noto_v2.013.json",
+        "upstream_name": "Google Noto v2.013 (Sans, SemiCondensed, Mono, Serif, Math)",
+        "upstream_url": "https://github.com/notofonts/latin-greek-cyrillic",
+        "spdx_license": "OFL-1.1",
+        "master_files": [
+            "NotoSans-Regular.ttf", "NotoSans-Medium.ttf", "NotoSans-Bold.ttf",
+            "NotoSans-ExtraBold.ttf", "NotoSans-Black.ttf", "NotoSans-MediumItalic.ttf",
+            "NotoSans-SemiBoldItalic.ttf", "NotoSans-SemiCondensedMedium.ttf",
+            "NotoSans-SemiCondensedExtraBold.ttf", "NotoSans-SemiCondensedBlack.ttf",
+            "NotoSans-SemiCondensedSemiBoldItalic.ttf", "NotoSans-CondensedSemiBold.ttf",
+            "NotoSans-CondensedBlack.ttf", "NotoSans-CondensedSemiBoldItalic.ttf",
+            "NotoSansMono-Medium.ttf", "NotoSansMono-ExtraBold.ttf", "NotoSansMono-Black.ttf",
+            "NotoSerif-Medium.ttf", "NotoSerif-Black.ttf", "NotoSerif-MediumItalic.ttf",
+            "NotoSerif-SemiBoldItalic.ttf", "NotoSansMath-Regular.ttf",
+        ],
+        "min_cp": 0x0020,
+        "max_cp": 0xFFFF,
         "cmap_aliases": {},
     },
     {
@@ -215,23 +239,25 @@ def build_char_manifest_for_spec(
     repo_root: Path,
     spec: dict,
     existing_unified_icons: Optional[dict] = None,
+    meta_out_dir: Optional[Path] = None,
 ) -> Tuple[Path, dict]:
     folder = repo_root / spec["rel_dir"]
-    out_dir = repo_root / "build" / "metadata" / "char_manifests"
+    base_meta = meta_out_dir if meta_out_dir else (repo_root / "build" / "metadata")
+    out_dir = base_meta / "char_manifests"
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / spec["manifest_name"]
     min_cp = int(spec["min_cp"])
     max_cp = int(spec["max_cp"])
     fam_id = spec["family_id"]
 
-    # Check if an existing manifest or legacy metadata json has semantic icon names
+    # Check if an existing manifest or upstream icon metadata json has semantic icon names
     cp_to_name: Dict[int, str] = {}
 
     if existing_unified_icons and fam_id in existing_unified_icons.get("by_codepoint", {}):
         for hex_k, iname in existing_unified_icons["by_codepoint"][fam_id].items():
             cp_to_name[int(hex_k, 16)] = iname
 
-    # Also check any legacy metadata/*.json in folder before cleaning
+    # Also check any upstream icon metadata/*.json in folder before cleaning
     meta_sub = folder / "metadata"
     if meta_sub.is_dir():
         for jf in meta_sub.glob("*.json"):
@@ -309,7 +335,7 @@ def build_char_manifest_for_spec(
     by_name = {name: hex_cp for hex_cp, name in sorted(by_codepoint.items(), key=lambda x: x[1])}
 
     manifest_payload = {
-        "manifest_schema": "epd-font-char-manifest-v1.0.22",
+        "manifest_schema": "epd-font-char-manifest-v1.0.23",
         "generator": f"tools/fonts/generate_char_manifests.py (v{TOOL_VERSION})",
         "family_id": fam_id,
         "upstream_name": spec["upstream_name"],
@@ -334,8 +360,11 @@ def build_char_manifest_for_spec(
     return manifest_path, manifest_payload
 
 
-def generate_all_char_manifests(repo_root: Path) -> List[Path]:
-    uni_path = repo_root / "build" / "metadata" / "unified_icon_names.json"
+def generate_all_char_manifests(repo_root: Path, meta_out_dir: Optional[Path] = None) -> List[Path]:
+    base_meta = meta_out_dir if meta_out_dir else (repo_root / "build" / "metadata")
+    uni_path = base_meta / "unified_icon_names.json"
+    if not uni_path.is_file():
+        uni_path = repo_root / "build" / "metadata" / "unified_icon_names.json"
     existing_uni = json.loads(uni_path.read_text(encoding="utf-8")) if uni_path.is_file() else None
 
     out_paths = []
@@ -344,12 +373,16 @@ def generate_all_char_manifests(repo_root: Path) -> List[Path]:
     print("=" * 102)
     for spec in MASTER_FAMILIES_SPEC:
         m_path, m_data = build_char_manifest_for_spec(
-            repo_root, spec, existing_unified_icons=existing_uni
+            repo_root, spec, existing_unified_icons=existing_uni, meta_out_dir=base_meta
         )
         out_paths.append(m_path)
         sz_kb = m_path.stat().st_size / 1024.0
+        try:
+            disp_p = m_path.relative_to(repo_root).as_posix()
+        except ValueError:
+            disp_p = m_path.as_posix()
         print(
-            f"  [+] {m_path.relative_to(repo_root).as_posix():72s} | "
+            f"  [+] {disp_p:72s} | "
             f"{m_data['total_valid_characters']:5,d} chars | {sz_kb:6.1f} KB"
         )
     print("=" * 102)
@@ -361,10 +394,13 @@ def main() -> None:
         prog="generate_char_manifests.py",
         description="Generate version-specific minimal Character Manifest JSONs per master font family.",
     )
+    parser.add_argument("--static-dir", type=str, default=None, help="Optional static TTF directory (accepted for script compatibility)")
+    parser.add_argument("--out-dir", type=str, default=None, help="Output metadata directory (default: <repo>/build/metadata)")
     args = parser.parse_args()
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent if script_dir.name == "fonts" else script_dir.parent
-    generate_all_char_manifests(repo_root)
+    meta_out = Path(args.out_dir).expanduser().resolve() if args.out_dir else None
+    generate_all_char_manifests(repo_root, meta_out_dir=meta_out)
 
 
 if __name__ == "__main__":

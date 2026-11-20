@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-opencl_kernels.py (v1.0.22)
+opencl_kernels.py (v1.0.23)
 ==========================
 A 1-bit EPD font generator and asset pipeline for embedded displays.
 Repository : https://github.com/Humidyne-Labs/epd-font
@@ -9,7 +9,7 @@ License    : MIT License
 
 OpenCL 1.2 / 2.0 / 3.0 GPU & Multi-Device Compute Kernels, 3D NDRange Batch Dispatcher,
 75% Dynamic Host/GPU Shared Memory Arena (`CL_MEM_ALLOC_HOST_PTR` + `clEnqueueMapBuffer`),
-Jump Flooding Algorithm (`1+JFA`) + Marching Squares Kernels, and Deterministic Teardown (`v1.0.22`):
+Jump Flooding Algorithm (`1+JFA`) + Marching Squares Kernels, and Deterministic Teardown (`v1.0.23`):
   - Full 3-Dimensional (`work_dim = 3`, `[dim_x, dim_y, dim_z]`) NDRange execution across all kernels
     with 3D local work-groups `(8, 8, 4) = 256` work-items (4 wavefronts of 64 threads on AMD GCN/Polaris
     `Ellesmere` 32 CUs, or 256 work-items on CPU OpenCL runtimes) so all 3 Work-Item Dimensions and all
@@ -36,14 +36,16 @@ import ctypes
 import gc
 import math
 import os
+import subprocess
 import threading
+import time
 import warnings
 import weakref
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-TOOL_VERSION = "1.0.22"
+TOOL_VERSION = "1.0.23"
 SHARED_RAM_CAP_RATIO = 0.75  # 75% cap on total WDDM Shared GPU Memory
 
 cl = None  # type: ignore
@@ -119,7 +121,7 @@ def detect_shared_gpu_memory_mb() -> Tuple[int, int]:
 
     total_shared_mb = max(512, total_phys_mb // 2)
     cap_75pct_mb = max(256, int(round(total_shared_mb * SHARED_RAM_CAP_RATIO)))
-    usable_shared_mb = max(256, min(avail_phys_mb - 512, cap_75pct_mb))
+    usable_shared_mb = max(256, min(avail_phys_mb - 1024, cap_75pct_mb))
     return total_shared_mb, usable_shared_mb
 
 
@@ -127,16 +129,6 @@ def detect_shared_gpu_memory_mb() -> Tuple[int, int]:
 # OpenCL C Kernel Source (3D NDRange `[dim_x, dim_y, dim_z]` Across All Kernels)
 # ---------------------------------------------------------------------------
 OPENCL_MATH_KERNELS_SOURCE = r"""
-#define EPSILON 1e-6f
-#define MAX_NEWTON_STEPS 24
-
-typedef struct {
-    float2 p0;
-    float2 p1;
-    float2 p2;
-    float2 p3;
-} BezierCurve;
-
 inline float srgb_byte_to_linear(uchar u) {
     float c = (float)u * (1.0f / 255.0f);
     return (c <= 0.04045f) ? (c * (1.0f / 12.92f)) : pow((c + 0.055f) * (1.0f / 1.055f), 2.4f);
@@ -182,218 +174,6 @@ __kernel void srgb_to_linear_gamma_3d_kernel(
         y_lin = pow(clamp(y_lin, 0.0f, 1.0f), inv_gamma);
     }
     dst[idx] = convert_uchar_sat_rte(clamp(y_lin * 255.0f, 0.0f, 255.0f));
-}
-
-// ---------------------------------------------------------------------------
-// 2. 3D NDRange Cem Yuksel Quintic Root-Finding Cascade for Cubic Bezier SDF
-//    Work-Item Dimensions: 3 -> (x = gid(0), y = gid(1), z_batch = gid(2))
-// ---------------------------------------------------------------------------
-inline int solve_quadratic(float a, float b, float c, float roots[2]) {
-    int count = 0;
-    if (fabs(a) < 1e-7f) {
-        if (fabs(b) > 1e-7f) {
-            float r = -c / b;
-            if (r >= 0.0f && r <= 1.0f) roots[count++] = r;
-        }
-        return count;
-    }
-    float d = b * b - 4.0f * a * c;
-    if (d < 0.0f) return 0;
-
-    float sqrt_d = sqrt(fmax(d, 0.0f));
-    float q = -0.5f * (b + (b > 0.0f ? sqrt_d : -sqrt_d));
-    float r0 = q / a;
-    float r1 = (fabs(q) > 1e-7f) ? (c / q) : r0;
-
-    if (r0 > r1) { float tmp = r0; r0 = r1; r1 = tmp; }
-    if (r0 >= 0.0f && r0 <= 1.0f) roots[count++] = r0;
-    if (r1 >= 0.0f && r1 <= 1.0f && fabs(r1 - r0) > 1e-5f) roots[count++] = r1;
-    return count;
-}
-
-inline float eval_poly5(float a, float b, float c, float d, float e, float f, float t) {
-    return ((((a * t + b) * t + c) * t + d) * t + e) * t + f;
-}
-
-inline float eval_poly5_deriv(float a, float b, float c, float d, float e, float t) {
-    return (((5.0f * a * t + 4.0f * b) * t + 3.0f * c) * t + 2.0f * d) * t + e;
-}
-
-inline float newton_bisect5(
-    float a, float b, float c, float d, float e, float f,
-    float t_min, float t_max, float v_min, float v_max)
-{
-    float x = 0.5f * (t_min + t_max);
-    float sign_flip = (v_min < v_max) ? 1.0f : -1.0f;
-
-    for (int i = 0; i < MAX_NEWTON_STEPS; ++i) {
-        float y = eval_poly5(a, b, c, d, e, f, x);
-        float dy = eval_poly5_deriv(a, b, c, d, e, x);
-        if (sign_flip * y < 0.0f) {
-            t_min = x;
-        } else {
-            t_max = x;
-        }
-        float next_x = (fabs(dy) > 1e-7f) ? (x - y / dy) : (0.5f * (t_min + t_max));
-        if (next_x <= t_min || next_x >= t_max) {
-            next_x = 0.5f * (t_min + t_max);
-        }
-        if (fabs(next_x - x) < EPSILON) return next_x;
-        x = next_x;
-    }
-    return x;
-}
-
-inline int isolate_and_solve_roots(
-    float a, float b, float c, float d, float e, float f,
-    __private const float* lower_roots, int num_lower,
-    __private float* out_roots)
-{
-    int out_count = 0;
-    float prev_x = 0.0f;
-    float prev_y = eval_poly5(a, b, c, d, e, f, 0.0f);
-
-    for (int i = 0; i <= num_lower; ++i) {
-        float curr_x = (i == num_lower) ? 1.0f : lower_roots[i];
-        float curr_y = eval_poly5(a, b, c, d, e, f, curr_x);
-        if (prev_y * curr_y <= 0.0f) {
-            out_roots[out_count++] = newton_bisect5(a, b, c, d, e, f, prev_x, curr_x, prev_y, curr_y);
-        }
-        prev_x = curr_x;
-        prev_y = curr_y;
-    }
-    return out_count;
-}
-
-inline float distance_sq_to_bezier(float2 p, BezierCurve bz) {
-    float2 d0 = bz.p0 - p;
-    float2 d3 = bz.p3 - p;
-    float min_dist_sq = fmin(dot(d0, d0), dot(d3, d3));
-
-    float2 a = -bz.p0 + 3.0f * (bz.p1 - bz.p2) + bz.p3;
-    float2 b = 3.0f * (bz.p0 - 2.0f * bz.p1 + bz.p2);
-    float2 c = 3.0f * (bz.p1 - bz.p0);
-    float2 delta = bz.p0 - p;
-
-    float c5 = 3.0f * dot(a, a);
-    float c4 = 5.0f * dot(a, b);
-    float c3 = 4.0f * dot(a, c) + 2.0f * dot(b, b);
-    float c2 = 3.0f * (dot(a, delta) + dot(b, c));
-    float c1 = 2.0f * dot(b, delta) + dot(c, c);
-    float c0 = dot(c, delta);
-
-    float r2[2], r3[3], r4[4], r5[5];
-    int n2 = solve_quadratic(10.0f * c5, 4.0f * c4, c3, r2);
-    int n3 = isolate_and_solve_roots(0.0f, 0.0f, 10.0f * c5, 6.0f * c4, 3.0f * c3, c2, r2, n2, r3);
-    int n4 = isolate_and_solve_roots(0.0f, 5.0f * c5, 4.0f * c4, 3.0f * c3, 2.0f * c2, c1, r3, n3, r4);
-    int n5 = isolate_and_solve_roots(c5, c4, c3, c2, c1, c0, r4, n4, r5);
-
-    for (int i = 0; i < n5; ++i) {
-        float t = r5[i];
-        float2 pt = ((a * t + b) * t + c) * t + bz.p0;
-        float2 diff = pt - p;
-        min_dist_sq = fmin(min_dist_sq, dot(diff, diff));
-    }
-    return min_dist_sq;
-}
-
-inline int solve_cubic_y(float a, float b, float c, float d, float roots[3]) {
-    float r2[2];
-    int n2 = solve_quadratic(3.0f * a, 2.0f * b, c, r2);
-    int n3 = 0;
-    float px = 0.0f;
-    float py = d;
-
-    for (int i = 0; i <= n2; ++i) {
-        float cx = (i == n2) ? 1.0f : r2[i];
-        float cy = ((a * cx + b) * cx + c) * cx + d;
-        if (py * cy <= 0.0f) {
-            float x = 0.5f * (px + cx);
-            for (int k = 0; k < 16; ++k) {
-                float fval = ((a * x + b) * x + c) * x + d;
-                float fder = (3.0f * a * x + 2.0f * b) * x + c;
-                if (fabs(fder) < 1e-7f) break;
-                float xn = x - fval / fder;
-                if (xn < px || xn > cx) xn = 0.5f * (px + cx);
-                if (fabs(xn - x) < 1e-6f) { x = xn; break; }
-                x = xn;
-            }
-            roots[n3++] = x;
-        }
-        px = cx;
-        py = cy;
-    }
-    return n3;
-}
-
-inline int bezier_winding(float2 p, BezierCurve bz) {
-    int w = 0;
-    int signs = ((bz.p0.y < p.y) ? 1 : 0) |
-                (((bz.p1.y < p.y) ? 1 : 0) << 1) |
-                (((bz.p2.y < p.y) ? 1 : 0) << 2) |
-                (((bz.p3.y < p.y) ? 1 : 0) << 3);
-    if (signs == 0 || signs == 15) return 0;
-    int inc = (signs & 1) == 0 ? 1 : -1;
-
-    float2 a = -bz.p0 + 3.0f * (bz.p1 - bz.p2) + bz.p3;
-    float2 b = 3.0f * (bz.p0 - 2.0f * bz.p1 + bz.p2);
-    float2 c = 3.0f * (bz.p1 - bz.p0);
-    float2 d = bz.p0 - p;
-
-    float r[3];
-    int count = solve_cubic_y(a.y, b.y, c.y, d.y, r);
-    for (int i = 0; i < count; ++i) {
-        float t = r[i];
-        float x_intersect = ((a.x * t + b.x) * t + c.x) * t + d.x;
-        if (x_intersect >= 0.0f) {
-            w += (i % 2 == 0) ? inc : -inc;
-        }
-    }
-    return w;
-}
-
-__kernel void render_bezier_sdf_yuksel_3d_kernel(
-    __global const BezierCurve* curves,
-    const int num_curves,
-    __global uchar* out_bilevel,
-    __global uchar* out_field,
-    const int width,
-    const int height,
-    const int batch_z,
-    const float bias_px)
-{
-    const int gx = (int)get_global_id(0);
-    const int gy = (int)get_global_id(1);
-    const int gz = (int)get_global_id(2);
-    if (gx >= width || gy >= height || gz >= batch_z) return;
-
-    float2 p = (float2)((float)gx + 0.5f, (float)gy + 0.5f);
-    float min_dist_sq = 1e30f;
-    int winding_accum = 0;
-    const int curve_base = gz * num_curves;
-
-    for (int i = 0; i < num_curves; ++i) {
-        BezierCurve bz = curves[curve_base + i];
-        float2 bmin = fmin(fmin(bz.p0, bz.p1), fmin(bz.p2, bz.p3));
-        float2 bmax = fmax(fmax(bz.p0, bz.p1), fmax(bz.p2, bz.p3));
-        float2 bcenter = 0.5f * (bmin + bmax);
-        float2 bextents = 0.5f * (bmax - bmin);
-        float2 dbox = fmax(fabs(p - bcenter) - bextents, 0.0f);
-        float box_dist_sq = dot(dbox, dbox);
-
-        if (box_dist_sq < min_dist_sq) {
-            float d_sq = distance_sq_to_bezier(p, bz);
-            min_dist_sq = fmin(min_dist_sq, d_sq);
-        }
-        winding_accum += bezier_winding(p, bz);
-    }
-
-    float d = sqrt(fmax(min_dist_sq, 0.0f));
-    float signed_d = ((winding_accum & 1) != 0 ? d : -d) + bias_px;
-    float alpha = smoothstep(-0.55f, 0.55f, signed_d);
-    int idx = (gz * height + gy) * width + gx;
-    out_field[idx] = convert_uchar_sat_rte(clamp(alpha * 255.0f, 0.0f, 255.0f));
-    out_bilevel[idx] = (alpha >= 0.50f) ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -791,9 +571,469 @@ __kernel void jfa_marching_squares_reconstruct_3d_kernel(
     out_field[out_idx] = convert_uchar_sat_rte(clamp(final_cov * 255.0f, 0.0f, 255.0f));
     out_bilevel[out_idx] = (final_cov >= 0.50f) ? 1 : 0;
 }
-"""
 
-OPENCL_MATH_KERNEL_SOURCE = OPENCL_MATH_KERNELS_SOURCE
+// ---------------------------------------------------------------------------
+// 8. 3D NDRange WDDM Shared Memory Page-Touch Kernel
+// ---------------------------------------------------------------------------
+__kernel void touch_shared_pages_3d_kernel(
+    __global uchar* buf,
+    const long nbytes)
+{
+    const long idx = (long)get_global_id(0) * 4096L;
+    if (idx < nbytes) {
+        buf[idx] ^= (uchar)0;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 9. Coalesced 3D short2 1+JFA Signed Distance Field Kernels (4 bytes/pixel)
+// ---------------------------------------------------------------------------
+#define JFA_NO_SEED ((short)-30000)
+
+__kernel void jfa_boundary_init_short2_3d_kernel(
+    __global const uchar* gray,
+    __global short2* seeds,
+    const int W,
+    const int H,
+    const int B,
+    const uchar thresh)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+
+    const int base = z * H * W;
+    const int idx = base + y * W + x;
+    const int fg = (gray[idx] >= thresh) ? 1 : 0;
+
+    int sx = 0;
+    int sy = 0;
+    int cnt = 0;
+    if (x > 0 && (((gray[idx - 1] >= thresh) ? 1 : 0) != fg)) {
+        sx += 2 * x - 1;
+        sy += 2 * y;
+        cnt++;
+    }
+    if (x + 1 < W && (((gray[idx + 1] >= thresh) ? 1 : 0) != fg)) {
+        sx += 2 * x + 1;
+        sy += 2 * y;
+        cnt++;
+    }
+    if (y > 0 && (((gray[idx - W] >= thresh) ? 1 : 0) != fg)) {
+        sx += 2 * x;
+        sy += 2 * y - 1;
+        cnt++;
+    }
+    if (y + 1 < H && (((gray[idx + W] >= thresh) ? 1 : 0) != fg)) {
+        sx += 2 * x;
+        sy += 2 * y + 1;
+        cnt++;
+    }
+
+    if (cnt > 0) {
+        seeds[idx] = (short2)((short)(sx / cnt), (short)(sy / cnt));
+    } else {
+        seeds[idx] = (short2)(JFA_NO_SEED, JFA_NO_SEED);
+    }
+}
+
+__kernel void jfa_step_short2_3d_kernel(
+    __global const short2* in_s,
+    __global short2* out_s,
+    const int W,
+    const int H,
+    const int B,
+    const int step_k)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+
+    const int base = z * H * W;
+    const int idx = base + y * W + x;
+    const int px = 2 * x;
+    const int py = 2 * y;
+
+    short2 best = in_s[idx];
+    int best_d2 = 0x3fffffff;
+    if (best.x != JFA_NO_SEED) {
+        int dx = (int)best.x - px;
+        int dy = (int)best.y - py;
+        best_d2 = dx * dx + dy * dy;
+    }
+
+    for (int oy = -1; oy <= 1; ++oy) {
+        int ny = y + oy * step_k;
+        if (ny < 0 || ny >= H) continue;
+        int row = base + ny * W;
+        for (int ox = -1; ox <= 1; ++ox) {
+            if (ox == 0 && oy == 0) continue;
+            int nx = x + ox * step_k;
+            if (nx < 0 || nx >= W) continue;
+            short2 c = in_s[row + nx];
+            if (c.x != JFA_NO_SEED) {
+                int dx = (int)c.x - px;
+                int dy = (int)c.y - py;
+                int d2 = dx * dx + dy * dy;
+                if (d2 < best_d2) {
+                    best_d2 = d2;
+                    best = c;
+                }
+            }
+        }
+    }
+    out_s[idx] = best;
+}
+
+__kernel void jfa_short2_to_sdf_3d_kernel(
+    __global const uchar* gray,
+    __global const short2* seeds,
+    __global float* sdf_out,
+    const int W,
+    const int H,
+    const int B,
+    const uchar thresh,
+    const float inv_upscale)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+
+    const int idx = (z * H + y) * W + x;
+    short2 s = seeds[idx];
+    float d = 4.0f;
+    if (s.x != JFA_NO_SEED) {
+        float dx = 0.5f * (float)((int)s.x - 2 * x);
+        float dy = 0.5f * (float)((int)s.y - 2 * y);
+        d = (sqrt(dx * dx + dy * dy) + 0.5f) * inv_upscale;
+    }
+    float sgn = (gray[idx] >= thresh) ? 1.0f : -1.0f;
+    sdf_out[idx] = clamp(sgn * d, -4.0f, 4.0f);
+}
+
+// ---------------------------------------------------------------------------
+// 10. 3D Per-Slice Batched Otsu Local-Atomic Histogram Kernel (local_size.z == 1)
+// ---------------------------------------------------------------------------
+__kernel void otsu_hist_batch_3d_kernel(
+    __global const uchar* src_gray,
+    __global const int* slice_dims,
+    __global uint* global_hists,
+    const int max_w,
+    const int max_h,
+    const int batch_z)
+{
+    __local uint local_hist[256];
+    const int lx = (int)get_local_id(0);
+    const int ly = (int)get_local_id(1);
+    const int sx = (int)get_local_size(0);
+    const int sy = (int)get_local_size(1);
+    const int lid = lx + sx * ly;
+    const int lsize = sx * sy;
+
+    for (int b = lid; b < 256; b += lsize) {
+        local_hist[b] = 0u;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    const int gx = (int)get_global_id(0);
+    const int gy = (int)get_global_id(1);
+    const int gz = (int)get_global_id(2);
+    if (gz < batch_z) {
+        const int gw = slice_dims[gz * 2 + 0];
+        const int gh = slice_dims[gz * 2 + 1];
+        if (gx < gw && gy < gh) {
+            const int gid = (gz * max_h + gy) * max_w + gx;
+            uchar v = src_gray[gid];
+            if (v >= 8u && v <= 248u) {
+                atomic_inc(&local_hist[(int)v]);
+            }
+        }
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (gz < batch_z) {
+        const int hist_base = gz * 256;
+        for (int b = lid; b < 256; b += lsize) {
+            uint c = local_hist[b];
+            if (c > 0u) {
+                atomic_add(&global_hists[hist_base + b], c);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 11. 3D Binarize, Median Blur, Directional Morphology, MDF & MSDF Helpers
+// ---------------------------------------------------------------------------
+__kernel void binarize_u8_3d_kernel(
+    __global const uchar* gray,
+    __global uchar* mask,
+    const int W,
+    const int H,
+    const int B,
+    const uchar thresh)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+    const int idx = (z * H + y) * W + x;
+    mask[idx] = (gray[idx] >= thresh) ? (uchar)1 : (uchar)0;
+}
+
+__kernel void median_blur_3d_kernel(
+    __global const uchar* src,
+    __global uchar* dst,
+    const int W,
+    const int H,
+    const int B,
+    const int radius)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+
+    const int base = z * H * W;
+    const int r = (radius <= 1) ? 1 : 2;
+    const int n = (r == 1) ? 9 : 25;
+    const int mid = n / 2;
+    uchar vals[25];
+    int k = 0;
+
+    for (int dy = -r; dy <= r; ++dy) {
+        int ny = clamp(y + dy, 0, H - 1);
+        int row = base + ny * W;
+        for (int dx = -r; dx <= r; ++dx) {
+            int nx = clamp(x + dx, 0, W - 1);
+            vals[k++] = src[row + nx];
+        }
+    }
+
+    for (int i = 0; i <= mid; ++i) {
+        int min_idx = i;
+        uchar min_val = vals[i];
+        for (int j = i + 1; j < n; ++j) {
+            if (vals[j] < min_val) {
+                min_val = vals[j];
+                min_idx = j;
+            }
+        }
+        vals[min_idx] = vals[i];
+        vals[i] = min_val;
+    }
+    dst[base + y * W + x] = vals[mid];
+}
+
+__kernel void morph_dilate_dir_3d_kernel(
+    __global const uchar* src,
+    __global uchar* dst,
+    const int W,
+    const int H,
+    const int B,
+    const int dx,
+    const int dy,
+    const int r_neg,
+    const int r_pos)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+
+    const int base = z * H * W;
+    uchar m = 0;
+    for (int k = -r_neg; k <= r_pos; ++k) {
+        int nx = clamp(x + k * dx, 0, W - 1);
+        int ny = clamp(y + k * dy, 0, H - 1);
+        uchar v = src[base + ny * W + nx];
+        if (v > m) m = v;
+    }
+    dst[base + y * W + x] = m;
+}
+
+__kernel void morph_erode_dir_3d_kernel(
+    __global const uchar* src,
+    __global uchar* dst,
+    const int W,
+    const int H,
+    const int B,
+    const int dx,
+    const int dy,
+    const int r_neg,
+    const int r_pos)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+
+    const int base = z * H * W;
+    uchar m = 255;
+    for (int k = -r_neg; k <= r_pos; ++k) {
+        int nx = clamp(x + k * dx, 0, W - 1);
+        int ny = clamp(y + k * dy, 0, H - 1);
+        uchar v = src[base + ny * W + nx];
+        if (v < m) m = v;
+    }
+    dst[base + y * W + x] = m;
+}
+
+__kernel void combine_max_u8_3d_kernel(
+    __global const uchar* a,
+    __global const uchar* b,
+    __global uchar* out,
+    const int W,
+    const int H,
+    const int B)
+{
+    const int x = (int)get_global_id(0);
+    const int y = (int)get_global_id(1);
+    const int z = (int)get_global_id(2);
+    if (x >= W || y >= H || z >= B) return;
+    const int idx = (z * H + y) * W + x;
+    out[idx] = max(a[idx], b[idx]);
+}
+
+__kernel void mdf_reconstruct_3d_kernel(
+    __global const float* sdf_iso,
+    __global const float* sdf_h,
+    __global const float* sdf_v,
+    __global uchar* out_bw,
+    __global uchar* out_fld,
+    const int hi_w,
+    const int hi_h,
+    const int target_w,
+    const int target_h,
+    const int batch_z,
+    const int upscale,
+    const int eff_thresh)
+{
+    const int gx = (int)get_global_id(0);
+    const int gy = (int)get_global_id(1);
+    const int gz = (int)get_global_id(2);
+    if (gx >= target_w || gy >= target_h || gz >= batch_z) return;
+
+    const int slice_base = gz * (hi_w * hi_h);
+    const int r0 = gy * upscale;
+    const int r1 = min(r0 + upscale, hi_h);
+    const int c0 = gx * upscale;
+    const int c1 = min(c0 + upscale, hi_w);
+
+    float sum_val = 0.0f;
+    int cnt = 0;
+    for (int hr = r0; hr < r1; ++hr) {
+        int row = slice_base + hr * hi_w;
+        for (int hc = c0; hc < c1; ++hc) {
+            int hidx = row + hc;
+            float m = clamp(median3_f(sdf_iso[hidx], sdf_h[hidx], sdf_v[hidx]), -4.0f, 4.0f);
+            float enc = clamp(128.0f + m * 64.0f, 0.0f, 255.0f);
+            sum_val += enc;
+            cnt++;
+        }
+    }
+    float area_avg = (cnt > 0) ? (sum_val / (float)cnt) : 0.0f;
+
+    const int rm = clamp(r0 + (upscale / 2), 0, hi_h - 1);
+    const int cm = clamp(c0 + (upscale / 2), 0, hi_w - 1);
+    const int cidx = slice_base + rm * hi_w + cm;
+    float mc = clamp(median3_f(sdf_iso[cidx], sdf_h[cidx], sdf_v[cidx]), -4.0f, 4.0f);
+    float center_val = clamp(128.0f + mc * 64.0f, 0.0f, 255.0f);
+
+    float mdf_low = 0.60f * area_avg + 0.40f * center_val;
+    uchar m_u8 = convert_uchar_sat_rte(clamp(mdf_low, 0.0f, 255.0f));
+
+    const int out_idx = (gz * target_h + gy) * target_w + gx;
+    out_fld[out_idx] = m_u8;
+    out_bw[out_idx] = (m_u8 >= (uchar)eff_thresh) ? (uchar)1 : (uchar)0;
+}
+
+__kernel void msdf_downsample_rgb_3d_kernel(
+    __global const uchar* gray_hi,
+    __global const float* sdf_iso,
+    __global const float* sdf_r,
+    __global const float* sdf_g,
+    __global float* out_r,
+    __global float* out_g,
+    __global float* out_b,
+    const int hi_w,
+    const int hi_h,
+    const int target_w,
+    const int target_h,
+    const int batch_z,
+    const int upscale)
+{
+    const int gx = (int)get_global_id(0);
+    const int gy = (int)get_global_id(1);
+    const int gz = (int)get_global_id(2);
+    if (gx >= target_w || gy >= target_h || gz >= batch_z) return;
+
+    const int slice_base = gz * (hi_w * hi_h);
+    const int r0 = gy * upscale;
+    const int r1 = min(r0 + upscale, hi_h);
+    const int c0 = gx * upscale;
+    const int c1 = min(c0 + upscale, hi_w);
+    const float inv_up = 0.12f / (float)max(1, upscale);
+
+    float sum_r = 0.0f;
+    float sum_g = 0.0f;
+    float sum_b = 0.0f;
+    int cnt = 0;
+
+    for (int hr = r0; hr < r1; ++hr) {
+        int rm1 = max(hr - 1, 0);
+        int rp1 = min(hr + 1, hi_h - 1);
+        for (int hc = c0; hc < c1; ++hc) {
+            int cm1 = max(hc - 1, 0);
+            int cp1 = min(hc + 1, hi_w - 1);
+            int hidx = slice_base + hr * hi_w + hc;
+
+            float g00 = (float)gray_hi[slice_base + rm1 * hi_w + cm1];
+            float g10 = (float)gray_hi[slice_base + rm1 * hi_w + hc];
+            float g20 = (float)gray_hi[slice_base + rm1 * hi_w + cp1];
+            float g01 = (float)gray_hi[slice_base + hr  * hi_w + cm1];
+            float g21 = (float)gray_hi[slice_base + hr  * hi_w + cp1];
+            float g02 = (float)gray_hi[slice_base + rp1 * hi_w + cm1];
+            float g12 = (float)gray_hi[slice_base + rp1 * hi_w + hc];
+            float g22 = (float)gray_hi[slice_base + rp1 * hi_w + cp1];
+
+            float sx = (g20 + 2.0f * g21 + g22) - (g00 + 2.0f * g01 + g02);
+            float sy = (g02 + 2.0f * g12 + g22) - (g00 + 2.0f * g10 + g20);
+            float gmag = hypot(sx, sy) + 1e-5f;
+            float aniso = ((fabs(sx) - fabs(sy)) / gmag) * inv_up;
+
+            sum_r += clamp(128.0f + clamp(sdf_r[hidx], -4.0f, 4.0f) * 64.0f, 0.0f, 255.0f);
+            sum_g += clamp(128.0f + clamp(sdf_g[hidx], -4.0f, 4.0f) * 64.0f, 0.0f, 255.0f);
+            sum_b += clamp(128.0f + clamp(sdf_iso[hidx] + aniso, -4.0f, 4.0f) * 64.0f, 0.0f, 255.0f);
+            cnt++;
+        }
+    }
+
+    float inv_cnt = (cnt > 0) ? (1.0f / (float)cnt) : 0.0f;
+    float ar = sum_r * inv_cnt;
+    float ag = sum_g * inv_cnt;
+    float ab = sum_b * inv_cnt;
+
+    const int rm = clamp(r0 + (upscale / 2), 0, hi_h - 1);
+    const int cm = clamp(c0 + (upscale / 2), 0, hi_w - 1);
+    const int cidx = slice_base + rm * hi_w + cm;
+    float cr = clamp(128.0f + clamp(sdf_r[cidx], -4.0f, 4.0f) * 64.0f, 0.0f, 255.0f);
+    float cg = clamp(128.0f + clamp(sdf_g[cidx], -4.0f, 4.0f) * 64.0f, 0.0f, 255.0f);
+    float cb = clamp(128.0f + clamp(sdf_iso[cidx], -4.0f, 4.0f) * 64.0f, 0.0f, 255.0f);
+
+    float br = rint(clamp(0.55f * ar + 0.45f * cr, 0.0f, 255.0f));
+    float bg = rint(clamp(0.55f * ag + 0.45f * cg, 0.0f, 255.0f));
+    float bb = rint(clamp(0.55f * ab + 0.45f * cb, 0.0f, 255.0f));
+
+    const int out_idx = (gz * target_h + gy) * target_w + gx;
+    out_r[out_idx] = (br - 128.0f) / 64.0f;
+    out_g[out_idx] = (bg - 128.0f) / 64.0f;
+    out_b[out_idx] = (bb - 128.0f) / 64.0f;
+}
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -802,34 +1042,81 @@ OPENCL_MATH_KERNEL_SOURCE = OPENCL_MATH_KERNELS_SOURCE
 class SharedHostMemoryArena:
     """
     Manages a reusable pool of pinned Host/GPU Shared RAM (`CL_MEM_ALLOC_HOST_PTR`) buffers
-    mapped into the 15.7 GB WDDM Shared GPU Memory aperture (dynamically capped at 75% of
-    total Shared GPU Memory, e.g., ~11,775 MB on a 15.7 GB shared pool).
-    Keeps persistent host mappings (`self._pins`) active so WDDM / AMD PAL drivers lock the
-    allocations inside Shared GPU Memory rather than promoting into Dedicated 4 GB VRAM,
-    and guarantees deterministic `.release()` teardown on exit.
+    mapped into the WDDM Shared GPU Memory aperture (dynamically capped at 75% of total Shared
+    GPU Memory, e.g., ~12,054 MB on a 32 GB system), plus an optional bounded Dedicated VRAM
+    hot-scratch tier (`EPD_FONT_SHARED_MODE=auto`, or 100% Shared RAM when `"shared"`).
+    Uses OpenCL-spec-compliant `cl.enqueue_map_buffer` -> copy -> unmap (`mapped.base.release`)
+    for staging/readback, drains active command queues prior to buffer eviction/resize, and
+    guarantees deterministic `.release()` teardown on exit.
     """
 
-    def __init__(self, ctx: "cl.Context", max_shared_mb: int = 4096) -> None:
+    def __init__(
+        self,
+        ctx: "cl.Context",
+        max_shared_mb: int = 4096,
+        device: Optional["cl.Device"] = None,
+        queues: Optional[List["cl.CommandQueue"]] = None,
+    ) -> None:
         ensure_pyopencl()
         self.ctx = ctx
+        if device is None and ctx is not None:
+            try:
+                devs = getattr(ctx, "devices", None) or []
+                if devs:
+                    device = devs[0]
+            except Exception:
+                device = None
+        self.device = device
+        self._queues_ref: Optional[List["cl.CommandQueue"]] = queues
+
         self.max_shared_bytes = max(64, int(max_shared_mb)) * 1024 * 1024
         self.budget_bytes = self.max_shared_bytes
-        self.allocated_bytes = 0
-        self._lock = threading.Lock()
-        self._slots: Dict[str, Tuple["cl.Buffer", int]] = {}
-        self._pins: Dict[str, Tuple[np.ndarray, "cl.CommandQueue"]] = {}
+        dev_max_alloc = int(getattr(device, "max_mem_alloc_size", 0)) if device is not None else 0
+        self.max_single_alloc_bytes = (
+            min(int(dev_max_alloc * 0.90), self.max_shared_bytes) if dev_max_alloc > 0 else self.max_shared_bytes
+        )
 
-    def _unpin_slot_unlocked(self, slot_name: str) -> None:
-        pinned = self._pins.pop(slot_name, None)
-        if pinned is not None:
-            mapped, q = pinned
-            try:
-                mapped.base.release(q)
-            except Exception:
+        dev_type = int(getattr(device, "type", 0)) if device is not None else 0
+        is_gpu = bool(dev_type & getattr(cl.device_type, "GPU", 4)) if cl is not None else False
+        is_cpu_dev = bool(dev_type & getattr(cl.device_type, "CPU", 2)) and not is_gpu if cl is not None else False
+        host_unified = bool(getattr(device, "host_unified_memory", 0)) if device is not None else False
+        shared_mode = os.environ.get("EPD_FONT_SHARED_MODE", "auto").strip().lower()
+        self.shared_mode = "shared" if shared_mode == "shared" else "auto"
+        dev_global_bytes = int(getattr(device, "global_mem_size", 0)) if device is not None else 0
+
+        if is_cpu_dev or host_unified or self.shared_mode == "shared" or dev_global_bytes <= 0:
+            self.vram_scratch_budget = 0
+        else:
+            self.vram_scratch_budget = min(int(dev_global_bytes * 0.45), self.max_single_alloc_bytes)
+
+        self.allocated_bytes = 0
+        self.peak_allocated_bytes = 0
+        self.vram_allocated_bytes = 0
+        self.peak_vram_allocated_bytes = 0
+        self._lock = threading.Lock()
+        self._slots: Dict[str, Tuple["cl.Buffer", int, bool]] = {}
+
+    def _drain_queues_unlocked(self) -> None:
+        if self._queues_ref:
+            for q in self._queues_ref:
                 try:
-                    mapped.base.release()
+                    q.finish()
                 except Exception:
                     pass
+
+    def _release_slot_unlocked(self, slot_name: str) -> None:
+        entry = self._slots.pop(slot_name, None)
+        if entry is None:
+            return
+        buf, cap, is_shared = entry
+        try:
+            buf.release()
+        except Exception:
+            pass
+        if is_shared:
+            self.allocated_bytes = max(0, self.allocated_bytes - cap)
+        else:
+            self.vram_allocated_bytes = max(0, self.vram_allocated_bytes - cap)
 
     def get_pinned_buffer(
         self,
@@ -841,114 +1128,179 @@ class SharedHostMemoryArena:
         """Acquire or grow a named reusable `CL_MEM_ALLOC_HOST_PTR` buffer in Shared GPU RAM."""
         ensure_pyopencl()
         req_bytes = max(4096, ((int(min_bytes) + 4095) // 4096) * 4096)
+        if req_bytes > self.max_single_alloc_bytes:
+            raise MemoryError(
+                f"Requested Shared GPU RAM buffer '{slot_name}' ({req_bytes // (1024 * 1024)} MB) "
+                f"exceeds device single-allocation ceiling ({self.max_single_alloc_bytes // (1024 * 1024)} MB)."
+            )
         mf = cl.mem_flags
         alloc_flags = (flags or mf.READ_WRITE) | mf.ALLOC_HOST_PTR
 
         with self._lock:
             existing = self._slots.get(slot_name)
             if existing is not None:
-                buf, cap = existing
-                if cap >= req_bytes:
-                    if queue is not None and slot_name not in self._pins:
-                        try:
-                            mapped, _ = cl.enqueue_map_buffer(
-                                queue, buf, cl.map_flags.READ | cl.map_flags.WRITE,
-                                0, (cap,), np.uint8, is_blocking=True
-                            )
-                            self._pins[slot_name] = (mapped, queue)
-                        except Exception:
-                            pass
+                buf, cap, is_shared = existing
+                if is_shared and cap >= req_bytes:
                     return buf
-                self._unpin_slot_unlocked(slot_name)
-                try:
-                    buf.release()
-                except Exception:
-                    pass
-                self.allocated_bytes = max(0, self.allocated_bytes - cap)
-                del self._slots[slot_name]
+                self._drain_queues_unlocked()
+                self._release_slot_unlocked(slot_name)
 
             if self.allocated_bytes + req_bytes > self.max_shared_bytes:
-                self._evict_unlocked()
+                self._drain_queues_unlocked()
+                self._evict_unlocked(shared_only=True)
 
             new_buf = cl.Buffer(self.ctx, alloc_flags, size=req_bytes)
-            self._slots[slot_name] = (new_buf, req_bytes)
+            self._slots[slot_name] = (new_buf, req_bytes, True)
             self.allocated_bytes += req_bytes
+            self.peak_allocated_bytes = max(self.peak_allocated_bytes, self.allocated_bytes)
+            return new_buf
 
-            if queue is not None:
+    def get_scratch_buffer(
+        self,
+        slot_name: str,
+        min_bytes: int,
+        prefer_shared: bool = False,
+    ) -> "cl.Buffer":
+        """
+        Acquire a device-side working scratch buffer: uses bounded high-bandwidth Dedicated VRAM
+        when `EPD_FONT_SHARED_MODE=auto` and within `vram_scratch_budget`, overflowing seamlessly
+        to WDDM Shared GPU Memory (`CL_MEM_ALLOC_HOST_PTR`) for larger buffers or `shared` mode.
+        """
+        ensure_pyopencl()
+        req_bytes = max(4096, ((int(min_bytes) + 4095) // 4096) * 4096)
+        if prefer_shared or self.vram_scratch_budget <= 0 or req_bytes > self.vram_scratch_budget:
+            return self.get_pinned_buffer(slot_name, req_bytes)
+
+        with self._lock:
+            existing = self._slots.get(slot_name)
+            if existing is not None:
+                buf, cap, is_shared = existing
+                if not is_shared and cap >= req_bytes:
+                    return buf
+                self._drain_queues_unlocked()
+                self._release_slot_unlocked(slot_name)
+
+            if self.vram_allocated_bytes + req_bytes > self.vram_scratch_budget:
+                self._drain_queues_unlocked()
+                self._evict_vram_unlocked()
+
+            if self.vram_allocated_bytes + req_bytes <= self.vram_scratch_budget:
                 try:
-                    mapped, _ = cl.enqueue_map_buffer(
-                        queue, new_buf, cl.map_flags.READ | cl.map_flags.WRITE,
-                        0, (req_bytes,), np.uint8, is_blocking=True
-                    )
-                    self._pins[slot_name] = (mapped, queue)
+                    new_buf = cl.Buffer(self.ctx, cl.mem_flags.READ_WRITE, size=req_bytes)
+                    self._slots[slot_name] = (new_buf, req_bytes, False)
+                    self.vram_allocated_bytes += req_bytes
+                    self.peak_vram_allocated_bytes = max(self.peak_vram_allocated_bytes, self.vram_allocated_bytes)
+                    return new_buf
                 except Exception:
                     pass
 
-            return new_buf
+        return self.get_pinned_buffer(slot_name, req_bytes)
+
+    def compute_max_batch_z(self, slice_bytes: int, num_buffers: int, requested_z: int) -> int:
+        """Compute maximum safe `batch_z` respecting device `max_mem_alloc_size` and 75% Shared RAM cap."""
+        req_z = max(1, int(requested_z))
+        per_slice = max(1, int(slice_bytes))
+        n_bufs = max(1, int(num_buffers))
+        max_by_single = max(1, self.max_single_alloc_bytes // per_slice)
+        max_by_total = max(1, int(self.max_shared_bytes * 0.80) // (per_slice * n_bufs))
+        return max(1, min(req_z, max_by_single, max_by_total))
 
     def stage_input(self, queue: "cl.CommandQueue", slot_name: str, arr: np.ndarray) -> "cl.Buffer":
         """
-        Stage `arr` into a persistent `CL_MEM_ALLOC_HOST_PTR` Shared GPU RAM slot using
-        a persistent WDDM GTT host mapping so pages stay locked in Shared GPU Memory.
+        Stage `arr` into a `CL_MEM_ALLOC_HOST_PTR` Shared GPU RAM slot using spec-compliant
+        `cl.enqueue_map_buffer` -> `np.copyto` -> unmap (`mapped.base.release`).
         """
         contig = np.ascontiguousarray(arr)
         nbytes = int(contig.nbytes)
         buf = self.get_pinned_buffer(slot_name, nbytes, cl.mem_flags.READ_WRITE, queue=queue)
-        with self._lock:
-            pinned = self._pins.get(slot_name)
-            if pinned is not None:
-                mapped_u8, _ = pinned
-                mapped_u8[:nbytes] = contig.view(np.uint8).ravel()
-                return buf
+        if nbytes == 0:
+            return buf
         try:
-            cl.enqueue_copy(queue, buf, contig)
+            map_flag = getattr(cl.map_flags, "WRITE_INVALIDATE_REGION", cl.map_flags.WRITE)
+            mapped, _ = cl.enqueue_map_buffer(
+                queue,
+                buf,
+                map_flag,
+                0,
+                (nbytes,),
+                np.uint8,
+                is_blocking=True,
+            )
+            try:
+                np.copyto(mapped, contig.view(np.uint8).ravel())
+            finally:
+                try:
+                    mapped.base.release(queue)
+                except Exception:
+                    mapped.base.release()
+            return buf
         except Exception:
-            pass
-        return buf
+            cl.enqueue_copy(queue, buf, contig)
+            return buf
 
     def read_output(self, queue: "cl.CommandQueue", buf: "cl.Buffer", out_arr: np.ndarray) -> np.ndarray:
-        """Read results from a `CL_MEM_ALLOC_HOST_PTR` Shared GPU RAM slot into `out_arr`."""
-        queue.finish()
+        """Read results from an OpenCL buffer into `out_arr` via spec-compliant map/unmap."""
         nbytes = int(out_arr.nbytes)
-        with self._lock:
-            for slot_name, (s_buf, _) in self._slots.items():
-                if s_buf == buf and slot_name in self._pins:
-                    mapped_u8, _ = self._pins[slot_name]
-                    out_arr.view(np.uint8).ravel()[:] = mapped_u8[:nbytes]
-                    return out_arr
+        if nbytes == 0:
+            queue.finish()
+            return out_arr
         try:
             mapped, _ = cl.enqueue_map_buffer(
                 queue,
                 buf,
                 cl.map_flags.READ,
                 0,
-                (out_arr.size,),
-                out_arr.dtype,
+                (nbytes,),
+                np.uint8,
                 is_blocking=True,
             )
-            with mapped.base:
-                out_arr.ravel()[:] = mapped
+            try:
+                np.copyto(out_arr.view(np.uint8).ravel(), mapped)
+            finally:
+                try:
+                    mapped.base.release(queue)
+                except Exception:
+                    mapped.base.release()
             return out_arr
         except Exception:
             cl.enqueue_copy(queue, out_arr, buf).wait()
             return out_arr
 
-    def _evict_unlocked(self) -> None:
-        for slot_name in list(self._pins.keys()):
-            self._unpin_slot_unlocked(slot_name)
-        for _, (buf, _) in list(self._slots.items()):
-            try:
-                buf.release()
-            except Exception:
-                pass
-        self._slots.clear()
-        self.allocated_bytes = 0
+    def get_stats(self) -> Dict[str, float]:
+        with self._lock:
+            return {
+                "shared_mode": self.shared_mode,
+                "allocated_mb": round(self.allocated_bytes / (1024.0 * 1024.0), 2),
+                "peak_shared_mb": round(self.peak_allocated_bytes / (1024.0 * 1024.0), 2),
+                "vram_scratch_mb": round(self.vram_allocated_bytes / (1024.0 * 1024.0), 2),
+                "peak_vram_scratch_mb": round(self.peak_vram_allocated_bytes / (1024.0 * 1024.0), 2),
+                "max_shared_mb": round(self.max_shared_bytes / (1024.0 * 1024.0), 2),
+                "max_single_alloc_mb": round(self.max_single_alloc_bytes / (1024.0 * 1024.0), 2),
+                "vram_budget_mb": round(self.vram_scratch_budget / (1024.0 * 1024.0), 2),
+                "slot_count": len(self._slots),
+            }
+
+    def _evict_vram_unlocked(self) -> None:
+        for slot_name in [k for k, (_, _, is_shared) in self._slots.items() if not is_shared]:
+            self._release_slot_unlocked(slot_name)
+
+    def _evict_unlocked(self, shared_only: bool = False) -> None:
+        keys = [k for k, (_, _, is_shared) in self._slots.items() if (not shared_only or is_shared)]
+        for slot_name in keys:
+            self._release_slot_unlocked(slot_name)
+        if not shared_only:
+            self._slots.clear()
+            self.allocated_bytes = 0
+            self.vram_allocated_bytes = 0
 
     def release(self) -> int:
-        """Deterministically unmap and release all pinned `CL_MEM_ALLOC_HOST_PTR` buffers."""
+        """Deterministically drain queues and release all Shared RAM & VRAM `cl.Buffer` slots."""
         with self._lock:
             count = len(self._slots)
-            self._evict_unlocked()
+            self._drain_queues_unlocked()
+            self._evict_unlocked(shared_only=False)
+            self._queues_ref = None
+            self.device = None
             self.ctx = None  # type: ignore
             return count
 
@@ -992,7 +1344,7 @@ atexit.register(release_all_opencl_resources)
 
 
 # ---------------------------------------------------------------------------
-# OpenCL 3D NDRange Multi-Queue Mathematical Accelerator (`v1.0.22`)
+# OpenCL 3D NDRange Multi-Queue Mathematical Accelerator (`v1.0.23`)
 # ---------------------------------------------------------------------------
 class OpenCLMathAccelerator:
     """
@@ -1034,7 +1386,6 @@ class OpenCLMathAccelerator:
         else:
             # Default: dynamically allow up to 75% of total Shared GPU Memory bounded by usable physical RAM
             arena_mb = usable_75pct_mb
-        self.shared_arena: Optional[SharedHostMemoryArena] = SharedHostMemoryArena(ctx, max_shared_mb=arena_mb)
 
         # Create 4 independent CommandQueues to stripe work across hardware compute engines (Compute 0..3)
         q_count = max(1, min(int(num_queues), 8))
@@ -1043,6 +1394,12 @@ class OpenCLMathAccelerator:
         self._q_idx = 0
         self._lock = threading.Lock()
         self._released = False
+        self.total_dispatches = 0
+        self.total_slices_processed = 0
+
+        self.shared_arena: Optional[SharedHostMemoryArena] = SharedHostMemoryArena(
+            ctx, max_shared_mb=arena_mb, device=device, queues=self.queues
+        )
 
         # Compile 3D NDRange OpenCL C program once with fast-relaxed-math (suppress Intel OpenCL CompilerWarning)
         with warnings.catch_warnings():
@@ -1053,7 +1410,6 @@ class OpenCLMathAccelerator:
             )
         # Cache kernel handles once so repeated attribute access on `self.program.<kernel>` never leaks
         self._k_srgb_3d = cl.Kernel(self.program, "srgb_to_linear_gamma_3d_kernel")
-        self._k_bezier_yuksel_3d = cl.Kernel(self.program, "render_bezier_sdf_yuksel_3d_kernel")
         self._k_sdf_smoothstep_3d = cl.Kernel(self.program, "sdf_valve_smoothstep_3d_kernel")
         self._k_msdf_median3_3d = cl.Kernel(self.program, "msdf_median3_reconstruct_3d_kernel")
         self._k_adf_biquad_3d = cl.Kernel(self.program, "adf_biquadratic_9pt_3d_kernel")
@@ -1061,6 +1417,18 @@ class OpenCLMathAccelerator:
         self._k_jfa_init_3d = cl.Kernel(self.program, "jfa_init_marching_seeds_3d_kernel")
         self._k_jfa_step_3d = cl.Kernel(self.program, "jfa_flood_step_3d_kernel")
         self._k_jfa_ms_recon_3d = cl.Kernel(self.program, "jfa_marching_squares_reconstruct_3d_kernel")
+        self._k_touch_pages = cl.Kernel(self.program, "touch_shared_pages_3d_kernel")
+        self._k_jfa_bnd_init = cl.Kernel(self.program, "jfa_boundary_init_short2_3d_kernel")
+        self._k_jfa_step_s2 = cl.Kernel(self.program, "jfa_step_short2_3d_kernel")
+        self._k_jfa_s2_sdf = cl.Kernel(self.program, "jfa_short2_to_sdf_3d_kernel")
+        self._k_otsu_batch_3d = cl.Kernel(self.program, "otsu_hist_batch_3d_kernel")
+        self._k_binarize_3d = cl.Kernel(self.program, "binarize_u8_3d_kernel")
+        self._k_median_blur_3d = cl.Kernel(self.program, "median_blur_3d_kernel")
+        self._k_morph_dilate_3d = cl.Kernel(self.program, "morph_dilate_dir_3d_kernel")
+        self._k_morph_erode_3d = cl.Kernel(self.program, "morph_erode_dir_3d_kernel")
+        self._k_combine_max_3d = cl.Kernel(self.program, "combine_max_u8_3d_kernel")
+        self._k_mdf_recon_3d = cl.Kernel(self.program, "mdf_reconstruct_3d_kernel")
+        self._k_msdf_down_3d = cl.Kernel(self.program, "msdf_downsample_rgb_3d_kernel")
 
         # 3D local work-group size `(lx, ly, lz)` tailored to max_work_group_size (256 = 8x8x4 = 4 wavefronts of 64)
         if self.max_wg_size >= 256:
@@ -1110,6 +1478,19 @@ class OpenCLMathAccelerator:
         gz = ((max(1, z) + eff_lz - 1) // eff_lz) * eff_lz
         return (gw, gh, gz)
 
+    def _effective_local_2d1(self) -> Tuple[int, int, int]:
+        if self.max_wg_size >= 256:
+            return (16, 16, 1)
+        if self.max_wg_size >= 64:
+            return (8, 8, 1)
+        return (4, 4, 1)
+
+    def _round_global_2d1(self, w: int, h: int, z: int) -> Tuple[int, int, int]:
+        lx, ly, _ = self._effective_local_2d1()
+        gw = ((max(1, w) + lx - 1) // lx) * lx
+        gh = ((max(1, h) + ly - 1) // ly) * ly
+        return (gw, gh, max(1, z))
+
     @staticmethod
     def _factor_1d_to_3d(n_elems: int, target_z_slices: int = 32) -> Tuple[int, int, int]:
         """
@@ -1123,6 +1504,17 @@ class OpenCLMathAccelerator:
         h = max(1, int(math.ceil(per_slice / float(w))))
         return (w, h, z_slices)
 
+    def get_telemetry(self) -> Dict[str, Any]:
+        arena_stats = self.shared_arena.get_stats() if self.shared_arena is not None else {}
+        return {
+            "device_name": self.device_name,
+            "compute_units": self.compute_units,
+            "num_queues": len(self.queues),
+            "total_dispatches": self.total_dispatches,
+            "total_slices_processed": self.total_slices_processed,
+            **arena_stats,
+        }
+
     def release(self) -> None:
         """
         Deterministically flush/finish all queues and release all OpenCL buffers, kernels,
@@ -1133,6 +1525,13 @@ class OpenCLMathAccelerator:
                 return
             self._released = True
 
+            for q in self.queues:
+                try:
+                    q.flush()
+                    q.finish()
+                except Exception:
+                    pass
+
             if self.shared_arena is not None:
                 try:
                     self.shared_arena.release()
@@ -1142,7 +1541,6 @@ class OpenCLMathAccelerator:
 
             for k_attr in (
                 "_k_srgb_3d",
-                "_k_bezier_yuksel_3d",
                 "_k_sdf_smoothstep_3d",
                 "_k_msdf_median3_3d",
                 "_k_adf_biquad_3d",
@@ -1150,6 +1548,18 @@ class OpenCLMathAccelerator:
                 "_k_jfa_init_3d",
                 "_k_jfa_step_3d",
                 "_k_jfa_ms_recon_3d",
+                "_k_touch_pages",
+                "_k_jfa_bnd_init",
+                "_k_jfa_step_s2",
+                "_k_jfa_s2_sdf",
+                "_k_otsu_batch_3d",
+                "_k_binarize_3d",
+                "_k_median_blur_3d",
+                "_k_morph_dilate_3d",
+                "_k_morph_erode_3d",
+                "_k_combine_max_3d",
+                "_k_mdf_recon_3d",
+                "_k_msdf_down_3d",
             ):
                 k_obj = getattr(self, k_attr, None)
                 if k_obj is not None:
@@ -1162,8 +1572,6 @@ class OpenCLMathAccelerator:
 
             for q in self.queues:
                 try:
-                    q.flush()
-                    q.finish()
                     if hasattr(q, "release"):
                         q.release()
                 except Exception:
@@ -1187,6 +1595,7 @@ class OpenCLMathAccelerator:
                     pass
                 self.ctx = None
             self.device = None
+        gc.collect()
 
     # -----------------------------------------------------------------------
     # 1. 3D NDRange sRGB-to-Linear Grayscale + Gamma Contrast (Shared RAM Arena)
@@ -1407,59 +1816,6 @@ class OpenCLMathAccelerator:
         return bilevel, field_u8
 
     # -----------------------------------------------------------------------
-    # 5. 3D NDRange Cem Yuksel Quintic Bezier Exact SDF
-    # -----------------------------------------------------------------------
-    def eval_bezier_sdf_yuksel(
-        self,
-        curves_f32: np.ndarray,
-        target_w: int,
-        target_h: int,
-        threshold: int = 128,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        if curves_f32.size == 0 or target_w <= 0 or target_h <= 0 or self.shared_arena is None:
-            empty = np.zeros((max(1, target_h), max(1, target_w)), dtype=np.uint8)
-            return empty, empty
-
-        c_arr = np.ascontiguousarray(curves_f32.astype(np.float32))
-        if c_arr.ndim == 4:
-            batch_z = int(c_arr.shape[0])
-            num_curves = int(c_arr.shape[1])
-        else:
-            batch_z = 1
-            num_curves = int(c_arr.shape[0])
-
-        eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
-        bias_px = np.float32((128.0 - float(eff_t)) / 64.0)
-        out_bytes = int(batch_z * target_h * target_w)
-
-        q = self._next_queue()
-        c_buf = self.shared_arena.stage_input(q, "bezier_c_in", c_arr)
-        bw_buf = self.shared_arena.get_pinned_buffer("bezier_bw_out", out_bytes)
-        fld_buf = self.shared_arena.get_pinned_buffer("bezier_fld_out", out_bytes)
-
-        loc_3d = self._effective_local_3d(batch_z)
-        glob_3d = self._round_global_3d(target_w, target_h, batch_z)
-        self._k_bezier_yuksel_3d(
-            q,
-            glob_3d,
-            loc_3d,
-            c_buf,
-            np.int32(num_curves),
-            bw_buf,
-            fld_buf,
-            np.int32(target_w),
-            np.int32(target_h),
-            np.int32(batch_z),
-            bias_px,
-        )
-        out_shape = (target_h, target_w) if curves_f32.ndim != 4 else (batch_z, target_h, target_w)
-        bilevel = np.empty(out_shape, dtype=np.uint8)
-        field_u8 = np.empty(out_shape, dtype=np.uint8)
-        self.shared_arena.read_output(q, bw_buf, bilevel)
-        self.shared_arena.read_output(q, fld_buf, field_u8)
-        return bilevel, field_u8
-
-    # -----------------------------------------------------------------------
     # 6. 3D NDRange Local-Atomic Histogram Otsu Thresholding
     # -----------------------------------------------------------------------
     def eval_otsu_linear_threshold(self, linear_gray: np.ndarray, base_threshold: int = 128) -> int:
@@ -1543,8 +1899,8 @@ class OpenCLMathAccelerator:
 
         q = self._next_queue()
         gray_buf = self.shared_arena.stage_input(q, "jfa_gray_in", u8_hi)
-        ping_buf = self.shared_arena.get_pinned_buffer("jfa_seeds_ping", seed_bytes)
-        pong_buf = self.shared_arena.get_pinned_buffer("jfa_seeds_pong", seed_bytes)
+        ping_buf = self.shared_arena.get_scratch_buffer("jfa_seeds_ping", seed_bytes)
+        pong_buf = self.shared_arena.get_scratch_buffer("jfa_seeds_pong", seed_bytes)
         bw_buf = self.shared_arena.get_pinned_buffer("jfa_bw_out", out_bytes)
         fld_buf = self.shared_arena.get_pinned_buffer("jfa_fld_out", out_bytes)
 
@@ -1608,6 +1964,8 @@ class OpenCLMathAccelerator:
             iso_thresh,
             bias_px,
         )
+        self.total_dispatches += 1
+        self.total_slices_processed += batch_z
 
         out_shape = (target_h, target_w) if high_gray.ndim == 2 else (batch_z, target_h, target_w)
         bilevel = np.empty(out_shape, dtype=np.uint8)
@@ -1615,6 +1973,581 @@ class OpenCLMathAccelerator:
         self.shared_arena.read_output(q, bw_buf, bilevel)
         self.shared_arena.read_output(q, fld_buf, field_u8)
         return bilevel, field_u8
+
+    # -----------------------------------------------------------------------
+    # 8. 3D Coalesced short2 1+JFA Helper, Median Blur & Directional Morphology
+    # -----------------------------------------------------------------------
+    def _run_jfa_short2_sdf_on_device(
+        self,
+        q: "cl.CommandQueue",
+        gray_or_mask_buf: "cl.Buffer",
+        out_sdf_buf: "cl.Buffer",
+        hi_w: int,
+        hi_h: int,
+        batch_z: int,
+        upscale: int,
+        thresh_u8: int,
+        slot_prefix: str = "jfa_s2",
+    ) -> None:
+        assert self.shared_arena is not None
+        seed_bytes = int(batch_z * hi_h * hi_w * 4)
+        ping_buf = self.shared_arena.get_scratch_buffer(f"{slot_prefix}_ping", seed_bytes)
+        pong_buf = self.shared_arena.get_scratch_buffer(f"{slot_prefix}_pong", seed_bytes)
+
+        loc = self._effective_local_2d1()
+        glob = self._round_global_2d1(hi_w, hi_h, batch_z)
+        self._k_jfa_bnd_init(
+            q,
+            glob,
+            loc,
+            gray_or_mask_buf,
+            ping_buf,
+            np.int32(hi_w),
+            np.int32(hi_h),
+            np.int32(batch_z),
+            np.uint8(thresh_u8),
+        )
+
+        band = max(32, 4 * int(upscale))
+        top_pow2 = 1 << max(0, int(math.ceil(math.log2(band))))
+        steps: List[int] = [1]
+        s = top_pow2
+        while s >= 1:
+            steps.append(s)
+            s //= 2
+
+        src_s, dst_s = ping_buf, pong_buf
+        for step_k in steps:
+            self._k_jfa_step_s2(
+                q,
+                glob,
+                loc,
+                src_s,
+                dst_s,
+                np.int32(hi_w),
+                np.int32(hi_h),
+                np.int32(batch_z),
+                np.int32(step_k),
+            )
+            src_s, dst_s = dst_s, src_s
+
+        self._k_jfa_s2_sdf(
+            q,
+            glob,
+            loc,
+            gray_or_mask_buf,
+            src_s,
+            out_sdf_buf,
+            np.int32(hi_w),
+            np.int32(hi_h),
+            np.int32(batch_z),
+            np.uint8(thresh_u8),
+            np.float32(1.0 / float(max(1, upscale))),
+        )
+
+    def eval_median_blur(self, arr: np.ndarray, ksize: int) -> np.ndarray:
+        if arr is None or arr.size == 0 or ksize <= 1 or self.shared_arena is None or self._released:
+            return arr
+        if ksize > 5:
+            import cv2
+            return cv2.medianBlur(arr, ksize)
+        u8 = np.ascontiguousarray(arr.astype(np.uint8))
+        if u8.ndim == 2:
+            batch_z = 1
+            h, w = u8.shape
+            out_shape: Tuple[int, ...] = (h, w)
+        else:
+            batch_z, h, w = u8.shape
+            out_shape = (batch_z, h, w)
+        radius = 1 if ksize <= 3 else 2
+        q = self._next_queue()
+        src_buf = self.shared_arena.stage_input(q, "med_in", u8)
+        dst_buf = self.shared_arena.get_pinned_buffer("med_out", int(u8.nbytes))
+        loc = self._effective_local_2d1()
+        glob = self._round_global_2d1(w, h, batch_z)
+        self._k_median_blur_3d(q, glob, loc, src_buf, dst_buf, np.int32(w), np.int32(h), np.int32(batch_z), np.int32(radius))
+        self.total_dispatches += 1
+        self.total_slices_processed += batch_z
+        out = np.empty(out_shape, dtype=np.uint8)
+        return self.shared_arena.read_output(q, dst_buf, out)
+
+    def eval_morphology_close(self, arr: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+        if arr is None or arr.size == 0 or self.shared_arena is None or self._released:
+            return arr
+        kh, kw = kernel.shape[:2]
+        is_horiz = (kh == 1 and kw >= 2 and bool(np.all(kernel > 0)))
+        is_vert = (kw == 1 and kh >= 2 and bool(np.all(kernel > 0)))
+        if not (is_horiz or is_vert):
+            import cv2
+            return cv2.morphologyEx(arr, cv2.MORPH_CLOSE, kernel)
+
+        u8 = np.ascontiguousarray(arr.astype(np.uint8))
+        if u8.ndim == 2:
+            batch_z = 1
+            h, w = u8.shape
+            out_shape: Tuple[int, ...] = (h, w)
+        else:
+            batch_z, h, w = u8.shape
+            out_shape = (batch_z, h, w)
+        k_span = kw if is_horiz else kh
+        dx, dy = (1, 0) if is_horiz else (0, 1)
+        r_neg = k_span // 2
+        r_pos = k_span - 1 - r_neg
+
+        q = self._next_queue()
+        src_buf = self.shared_arena.stage_input(q, "morph_in", u8)
+        tmp_buf = self.shared_arena.get_scratch_buffer("morph_tmp", int(u8.nbytes))
+        dst_buf = self.shared_arena.get_pinned_buffer("morph_out", int(u8.nbytes))
+        loc = self._effective_local_2d1()
+        glob = self._round_global_2d1(w, h, batch_z)
+        self._k_morph_dilate_3d(
+            q, glob, loc, src_buf, tmp_buf, np.int32(w), np.int32(h), np.int32(batch_z),
+            np.int32(dx), np.int32(dy), np.int32(r_neg), np.int32(r_pos),
+        )
+        self._k_morph_erode_3d(
+            q, glob, loc, tmp_buf, dst_buf, np.int32(w), np.int32(h), np.int32(batch_z),
+            np.int32(dx), np.int32(dy), np.int32(r_pos), np.int32(r_neg),
+        )
+        self.total_dispatches += 1
+        self.total_slices_processed += batch_z
+        out = np.empty(out_shape, dtype=np.uint8)
+        return self.shared_arena.read_output(q, dst_buf, out)
+
+    # -----------------------------------------------------------------------
+    # 9. Full 3D NDRange Batched Strike Pipeline Execution
+    # -----------------------------------------------------------------------
+    def eval_pipeline_batch_3d(
+        self,
+        pipeline: str,
+        raw_batch_u8: np.ndarray,
+        glyph_dims: np.ndarray,
+        target_w: int,
+        target_h: int,
+        upscale: int = 1,
+        threshold: int = 128,
+        gamma: float = 1.0,
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """
+        Execute an entire glyph strike as a single 3D `(batch_z, H, W)` OpenCL GPU batch
+        (automatically chunked across `Compute 0..3` to honor `max_mem_alloc_size` and the
+        75% WDDM Shared GPU Memory cap).
+
+        Returns `(bilevel_batch, aux_lin_gray_batch)`:
+          - `raw-unhinted`, `raw-hinted`, `otsu-adaptive`, `sdf-smoothstep`,
+            `adf-biquadratic`, `mdf`, `msdf`: `(bilevel_u8[B, target_h, target_w], None)`
+          - `svg-potrace`: `(None, lin_gray_u8[B, H, W])`
+          - `svg-potrace-jfa`: `(bilevel_u8[B, target_h, target_w], lin_gray_u8[B, H, W])`
+        """
+        assert self.shared_arena is not None
+        if raw_batch_u8 is None or raw_batch_u8.size == 0:
+            empty_bw = np.zeros((0, max(1, target_h), max(1, target_w)), dtype=np.uint8)
+            return empty_bw, None
+
+        B, H, W = raw_batch_u8.shape
+        eff_t = int(np.clip(threshold if threshold > 0 else 128, 1, 254))
+        eff_gamma = float(np.clip(gamma if gamma > 0 else 1.0, 0.1, 5.0))
+        inv_gamma = np.float32(1.0 / eff_gamma)
+        bias_px = np.float32((128.0 - float(eff_t)) / 64.0)
+
+        if pipeline in ("mdf", "msdf"):
+            bytes_per_px_equiv = 24
+        elif pipeline in ("sdf-smoothstep", "adf-biquadratic", "svg-potrace-jfa"):
+            bytes_per_px_equiv = 16
+        else:
+            bytes_per_px_equiv = 4
+
+        max_chunk_z = self.shared_arena.compute_max_batch_z(W * H, bytes_per_px_equiv, B)
+        out_bw: Optional[np.ndarray] = (
+            None if pipeline == "svg-potrace" else np.empty((B, target_h, target_w), dtype=np.uint8)
+        )
+        out_aux: Optional[np.ndarray] = (
+            np.empty((B, H, W), dtype=np.uint8) if pipeline in ("svg-potrace", "svg-potrace-jfa") else None
+        )
+
+        loc_2d1 = self._effective_local_2d1()
+        for z0 in range(0, B, max_chunk_z):
+            z1 = min(B, z0 + max_chunk_z)
+            cz = z1 - z0
+            q = self._next_queue()
+
+            chunk_u8 = np.ascontiguousarray(raw_batch_u8[z0:z1], dtype=np.uint8)
+            n_hi_px = int(cz * H * W)
+            n_lo_px = int(cz * target_h * target_w)
+
+            src_buf = self.shared_arena.stage_input(q, "b3d_raw_in", chunk_u8)
+            need_lin_readback = pipeline in ("otsu-adaptive", "svg-potrace", "svg-potrace-jfa")
+            lin_buf = (
+                self.shared_arena.get_pinned_buffer("b3d_lin_pin", n_hi_px)
+                if need_lin_readback
+                else self.shared_arena.get_scratch_buffer("b3d_lin_scr", n_hi_px)
+            )
+            loc_hi_3d = self._effective_local_3d(cz)
+            glob_hi_3d = self._round_global_3d(W, H, cz)
+            self._k_srgb_3d(
+                q,
+                glob_hi_3d,
+                loc_hi_3d,
+                src_buf,
+                lin_buf,
+                np.int32(W),
+                np.int32(H),
+                np.int32(cz),
+                np.int32(n_hi_px),
+                np.int32(1),
+                inv_gamma,
+            )
+
+            glob_hi_2d1 = self._round_global_2d1(W, H, cz)
+            loc_lo_3d = self._effective_local_3d(cz)
+            glob_lo_3d = self._round_global_3d(target_w, target_h, cz)
+
+            if pipeline in ("raw-unhinted", "raw-hinted"):
+                bw_buf = self.shared_arena.get_pinned_buffer("b3d_bw_out", n_lo_px)
+                self._k_binarize_3d(
+                    q, glob_hi_2d1, loc_2d1, lin_buf, bw_buf,
+                    np.int32(W), np.int32(H), np.int32(cz), np.uint8(eff_t),
+                )
+                assert out_bw is not None
+                self.shared_arena.read_output(q, bw_buf, out_bw[z0:z1])
+
+            elif pipeline == "otsu-adaptive":
+                dims_i32 = np.ascontiguousarray(glyph_dims[z0:z1], dtype=np.int32)
+                dims_buf = self.shared_arena.stage_input(q, "b3d_dims_in", dims_i32)
+                hist_zeros = np.zeros((cz, 256), dtype=np.uint32)
+                hist_buf = self.shared_arena.stage_input(q, "b3d_otsu_hists", hist_zeros)
+                self._k_otsu_batch_3d(
+                    q, glob_hi_2d1, loc_2d1, lin_buf, dims_buf, hist_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                )
+                hists = np.empty((cz, 256), dtype=np.uint32)
+                lin_chunk = np.empty((cz, H, W), dtype=np.uint8)
+                self.shared_arena.read_output(q, hist_buf, hists)
+                self.shared_arena.read_output(q, lin_buf, lin_chunk)
+
+                bins_f = np.arange(256, dtype=np.float64)
+                user_offset = int(eff_t) - 128
+                assert out_bw is not None
+                for i in range(cz):
+                    gw_i = int(dims_i32[i, 0])
+                    gh_i = int(dims_i32[i, 1])
+                    h_vec = hists[i]
+                    tot = float(np.sum(h_vec))
+                    if gw_i * gh_i < 64 or tot < 6.0:
+                        use_t = eff_t
+                    else:
+                        p = h_vec.astype(np.float64) / tot
+                        omega = np.cumsum(p)
+                        mu = np.cumsum(p * bins_f)
+                        mu_t = mu[-1]
+                        denom = omega * (1.0 - omega)
+                        valid = denom > 1e-9
+                        sigma_b = np.zeros(256, dtype=np.float64)
+                        sigma_b[valid] = ((mu_t * omega[valid] - mu[valid]) ** 2) / denom[valid]
+                        k_star = int(np.argmax(sigma_b))
+                        use_t = int(np.clip(round(0.70 * k_star + 0.30 * 128 + user_offset), 72, 184))
+                    out_bw[z0 + i] = (lin_chunk[i] >= use_t).astype(np.uint8)
+
+            elif pipeline == "svg-potrace":
+                assert out_aux is not None
+                self.shared_arena.read_output(q, lin_buf, out_aux[z0:z1])
+
+            elif pipeline == "svg-potrace-jfa":
+                iso_thresh = np.float32(float(eff_t))
+                ping_buf = self.shared_arena.get_scratch_buffer("b3d_jfa_f2_ping", n_hi_px * 8)
+                pong_buf = self.shared_arena.get_scratch_buffer("b3d_jfa_f2_pong", n_hi_px * 8)
+                bw_buf = self.shared_arena.get_pinned_buffer("b3d_bw_out", n_lo_px)
+                fld_buf = self.shared_arena.get_scratch_buffer("b3d_fld_scr", n_lo_px)
+
+                self._k_jfa_init_3d(
+                    q, glob_hi_3d, loc_hi_3d, lin_buf, ping_buf,
+                    np.int32(W), np.int32(H), np.int32(cz), iso_thresh,
+                )
+                max_dim = max(W, H, 2)
+                top_pow2 = 1 << max(0, int(math.ceil(math.log2(max_dim))) - 1)
+                steps: List[int] = [1]
+                s = top_pow2
+                while s >= 1:
+                    steps.append(s)
+                    s //= 2
+                src_s, dst_s = ping_buf, pong_buf
+                for step_k in steps:
+                    self._k_jfa_step_3d(
+                        q, glob_hi_3d, loc_hi_3d, src_s, dst_s,
+                        np.int32(W), np.int32(H), np.int32(cz), np.int32(step_k),
+                    )
+                    src_s, dst_s = dst_s, src_s
+
+                self._k_jfa_ms_recon_3d(
+                    q, glob_lo_3d, loc_lo_3d, lin_buf, src_s, bw_buf, fld_buf,
+                    np.int32(W), np.int32(H), np.int32(target_w), np.int32(target_h),
+                    np.int32(cz), np.int32(upscale), iso_thresh, bias_px,
+                )
+                assert out_bw is not None and out_aux is not None
+                self.shared_arena.read_output(q, bw_buf, out_bw[z0:z1])
+                self.shared_arena.read_output(q, lin_buf, out_aux[z0:z1])
+
+            elif pipeline == "sdf-smoothstep":
+                sdf_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_0", n_hi_px * 4)
+                self._run_jfa_short2_sdf_on_device(q, lin_buf, sdf_buf, W, H, cz, upscale, 128, "b3d_jfa_s2")
+                bw_buf = self.shared_arena.get_pinned_buffer("b3d_bw_out", n_lo_px)
+                fld_buf = self.shared_arena.get_scratch_buffer("b3d_fld_scr", n_lo_px)
+                self._k_sdf_smoothstep_3d(
+                    q, glob_lo_3d, loc_lo_3d, sdf_buf, bw_buf, fld_buf,
+                    np.int32(W), np.int32(H), np.int32(target_w), np.int32(target_h),
+                    np.int32(cz), np.int32(upscale), bias_px,
+                )
+                assert out_bw is not None
+                self.shared_arena.read_output(q, bw_buf, out_bw[z0:z1])
+
+            elif pipeline == "adf-biquadratic":
+                sdf_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_0", n_hi_px * 4)
+                self._run_jfa_short2_sdf_on_device(q, lin_buf, sdf_buf, W, H, cz, upscale, 128, "b3d_jfa_s2")
+                bw_buf = self.shared_arena.get_pinned_buffer("b3d_bw_out", n_lo_px)
+                fld_buf = self.shared_arena.get_scratch_buffer("b3d_fld_scr", n_lo_px)
+                self._k_adf_biquad_3d(
+                    q, glob_lo_3d, loc_lo_3d, sdf_buf, bw_buf, fld_buf,
+                    np.int32(W), np.int32(H), np.int32(target_w), np.int32(target_h),
+                    np.int32(cz), np.int32(upscale), bias_px,
+                )
+                assert out_bw is not None
+                self.shared_arena.read_output(q, bw_buf, out_bw[z0:z1])
+
+            elif pipeline == "mdf":
+                k_rad = 1 if upscale < 10 else 2
+                med_buf = self.shared_arena.get_scratch_buffer("b3d_med", n_hi_px)
+                fg_buf = self.shared_arena.get_scratch_buffer("b3d_fg", n_hi_px)
+                tmp_buf = self.shared_arena.get_scratch_buffer("b3d_tmp", n_hi_px)
+                fg_h_buf = self.shared_arena.get_scratch_buffer("b3d_fgh", n_hi_px)
+                fg_v_buf = self.shared_arena.get_scratch_buffer("b3d_fgv", n_hi_px)
+
+                self._k_median_blur_3d(
+                    q, glob_hi_2d1, loc_2d1, lin_buf, med_buf,
+                    np.int32(W), np.int32(H), np.int32(cz), np.int32(k_rad),
+                )
+                self._k_binarize_3d(
+                    q, glob_hi_2d1, loc_2d1, med_buf, fg_buf,
+                    np.int32(W), np.int32(H), np.int32(cz), np.uint8(128),
+                )
+
+                k_span = max(3, upscale // 3)
+                r_neg = k_span // 2
+                r_pos = k_span - 1 - r_neg
+                self._k_morph_dilate_3d(
+                    q, glob_hi_2d1, loc_2d1, fg_buf, tmp_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(1), np.int32(0), np.int32(r_neg), np.int32(r_pos),
+                )
+                self._k_morph_erode_3d(
+                    q, glob_hi_2d1, loc_2d1, tmp_buf, fg_h_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(1), np.int32(0), np.int32(r_pos), np.int32(r_neg),
+                )
+                self._k_morph_dilate_3d(
+                    q, glob_hi_2d1, loc_2d1, fg_buf, tmp_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(0), np.int32(1), np.int32(r_neg), np.int32(r_pos),
+                )
+                self._k_morph_erode_3d(
+                    q, glob_hi_2d1, loc_2d1, tmp_buf, fg_v_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(0), np.int32(1), np.int32(r_pos), np.int32(r_neg),
+                )
+
+                sdf_iso_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_0", n_hi_px * 4)
+                sdf_h_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_1", n_hi_px * 4)
+                sdf_v_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_2", n_hi_px * 4)
+                self._run_jfa_short2_sdf_on_device(q, fg_buf, sdf_iso_buf, W, H, cz, upscale, 1, "b3d_jfa_s2")
+                self._run_jfa_short2_sdf_on_device(q, fg_h_buf, sdf_h_buf, W, H, cz, upscale, 1, "b3d_jfa_s2")
+                self._run_jfa_short2_sdf_on_device(q, fg_v_buf, sdf_v_buf, W, H, cz, upscale, 1, "b3d_jfa_s2")
+
+                bw_buf = self.shared_arena.get_pinned_buffer("b3d_bw_out", n_lo_px)
+                fld_buf = self.shared_arena.get_scratch_buffer("b3d_fld_scr", n_lo_px)
+                self._k_mdf_recon_3d(
+                    q, glob_lo_3d, loc_lo_3d, sdf_iso_buf, sdf_h_buf, sdf_v_buf, bw_buf, fld_buf,
+                    np.int32(W), np.int32(H), np.int32(target_w), np.int32(target_h),
+                    np.int32(cz), np.int32(upscale), np.int32(eff_t),
+                )
+                assert out_bw is not None
+                self.shared_arena.read_output(q, bw_buf, out_bw[z0:z1])
+
+            elif pipeline == "msdf":
+                fg_buf = self.shared_arena.get_scratch_buffer("b3d_fg", n_hi_px)
+                tmp_buf = self.shared_arena.get_scratch_buffer("b3d_tmp", n_hi_px)
+                diag_buf = self.shared_arena.get_scratch_buffer("b3d_diag", n_hi_px)
+                mask_r_buf = self.shared_arena.get_scratch_buffer("b3d_msdf_mr", n_hi_px)
+                mask_g_buf = self.shared_arena.get_scratch_buffer("b3d_msdf_mg", n_hi_px)
+
+                self._k_binarize_3d(
+                    q, glob_hi_2d1, loc_2d1, lin_buf, fg_buf,
+                    np.int32(W), np.int32(H), np.int32(cz), np.uint8(128),
+                )
+                k_span = max(3, upscale // 3)
+                r_neg = k_span // 2
+                r_pos = k_span - 1 - r_neg
+
+                # Channel R = max(close(horiz), close(diag1))
+                self._k_morph_dilate_3d(
+                    q, glob_hi_2d1, loc_2d1, fg_buf, tmp_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(1), np.int32(0), np.int32(r_neg), np.int32(r_pos),
+                )
+                self._k_morph_erode_3d(
+                    q, glob_hi_2d1, loc_2d1, tmp_buf, mask_r_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(1), np.int32(0), np.int32(r_pos), np.int32(r_neg),
+                )
+                self._k_morph_dilate_3d(
+                    q, glob_hi_2d1, loc_2d1, fg_buf, tmp_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(1), np.int32(1), np.int32(r_neg), np.int32(r_pos),
+                )
+                self._k_morph_erode_3d(
+                    q, glob_hi_2d1, loc_2d1, tmp_buf, diag_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(1), np.int32(1), np.int32(r_pos), np.int32(r_neg),
+                )
+                self._k_combine_max_3d(
+                    q, glob_hi_2d1, loc_2d1, mask_r_buf, diag_buf, mask_r_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                )
+
+                # Channel G = max(close(vert), close(diag2))
+                self._k_morph_dilate_3d(
+                    q, glob_hi_2d1, loc_2d1, fg_buf, tmp_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(0), np.int32(1), np.int32(r_neg), np.int32(r_pos),
+                )
+                self._k_morph_erode_3d(
+                    q, glob_hi_2d1, loc_2d1, tmp_buf, mask_g_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(0), np.int32(1), np.int32(r_pos), np.int32(r_neg),
+                )
+                self._k_morph_dilate_3d(
+                    q, glob_hi_2d1, loc_2d1, fg_buf, tmp_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(-1), np.int32(1), np.int32(r_neg), np.int32(r_pos),
+                )
+                self._k_morph_erode_3d(
+                    q, glob_hi_2d1, loc_2d1, tmp_buf, diag_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                    np.int32(-1), np.int32(1), np.int32(r_pos), np.int32(r_neg),
+                )
+                self._k_combine_max_3d(
+                    q, glob_hi_2d1, loc_2d1, mask_g_buf, diag_buf, mask_g_buf,
+                    np.int32(W), np.int32(H), np.int32(cz),
+                )
+
+                sdf_iso_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_0", n_hi_px * 4)
+                sdf_r_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_1", n_hi_px * 4)
+                sdf_g_buf = self.shared_arena.get_scratch_buffer("b3d_sdf_2", n_hi_px * 4)
+                self._run_jfa_short2_sdf_on_device(q, fg_buf, sdf_iso_buf, W, H, cz, upscale, 1, "b3d_jfa_s2")
+                self._run_jfa_short2_sdf_on_device(q, mask_r_buf, sdf_r_buf, W, H, cz, upscale, 1, "b3d_jfa_s2")
+                self._run_jfa_short2_sdf_on_device(q, mask_g_buf, sdf_g_buf, W, H, cz, upscale, 1, "b3d_jfa_s2")
+
+                low_r_buf = self.shared_arena.get_scratch_buffer("b3d_msdf_lr", n_lo_px * 4)
+                low_g_buf = self.shared_arena.get_scratch_buffer("b3d_msdf_lg", n_lo_px * 4)
+                low_b_buf = self.shared_arena.get_scratch_buffer("b3d_msdf_lb", n_lo_px * 4)
+                self._k_msdf_down_3d(
+                    q, glob_lo_3d, loc_lo_3d, lin_buf, sdf_iso_buf, sdf_r_buf, sdf_g_buf,
+                    low_r_buf, low_g_buf, low_b_buf,
+                    np.int32(W), np.int32(H), np.int32(target_w), np.int32(target_h),
+                    np.int32(cz), np.int32(upscale),
+                )
+
+                bw_buf = self.shared_arena.get_pinned_buffer("b3d_bw_out", n_lo_px)
+                fld_buf = self.shared_arena.get_scratch_buffer("b3d_fld_scr", n_lo_px)
+                self._k_msdf_median3_3d(
+                    q, glob_lo_3d, loc_lo_3d, low_r_buf, low_g_buf, low_b_buf, bw_buf, fld_buf,
+                    np.int32(target_w), np.int32(target_h), np.int32(cz), bias_px,
+                )
+                assert out_bw is not None
+                self.shared_arena.read_output(q, bw_buf, out_bw[z0:z1])
+            else:
+                raise ValueError(f"Unsupported batch pipeline '{pipeline}'")
+
+            self.total_dispatches += 1
+            self.total_slices_processed += cz
+
+        return out_bw, out_aux
+
+    # -----------------------------------------------------------------------
+    # 10. WDDM Shared GPU Memory Stress & PDH Verification Utility
+    # -----------------------------------------------------------------------
+    @staticmethod
+    def _query_wddm_gpu_process_memory_mb() -> Tuple[Optional[float], Optional[float]]:
+        if os.name != "nt":
+            return None, None
+        pid = os.getpid()
+        ps = (
+            f"$ded = (Get-Counter '\\GPU Process Memory(pid_{pid}_*)\\Dedicated Usage' -ErrorAction SilentlyContinue).CounterSamples | "
+            f"Measure-Object -Property CookedValue -Sum | Select-Object -ExpandProperty Sum; "
+            f"$shr = (Get-Counter '\\GPU Process Memory(pid_{pid}_*)\\Shared Usage' -ErrorAction SilentlyContinue).CounterSamples | "
+            f"Measure-Object -Property CookedValue -Sum | Select-Object -ExpandProperty Sum; "
+            f"Write-Output (([math]::Round([double]$ded/1MB, 2)).ToString() + ',' + ([math]::Round([double]$shr/1MB, 2)).ToString())"
+        )
+        try:
+            r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=10)
+            parts = r.stdout.strip().split(",")
+            if len(parts) == 2:
+                return float(parts[0]), float(parts[1])
+        except Exception:
+            pass
+        return None, None
+
+    def touch_shared_memory_mb(self, target_mb: int, hold_seconds: float = 0.0) -> Dict[str, Any]:
+        """
+        Allocate `target_mb` in `CL_MEM_ALLOC_HOST_PTR` WDDM Shared GPU Memory chunks,
+        touch every 4 KB page via `touch_shared_pages_3d_kernel`, optionally hold for
+        Task Manager observation, query Windows PDH Dedicated vs Shared usage, and release cleanly.
+        """
+        assert self.shared_arena is not None and self.ctx is not None
+        ensure_pyopencl()
+        q = self._next_queue()
+        q.finish()
+        ded_before, shr_before = self._query_wddm_gpu_process_memory_mb()
+
+        req_bytes = min(max(4, int(target_mb)) * 1024 * 1024, self.shared_arena.max_shared_bytes)
+        chunk_cap = min(256 * 1024 * 1024, self.shared_arena.max_single_alloc_bytes)
+        chunk_cap = max(4096, (chunk_cap // 4096) * 4096)
+
+        bufs: List["cl.Buffer"] = []
+        allocated = 0
+        try:
+            while allocated < req_bytes:
+                sz = min(chunk_cap, req_bytes - allocated)
+                sz = max(4096, ((sz + 4095) // 4096) * 4096)
+                buf = cl.Buffer(self.ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.ALLOC_HOST_PTR, size=sz)
+                bufs.append(buf)
+                n_pages = (sz + 4095) // 4096
+                wg = min(256, max(1, self.max_wg_size))
+                g_pages = ((n_pages + wg - 1) // wg) * wg
+                self._k_touch_pages(q, (g_pages,), (wg,), buf, np.int64(sz))
+                allocated += sz
+            q.finish()
+            ded_active, shr_active = self._query_wddm_gpu_process_memory_mb()
+            if hold_seconds > 0:
+                time.sleep(float(hold_seconds))
+        finally:
+            for b in bufs:
+                try:
+                    b.release()
+                except Exception:
+                    pass
+            bufs.clear()
+            q.finish()
+            gc.collect()
+
+        ded_after, shr_after = self._query_wddm_gpu_process_memory_mb()
+        return {
+            "requested_mb": int(target_mb),
+            "allocated_mb": round(allocated / (1024.0 * 1024.0), 2),
+            "dedicated_before_mb": ded_before,
+            "shared_before_mb": shr_before,
+            "dedicated_active_mb": ded_active,
+            "shared_active_mb": shr_active,
+            "dedicated_after_mb": ded_after,
+            "shared_after_mb": shr_after,
+        }
 
 
 def validate_sdf_gradient(sdf_tex: np.ndarray, tolerance: float = 0.08) -> Tuple[bool, float]:

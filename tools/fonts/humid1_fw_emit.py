@@ -688,7 +688,8 @@ def generate_scheme_headers(
         emitted_m = set()
         for suffix, target in role_pairs:
             m_name = f"HUMID1_FONT_{suffix}"
-            p_lines.append(f"#define {m_name:32s} (&{target})")
+            resolved_t = pick_sym(semantic_roles[m_name], target) if m_name in semantic_roles else target
+            p_lines.append(f"#define {m_name:32s} (&{resolved_t})")
             emitted_m.add(m_name)
         for macro_name, target_sym in semantic_roles.items():
             if macro_name not in emitted_m:
@@ -753,12 +754,21 @@ def generate_scheme_headers(
             "",
             "/* H1OS_FONT_<sz> Size/Role Aliases */",
         ]
+        sem_roles_h1os = branding.get("semantic_roles", {})
+
+        def _extract_family_prefix(sym_str: str, fallback_prefix: str) -> str:
+            m_fam = re.match(r"^(?:humid1_font_)?(.+?)_(?:normal|bold|italic|regular|medium|semibold|extrabold)_\d+$", sym_str.strip())
+            return m_fam.group(1) if m_fam else fallback_prefix
+
+        sans_prefix = _extract_family_prefix(str(sem_roles_h1os.get("HUMID1_FONT_UI_BODY", default_font)), "plex_sans")
+        mono_prefix = _extract_family_prefix(str(sem_roles_h1os.get("HUMID1_FONT_TELEMETRY_BODY", "")), "plex_mono")
+
         for sz in range(10, 42, 2):
-            pref = f"plex_sans_bold_{sz}" if sz >= 20 else f"plex_sans_normal_{sz}"
-            s_norm = pick_sym(pref, f"plex_sans_normal_{sz}")
-            s_bold = pick_sym(f"plex_sans_bold_{sz}", s_norm)
-            m_norm = pick_sym(f"plex_mono_normal_{sz}", s_norm)
-            m_bold = pick_sym(f"plex_mono_bold_{sz}", s_bold)
+            pref = f"{sans_prefix}_bold_{sz}" if sz >= 20 else f"{sans_prefix}_normal_{sz}"
+            s_norm = pick_sym(pref, f"{sans_prefix}_normal_{sz}")
+            s_bold = pick_sym(f"{sans_prefix}_bold_{sz}", s_norm)
+            m_norm = pick_sym(f"{mono_prefix}_normal_{sz}", s_norm)
+            m_bold = pick_sym(f"{mono_prefix}_bold_{sz}", s_bold)
             c_lines.append(f"#define H1OS_FONT_{sz} (&{s_norm})")
             c_lines.append(f"#define H1OS_FONT_BOLD_{sz} (&{s_bold})")
             c_lines.append(f"#define H1OS_FONT_MONO_{sz} (&{m_norm})")

@@ -1136,3 +1136,382 @@ def compute_upscaled_hq_metrics(
     bin_mass = float(np.sum(up_bin > 0))
     mass_err = ((bin_mass - hq_mass) / max(1.0, hq_mass)) * 100.0
     return hq_conf, hq_diff, val_occ, mass_err
+
+
+OPEN_CAVITY_MIN_BAYS: Dict[str, int] = {
+    "s": 2, "S": 2, "c": 1, "e": 1, "2": 2, "3": 2, "5": 2, "z": 2,
+}
+PURE_OPEN_CAVITY_CHARS = frozenset(("s", "S", "c", "2", "3", "5", "z"))
+TROUBLE_15_CHARS: str = "sacgey023489#$%&@"
+EPD_DEFAULT_R_BG: float = 190.0
+EPD_DEFAULT_R_INK: float = 23.0
+EPD_20CM_SIGMA_NOM_PX: float = 1.25
+EPD_20CM_SIGMA_OFF_PX: float = 1.75
+
+
+def simulate_epd_gaussian_psf(
+    binary_arr: np.ndarray,
+    sigma_px: float = EPD_20CM_SIGMA_NOM_PX,
+    r_bg: float = EPD_DEFAULT_R_BG,
+    r_ink: float = EPD_DEFAULT_R_INK,
+    pad_px: int = 6,
+) -> Tuple[np.ndarray, np.ndarray, int]:
+    """
+    Map a 1-bpp glyph/string array (`1`=ink, `0`=bg) to empirical EPD panel reflectance
+    (`r_bg`, `r_ink`) and apply a 2D Gaussian PSF blur at `sigma_px`.
+    Returns `(psf_lum_padded, raw_lum_padded, pad_px)`.
+    """
+    if binary_arr is None or binary_arr.size == 0:
+        empty = np.full((pad_px * 2 + 1, pad_px * 2 + 1), float(r_bg), dtype=np.float32)
+        return empty, empty.copy(), pad_px
+    fg = (binary_arr > 0).astype(np.uint8)
+    padded = np.pad(fg, pad_px, mode="constant", constant_values=0)
+    raw_lum = np.where(padded > 0, float(r_ink), float(r_bg)).astype(np.float32)
+    if float(sigma_px) > 0.05:
+        psf_lum = cv2.GaussianBlur(
+            raw_lum,
+            (0, 0),
+            sigmaX=float(sigma_px),
+            sigmaY=float(sigma_px),
+            borderType=cv2.BORDER_REPLICATE,
+        )
+    else:
+        psf_lum = raw_lum.copy()
+    return psf_lum, raw_lum, pad_px
+
+
+def _compute_stroke_centerline_mask(fg_pad: np.ndarray) -> np.ndarray:
+    """Return boolean medial-ridge mask of active ink strokes inside `fg_pad`."""
+    fg_u8 = (fg_pad > 0).astype(np.uint8)
+    if np.count_nonzero(fg_u8) == 0:
+        return np.zeros_like(fg_u8, dtype=bool)
+    dt = cv2.distanceTransform(fg_u8, cv2.DIST_L2, 5)
+    local_max = cv2.dilate(dt, np.ones((3, 3), dtype=np.uint8))
+    ridge = (fg_u8 > 0) & (dt >= (local_max - 0.45))
+    if not np.any(ridge):
+        return fg_u8 > 0
+    return ridge
+
+
+def _measure_mask_min_opening(mask: np.ndarray) -> float:
+    """
+    Measure the widest minor-axis opening (`max_{p in mask} min(horiz_run(p), vert_run(p))`)
+    of a discrete binary cavity mask in integer pixel units.
+    """
+    if mask is None or mask.size == 0 or not np.any(mask):
+        return 0.0
+    mh, mw = mask.shape
+    h_runs = np.zeros((mh, mw), dtype=np.int32)
+    v_runs = np.zeros((mh, mw), dtype=np.int32)
+    for r in range(mh):
+        c = 0
+        while c < mw:
+            if mask[r, c]:
+                c_end = c
+                while c_end < mw and mask[r, c_end]:
+                    c_end += 1
+                h_runs[r, c:c_end] = c_end - c
+                c = c_end
+            else:
+                c += 1
+    for c in range(mw):
+        r = 0
+        while r < mh:
+            if mask[r, c]:
+                r_end = r
+                while r_end < mh and mask[r_end, c]:
+                    r_end += 1
+                v_runs[r:r_end, c] = r_end - r
+                r = r_end
+            else:
+                r += 1
+    return float(np.max(np.minimum(h_runs, v_runs)))
+
+
+def compute_open_and_enclosed_cavity_metrics(
+    binary_arr: np.ndarray,
+    ch: str,
+    psf_lum_padded: Optional[np.ndarray] = None,
+    pad_px: int = 6,
+    r_bg: float = EPD_DEFAULT_R_BG,
+    r_ink: float = EPD_DEFAULT_R_INK,
+) -> dict:
+    """
+    Evaluate both enclosed topological counters (`CANONICAL_MIN_HOLES`) and open lateral
+    bays (`OPEN_CAVITY_MIN_BAYS`: `'s'`, `'S'`, `'c'`, `'e'`, `'2'`, `'3'`, `'5'`, `'z'`)
+    for physical aperture width (`>= 2 px` / `270 um`) and post-PSF optical modulation.
+    """
+    exp_enclosed = CANONICAL_MIN_HOLES.get(ch, 0)
+    exp_open = OPEN_CAVITY_MIN_BAYS.get(ch, 0)
+    exp_total = exp_enclosed + exp_open
+    has_req = exp_total > 0
+
+    if binary_arr is None or binary_arr.size == 0 or np.count_nonzero(binary_arr) == 0:
+        return {
+            "has_cavity_req": has_req,
+            "passes_cavity": not has_req,
+            "expected_cavities": exp_total,
+            "detected_cavities": 0,
+            "min_cavity_diam_px": 0.0,
+            "cavity_cm_psf": 0.0,
+            "enclosed_ok": exp_enclosed == 0,
+            "open_ok": exp_open == 0,
+            "failure_reason": "empty_glyph" if has_req else "",
+        }
+
+    fg = (binary_arr > 0).astype(np.uint8)
+    if psf_lum_padded is None:
+        psf_lum_padded, _, pad_px = simulate_epd_gaussian_psf(
+            fg, sigma_px=EPD_20CM_SIGMA_NOM_PX, r_bg=r_bg, r_ink=r_ink, pad_px=pad_px
+        )
+
+    fg_pad = np.pad(fg, pad_px, mode="constant", constant_values=0)
+    ridge = _compute_stroke_centerline_mask(fg_pad)
+    stroke_lum = float(np.mean(psf_lum_padded[ridge])) if np.any(ridge) else float(r_ink)
+    psf_crop = psf_lum_padded[pad_px : pad_px + fg.shape[0], pad_px : pad_px + fg.shape[1]]
+
+    _, b1 = compute_betti_numbers(fg)
+    p1 = np.pad(fg, 1, mode="constant", constant_values=0)
+    num_bg, labels_bg = cv2.connectedComponents((1 - p1).astype(np.uint8), connectivity=4)
+    ext_lbl = int(labels_bg[0, 0])
+    inner_labels = labels_bg[1:-1, 1:-1]
+    enclosed_mask = (inner_labels != ext_lbl) & (fg == 0)
+
+    failure_reasons: List[str] = []
+    min_diams: List[float] = []
+    cav_cms: List[float] = []
+    detected_total = 0
+
+    def _local_wall_luminance(comp_mask: np.ndarray) -> float:
+        wall = (cv2.dilate(comp_mask.astype(np.uint8), np.ones((5, 5), dtype=np.uint8)) > 0) & (fg > 0)
+        if np.any(wall):
+            return float(np.percentile(psf_crop[wall], 25))
+        return stroke_lum
+
+    # 1. Enclosed hole check
+    enc_components: List[Tuple[int, float, float]] = []
+    for lbl in range(1, int(num_bg)):
+        if lbl == ext_lbl:
+            continue
+        comp = inner_labels == lbl
+        area = int(np.sum(comp))
+        if area < 1:
+            continue
+        diam = _measure_mask_min_opening(comp)
+        ipk = float(np.max(psf_crop[comp]))
+        i_wall = _local_wall_luminance(comp)
+        cm_c = (ipk - i_wall) / max(1e-5, ipk + i_wall)
+        enc_components.append((area, diam, cm_c))
+    enc_components.sort(key=lambda item: (-item[0], -item[2]))
+
+    enclosed_ok = True
+    if exp_enclosed > 0:
+        if len(enc_components) < exp_enclosed:
+            enclosed_ok = False
+            failure_reasons.append(f"enclosed_counter_collapsed_{ch}")
+        else:
+            for _, diam, cm_c in enc_components[:exp_enclosed]:
+                detected_total += 1
+                min_diams.append(diam)
+                cav_cms.append(cm_c)
+                if diam < 1.4 or cm_c < 0.13:
+                    enclosed_ok = False
+            if not enclosed_ok:
+                failure_reasons.append(f"enclosed_counter_pinched_{ch}")
+    elif ch in PURE_OPEN_CAVITY_CHARS and b1 > 0:
+        enclosed_ok = False
+        failure_reasons.append(f"open_cavity_loop_pinched_{ch}")
+
+    # 2. Open cavity check (convex hull minus foreground & enclosed holes)
+    open_ok = True
+    if exp_open > 0:
+        ys, xs = np.nonzero(fg > 0)
+        open_components: List[Tuple[int, float, float]] = []
+        if len(xs) >= 3:
+            pts = np.column_stack((xs, ys)).astype(np.int32)
+            hull = cv2.convexHull(pts)
+            hull_img = np.zeros_like(fg, dtype=np.uint8)
+            cv2.fillConvexPoly(hull_img, hull, 1)
+            open_mask = (hull_img > 0) & (fg == 0) & (~enclosed_mask)
+            n_op, lbl_op = cv2.connectedComponents(open_mask.astype(np.uint8), connectivity=4)
+            for lbl in range(1, int(n_op)):
+                comp = lbl_op == lbl
+                area = int(np.sum(comp))
+                if area < 2:
+                    continue
+                diam = _measure_mask_min_opening(comp)
+                ipk = float(np.max(psf_crop[comp]))
+                i_wall = _local_wall_luminance(comp)
+                cm_c = (ipk - i_wall) / max(1e-5, ipk + i_wall)
+                open_components.append((area, diam, cm_c))
+            open_components.sort(key=lambda item: (-item[0], -item[2]))
+
+        if len(open_components) < exp_open:
+            open_ok = False
+            failure_reasons.append(f"open_cavity_closed_{ch}")
+        else:
+            for _, diam, cm_c in open_components[:exp_open]:
+                detected_total += 1
+                min_diams.append(diam)
+                cav_cms.append(cm_c)
+                if diam < 1.5 or cm_c < 0.11:
+                    open_ok = False
+            if not open_ok:
+                failure_reasons.append(f"open_cavity_pinched_{ch}")
+
+    passes = (not has_req) or (enclosed_ok and open_ok)
+    return {
+        "has_cavity_req": has_req,
+        "passes_cavity": passes,
+        "expected_cavities": exp_total,
+        "detected_cavities": detected_total,
+        "min_cavity_diam_px": round(min(min_diams), 2) if min_diams else 0.0,
+        "cavity_cm_psf": round(min(cav_cms), 4) if cav_cms else 0.0,
+        "enclosed_ok": enclosed_ok,
+        "open_ok": open_ok,
+        "failure_reason": ",".join(failure_reasons),
+    }
+
+
+def measure_hv_stem_statistics(binary_arr: np.ndarray) -> dict:
+    """
+    Measure both horizontal and vertical ink run lengths on a 1-bpp glyph bitmap
+    to quantify minimum stem width, `>= 2 px` survival, and stroke-width uniformity (`CV`).
+    """
+    if binary_arr is None or binary_arr.size == 0 or np.count_nonzero(binary_arr) == 0:
+        return {
+            "mean_stem_px": 0.0,
+            "min_stem_px": 0.0,
+            "stem_2px_pct": 0.0,
+            "stem_cv": 1.0,
+            "uniformity_pct": 0.0,
+        }
+    fg = (binary_arr > 0).astype(np.uint8)
+    h, w = fg.shape
+    runs: List[int] = []
+
+    def _collect_runs(mat: np.ndarray, trim_edges: bool) -> None:
+        nr, nc = mat.shape
+        r0 = 1 if (trim_edges and nr >= 5) else 0
+        r1 = (nr - 1) if (trim_edges and nr >= 5) else nr
+        for r in range(r0, r1):
+            in_run = False
+            s = 0
+            for c in range(nc):
+                if mat[r, c] and not in_run:
+                    s = c
+                    in_run = True
+                elif not mat[r, c] and in_run:
+                    runs.append(c - s)
+                    in_run = False
+            if in_run:
+                runs.append(nc - s)
+
+    _collect_runs(fg, trim_edges=True)
+    _collect_runs(fg.T, trim_edges=True)
+    if not runs:
+        return {
+            "mean_stem_px": 0.0,
+            "min_stem_px": 0.0,
+            "stem_2px_pct": 0.0,
+            "stem_cv": 1.0,
+            "uniformity_pct": 0.0,
+        }
+    arr_r = np.array(runs, dtype=np.float32)
+    sorted_r = np.sort(arr_r)
+    keep_n = max(1, int(math.ceil(len(sorted_r) * 0.85)))
+    trimmed = sorted_r[:keep_n]
+    mean_w = float(np.mean(trimmed))
+    std_w = float(np.std(trimmed))
+    cv = (std_w / mean_w) if mean_w > 1e-6 else 1.0
+    uniformity = max(0.0, min(100.0, 100.0 * (1.0 - cv)))
+    ge2_pct = (float(np.sum(arr_r >= 2.0)) / float(len(arr_r))) * 100.0
+    return {
+        "mean_stem_px": round(mean_w, 3),
+        "min_stem_px": round(float(np.min(arr_r)), 2),
+        "stem_2px_pct": round(ge2_pct, 2),
+        "stem_cv": round(cv, 4),
+        "uniformity_pct": round(uniformity, 2),
+    }
+
+
+def compute_gaussian_psf_char_metrics(
+    binary_arr: np.ndarray,
+    ch: str,
+    sigma_nom_px: float = EPD_20CM_SIGMA_NOM_PX,
+    sigma_off_px: float = EPD_20CM_SIGMA_OFF_PX,
+    r_bg: float = EPD_DEFAULT_R_BG,
+    r_ink: float = EPD_DEFAULT_R_INK,
+) -> dict:
+    """
+    Evaluate 20 cm (`200 mm`) EPD character legibility via 2D Gaussian PSF simulation
+    (`sigma_nom_px = 1.25 px / 169 um`, `sigma_off_px = 1.75 px / 236 um`), stroke
+    uniformity, and open/enclosed cavity aperture modulation.
+    """
+    cm_0 = (float(r_bg) - float(r_ink)) / max(1e-5, float(r_bg) + float(r_ink))
+    if binary_arr is None or binary_arr.size == 0 or np.count_nonzero(binary_arr) == 0:
+        return {
+            "char": ch,
+            "cm_0": round(cm_0, 4),
+            "cm_nom": 0.0,
+            "cm_off": 0.0,
+            "retention_nom_pct": 0.0,
+            "retention_off_pct": 0.0,
+            "mean_stem_px": 0.0,
+            "min_stem_px": 0.0,
+            "stem_2px_pct": 0.0,
+            "stem_cv": 1.0,
+            "uniformity_pct": 0.0,
+            "has_cavity_req": ch in CANONICAL_MIN_HOLES or ch in OPEN_CAVITY_MIN_BAYS,
+            "passes_cavity": False,
+            "min_cavity_diam_px": 0.0,
+            "cavity_cm_psf": 0.0,
+            "char_passes_20cm": False,
+            "failure_reason": "empty_glyph",
+        }
+
+    pad_px = 6
+    psf_nom, _, _ = simulate_epd_gaussian_psf(binary_arr, sigma_px=sigma_nom_px, r_bg=r_bg, r_ink=r_ink, pad_px=pad_px)
+    psf_off, _, _ = simulate_epd_gaussian_psf(binary_arr, sigma_px=sigma_off_px, r_bg=r_bg, r_ink=r_ink, pad_px=pad_px)
+
+    fg_pad = np.pad((binary_arr > 0).astype(np.uint8), pad_px, mode="constant", constant_values=0)
+    ridge = _compute_stroke_centerline_mask(fg_pad)
+
+    lum_nom = float(np.mean(psf_nom[ridge]))
+    lum_off = float(np.mean(psf_off[ridge]))
+    cm_nom = max(0.0, (float(r_bg) - lum_nom) / max(1e-5, float(r_bg) + lum_nom))
+    cm_off = max(0.0, (float(r_bg) - lum_off) / max(1e-5, float(r_bg) + lum_off))
+    ret_nom = (cm_nom / max(1e-5, cm_0)) * 100.0
+    ret_off = (cm_off / max(1e-5, cm_0)) * 100.0
+
+    stem_st = measure_hv_stem_statistics(binary_arr)
+    cav_st = compute_open_and_enclosed_cavity_metrics(
+        binary_arr, ch, psf_lum_padded=psf_nom, pad_px=pad_px, r_bg=r_bg, r_ink=r_ink
+    )
+
+    passes = (ret_nom >= 45.0) and (cm_nom >= 0.25) and bool(cav_st["passes_cavity"])
+    reasons: List[str] = []
+    if ret_nom < 45.0 or cm_nom < 0.25:
+        reasons.append("1px_stroke_starvation")
+    if cav_st["failure_reason"]:
+        reasons.append(str(cav_st["failure_reason"]))
+
+    return {
+        "char": ch,
+        "cm_0": round(cm_0, 4),
+        "cm_nom": round(cm_nom, 4),
+        "cm_off": round(cm_off, 4),
+        "retention_nom_pct": round(ret_nom, 2),
+        "retention_off_pct": round(ret_off, 2),
+        "mean_stem_px": stem_st["mean_stem_px"],
+        "min_stem_px": stem_st["min_stem_px"],
+        "stem_2px_pct": stem_st["stem_2px_pct"],
+        "stem_cv": stem_st["stem_cv"],
+        "uniformity_pct": stem_st["uniformity_pct"],
+        "has_cavity_req": cav_st["has_cavity_req"],
+        "passes_cavity": cav_st["passes_cavity"],
+        "min_cavity_diam_px": cav_st["min_cavity_diam_px"],
+        "cavity_cm_psf": cav_st["cavity_cm_psf"],
+        "char_passes_20cm": passes,
+        "failure_reason": ",".join(reasons),
+    }

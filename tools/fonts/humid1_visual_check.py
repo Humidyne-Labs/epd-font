@@ -801,12 +801,17 @@ def render_specimen_sheet(
     preview_path: Path,
     strike_cache: Dict[str, Tuple[Dict[int, GlyphStrike], int, int]],
     static_dir: Optional[Path] = None,
+    scheme_cfg: Optional[dict] = None,
 ) -> None:
     """Render master 188.15-DPI 1-bpp specimen contact sheet & simulated 200x200 SSD1681 panel."""
     ui_fonts = _load_ui_fonts(static_dir)
     W, H = 1420, 1020
     img = Image.new("RGB", (W, H), (246, 247, 249))
     draw = ImageDraw.Draw(img)
+
+    branding = (scheme_cfg or {}).get("output_branding", {})
+    sem_roles = branding.get("semantic_roles", {})
+    default_font_cfg = str(branding.get("default_font", "")).strip()
 
     def _resolve_sym(s: str) -> Optional[str]:
         if not s:
@@ -818,15 +823,39 @@ def render_specimen_sheet(
             f"humid1_font_plex_{s}",
             s.replace("_bold_", "_normal_"),
             f"humid1_font_{s.replace('_bold_', '_normal_')}",
+            default_font_cfg,
             "humid1_font_plex_sans_normal_14",
             "humid1_font_plex_sans_normal_12",
+            "humid1_font_terminus_bold_16",
             "humid1_font_terminus_normal_16",
-            "humid1_font_terminus_normal_12",
         ]
         for c in cands:
-            if c in strike_cache:
+            if c and c in strike_cache:
                 return c
         return next(iter(strike_cache.keys()), None)
+
+    def _role_sym(macro_name: str, fallback: str) -> str:
+        raw = sem_roles.get(macro_name, fallback)
+        return _resolve_sym(str(raw)) or _resolve_sym(fallback) or fallback
+
+    sym_ui_micro = _role_sym("HUMID1_FONT_UI_MICRO", "humid1_font_terminus_normal_12")
+    sym_ui_body = _role_sym("HUMID1_FONT_UI_BODY", default_font_cfg or "humid1_font_plex_sans_normal_14")
+    sym_ui_body_md = _role_sym("HUMID1_FONT_UI_BODY_MD", "humid1_font_plex_sans_normal_16")
+    sym_ui_sub = _role_sym("HUMID1_FONT_UI_SUBTITLE", "humid1_font_plex_sans_bold_14")
+    sym_ui_title = _role_sym("HUMID1_FONT_UI_TITLE", "humid1_font_plex_sans_bold_16")
+    sym_ui_header = _role_sym("HUMID1_FONT_UI_HEADER", "humid1_font_plex_sans_bold_20")
+    sym_ui_italic = _role_sym("HUMID1_FONT_UI_META_ITALIC", "humid1_font_plex_sans_italic_14")
+    sym_tele_sm = _role_sym("HUMID1_FONT_TELEMETRY_SM", "humid1_font_plex_mono_normal_14")
+    sym_tele_body = _role_sym("HUMID1_FONT_TELEMETRY_BODY", "humid1_font_plex_mono_normal_16")
+    sym_tele_md = _role_sym("HUMID1_FONT_TELEMETRY_MD", "humid1_font_plex_mono_bold_20")
+    sym_tele_lg = _role_sym("HUMID1_FONT_TELEMETRY_LG", "humid1_font_plex_mono_bold_24")
+    sym_tele_xl = _role_sym("HUMID1_FONT_TELEMETRY_XL", "humid1_font_plex_mono_bold_32")
+    sym_cond_norm = _role_sym("HUMID1_FONT_RIBBON_COND", "humid1_font_plex_cond_normal_16")
+    sym_cond_bold = _role_sym("HUMID1_FONT_BANNER_COND", "humid1_font_plex_cond_bold_18")
+    sym_serif_body = _role_sym("HUMID1_FONT_EDITORIAL_BODY", "humid1_font_plex_serif_normal_18")
+    sym_serif_title = _role_sym("HUMID1_FONT_EDITORIAL_TITLE", "humid1_font_plex_serif_bold_24")
+    sym_formula = _role_sym("HUMID1_FONT_FORMULA", "humid1_font_plex_math_regular_16")
+    sym_term = _role_sym("HUMID1_FONT_TERMINAL", "humid1_font_terminus_bold_16")
 
     icon_fb_14: Dict[int, GlyphStrike] = {}
     icon_fb_20: Dict[int, GlyphStrike] = {}
@@ -925,13 +954,20 @@ def render_specimen_sheet(
     epd = Image.new("RGB", (200, 200), (255, 255, 255))
     epd_draw = ImageDraw.Draw(epd)
 
-    def draw_epd_text(x0: int, y0: int, text: str, sym: str, fg=(0, 0, 0), align_right_x: Optional[int] = None):
+    def draw_epd_text(
+        x0: int,
+        y0: int,
+        text: str,
+        sym: str,
+        fg=(0, 0, 0),
+        align_right_x: Optional[int] = None,
+        max_x: Optional[int] = None,
+    ):
         r_sym = _resolve_sym(sym)
         if not r_sym:
             return
         gmap, line_h, base_l = strike_cache[r_sym]
-        fb_sym_r = _resolve_sym("humid1_font_plex_sans_normal_14")
-        fb_gmap = strike_cache.get(fb_sym_r, ({}, 0, 0))[0] if fb_sym_r else {}
+        fb_gmap = strike_cache.get(sym_ui_body, ({}, 0, 0))[0]
         icon_map = icon_fb_20 if "20" in r_sym else icon_fb_14
         if align_right_x is not None:
             w = sum(
@@ -947,6 +983,9 @@ def render_specimen_sheet(
             g = gmap.get(code) or fb_gmap.get(code) or icon_map.get(code)
             if not g:
                 continue
+            adv = (g.adv_w_fp4 + 8) >> 4
+            if max_x is not None and cx + max(adv, g.ofs_x + g.box_w) > max_x:
+                break
             if g.box_w > 0 and g.box_h > 0:
                 gx0 = cx + g.ofs_x
                 gy0 = baseline_y - (g.ofs_y + g.box_h)
@@ -954,47 +993,47 @@ def render_specimen_sheet(
                     for c_idx, px in enumerate(row_str):
                         if px == "#":
                             epd_draw.point((gx0 + c_idx, gy0 + r_idx), fill=fg)
-            cx += (g.adv_w_fp4 + 8) >> 4
+            cx += adv
 
-    draw_epd_text(6, 4, "HUMIDYNE LABS", "humid1_font_plex_sans_bold_14")
+    draw_epd_text(6, 3, "HUMIDYNE LABS", sym_ui_sub, max_x=156)
     epd_draw.rectangle([200 - 4 - 36, 2, 200 - 4, 2 + 17], fill=(0, 0, 0))
-    draw_epd_text(200 - 4 - 28, 3, "1/5", "humid1_font_plex_mono_bold_14", fg=(255, 255, 255))
+    draw_epd_text(200 - 4 - 30, 3, "1/5", sym_tele_sm, fg=(255, 255, 255), max_x=196)
     epd_draw.line([(4, 22), (196, 22)], fill=(0, 0, 0), width=1)
 
-    draw_epd_text(6, 30, "72.4°F", "humid1_font_plex_sans_bold_20")
-    draw_epd_text(0, 30, "\uf043 46.8%", "humid1_font_plex_sans_bold_20", align_right_x=194)
-    draw_epd_text(6, 58, "(22.4°C ambient • Td 10.4°C)", "humid1_font_plex_sans_normal_14")
-    epd_draw.line([(4, 84), (196, 84)], fill=(0, 0, 0), width=1)
+    draw_epd_text(6, 28, "72.4°F", sym_ui_header, max_x=115)
+    draw_epd_text(0, 28, "\uf043 46.8%", sym_ui_header, align_right_x=194)
+    draw_epd_text(6, 56, "(22.4°C ambient • Td 10.4°C)", sym_cond_norm, max_x=194)
+    epd_draw.line([(4, 82), (196, 82)], fill=(0, 0, 0), width=1)
 
-    draw_epd_text(6, 94, "TriNode ΔT", "humid1_font_plex_sans_normal_14")
-    draw_epd_text(0, 94, "+0.1°C (99%)", "humid1_font_plex_sans_bold_14", align_right_x=194)
-    draw_epd_text(6, 116, "Abs Humidity", "humid1_font_plex_sans_normal_14")
-    draw_epd_text(0, 116, "9.3 g/m³", "humid1_font_plex_sans_bold_14", align_right_x=194)
-    draw_epd_text(6, 138, "Vapor Pressure", "humid1_font_plex_sans_normal_14")
-    draw_epd_text(0, 138, "12.6 hPa", "humid1_font_plex_sans_bold_14", align_right_x=194)
+    draw_epd_text(6, 91, "TriNode ΔT", sym_ui_body, max_x=110)
+    draw_epd_text(0, 91, "+0.1°C (99%)", sym_ui_sub, align_right_x=194)
+    draw_epd_text(6, 114, "Abs Humidity", sym_ui_body, max_x=125)
+    draw_epd_text(0, 114, "9.3 g/m³", sym_ui_sub, align_right_x=194)
+    draw_epd_text(6, 137, "Vapor Pressure", sym_ui_body, max_x=125)
+    draw_epd_text(0, 137, "12.6 hPa", sym_ui_sub, align_right_x=194)
 
-    epd_draw.line([(4, 166), (196, 166)], fill=(0, 0, 0), width=1)
-    draw_epd_text(6, 174, "Cycle #142", "humid1_font_plex_sans_normal_14")
-    draw_epd_text(0, 174, "\uf240 4.12V • 18:52", "humid1_font_plex_sans_normal_14", align_right_x=194)
+    epd_draw.line([(4, 164), (196, 164)], fill=(0, 0, 0), width=1)
+    draw_epd_text(6, 172, "Cycle #142", sym_cond_norm, max_x=88)
+    draw_epd_text(0, 172, "\uf240 4.12V • 18:52", sym_cond_norm, align_right_x=194)
 
     epd_zoomed = epd.resize((400, 400), resample=Image.NEAREST)
     img.paste(epd_zoomed, (panel_x, panel_y))
-    draw_strike_text(panel_x, panel_y + 412, "Simulated 200x200 SSD1681 Panel (2x Nearest-Neighbor Zoom)", "humid1_font_plex_sans_bold_14")
-    draw_strike_text(panel_x, panel_y + 432, "Keys: Sans Normal 14  |  Values: Sans Bold 14  |  Hero: Bold 20 + Filled Icons", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95))
+    draw_strike_text(panel_x, panel_y + 412, "Simulated 200x200 SSD1681 Panel (2x Nearest-Neighbor Zoom)", sym_ui_sub, fallback_sym=sym_ui_body)
+    draw_strike_text(panel_x, panel_y + 432, "Keys: UI Body | Values: UI Subtitle | Hero: UI Header + Icons", sym_tele_sm, fg=(70, 80, 95), fallback_sym=sym_ui_body)
 
     box_y = 552
     draw.rectangle([28, box_y, 642, 992], fill=(255, 255, 255), outline=(200, 208, 218), width=1)
-    draw_strike_text(44, box_y + 14, "1-BIT MONOCHROME ENGINE + ASCII PATCH VERIFICATION (6x Pixel Grid)", "humid1_font_plex_sans_bold_14", max_x=632)
-    draw_strike_text(44, box_y + 36, "9-Pipeline Resolution-Reduction + font_icon_epd_patches.json:", "humid1_font_plex_sans_normal_12", fg=(70, 80, 95), max_x=632)
+    draw_strike_text(44, box_y + 14, "1-BIT MONOCHROME ENGINE + ASCII PATCH VERIFICATION (6x Pixel Grid)", sym_ui_sub, fallback_sym=sym_ui_body, max_x=632)
+    draw_strike_text(44, box_y + 36, "Resolution-Reduction + font_icon_epd_patches.json:", sym_tele_sm, fg=(70, 80, 95), fallback_sym=sym_ui_body, max_x=632)
 
     showcase_glyphs = [
-        ("humid1_font_plex_sans_normal_14", 0x0040, "Sans 14 '@'"),
-        ("humid1_font_plex_sans_normal_14", 0x0025, "Sans 14 '%'"),
-        ("humid1_font_plex_sans_normal_14", 0x0065, "Sans 14 'e'"),
-        ("humid1_font_plex_sans_normal_14", 0x0061, "Sans 14 'a'"),
-        ("humid1_font_plex_mono_normal_14", 0x0030, "Mono 14 '0'"),
-        ("humid1_font_plex_mono_normal_14", 0x0025, "Mono 14 '%'"),
-        ("humid1_font_terminus_normal_16", 0x0041, "Term 16 'A'"),
+        (sym_ui_body, 0x0040, "Body '@'"),
+        (sym_ui_body, 0x0025, "Body '%'"),
+        (sym_ui_body, 0x0065, "Body 'e'"),
+        (sym_ui_body, 0x0061, "Body 'a'"),
+        (sym_tele_body, 0x0030, "Mono '0'"),
+        (sym_tele_body, 0x0025, "Mono '%'"),
+        (sym_term, 0x0041, "Term 'A'"),
     ]
     px_x = 44
     for sym_key, code_c, label in showcase_glyphs:
@@ -1017,12 +1056,12 @@ def render_specimen_sheet(
                 draw.rectangle([rx, ry, rx + max(1, cell - 2), ry + max(1, cell - 2)], fill=fill_c)
         px_x += step_w
 
-    draw_strike_text(44, box_y + 196, "1:1 Native 188.15 DPI Readout (9-Pipeline Bilevel + Manual ASCII Patching):", "humid1_font_plex_sans_bold_14", max_x=632)
-    draw_strike_text(44, box_y + 222, "Sans 12px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y ± µ °", "humid1_font_plex_sans_normal_12", max_x=632)
-    draw_strike_text(44, box_y + 246, "Sans 14px:  Sphinx of black quartz, judge my vow  |  0123456789  @ % # $ & 8 0 e a s g y", "humid1_font_plex_sans_normal_14", max_x=632)
-    draw_strike_text(44, box_y + 272, "Term 12px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s g y", "humid1_font_terminus_normal_12", max_x=632)
-    draw_strike_text(44, box_y + 296, "Mono 14px:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", "humid1_font_plex_mono_normal_14", max_x=632)
-    draw_strike_text(44, box_y + 324, "Math 16px:  ΔT = +0.15°C  •  ∀x ∈ ℝ : ∑ f(x) ≈ √π ± ∞  •  α β γ δ ε θ λ μ π σ ω Ω", "humid1_font_plex_math_regular_16", max_x=632)
+    draw_strike_text(44, box_y + 196, "1:1 Native 188.15 DPI Readout (Primary Roles):", sym_ui_sub, fallback_sym=sym_ui_body, max_x=632)
+    draw_strike_text(44, box_y + 222, "UI Body:    Sphinx of black quartz, judge my vow  |  0123456789 @%#$&80", sym_ui_body, fallback_sym=sym_ui_body, max_x=632)
+    draw_strike_text(44, box_y + 248, "UI Sub:     Sphinx of black quartz, judge my vow  |  0123456789 @%#$&80", sym_ui_sub, fallback_sym=sym_ui_body, max_x=632)
+    draw_strike_text(44, box_y + 274, "Term Sm:    0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", sym_tele_sm, fallback_sym=sym_ui_body, max_x=632)
+    draw_strike_text(44, box_y + 298, "Mono Body:  0123456789  72.4°F  46.8% RH  9.3 g/m³  @ % # $ & 8 0 e a s", sym_tele_body, fallback_sym=sym_ui_body, max_x=632)
+    draw_strike_text(44, box_y + 324, "Math 16px:  ΔT = +0.15°C  •  ∀x ∈ ℝ : ∑ f(x) ≈ √π ± ∞  •  α β γ δ ε θ λ μ π σ ω Ω", sym_formula, fallback_sym=sym_ui_body, max_x=632)
 
     icon_strip_str = "\uf043 \uf021 \uf240 \uf241 \uf242 \uf243 \uf244 \uf287 \uf0e7 \uf013 \uf071 \uf058 \uf00c \uf00d \uf1eb \uf2db"
     icon_strip_sym = "humid1_icon_fa7_solid_16"
@@ -1040,16 +1079,16 @@ def render_specimen_sheet(
                 sample_cps = sorted(c for c in strike_cache[cand_ic][0].keys() if c >= 0xE000)[:16]
                 icon_strip_str = " ".join(chr(c) for c in sample_cps)
                 break
-    draw_strike_text(44, box_y + 354, "Icons 16px:", "humid1_font_plex_sans_bold_14")
-    draw_strike_text(132, box_y + 354, icon_strip_str, icon_strip_sym, max_x=632)
+    draw_strike_text(44, box_y + 354, "Icons 16px:", sym_ui_sub, fallback_sym=sym_ui_body)
+    draw_strike_text(142, box_y + 354, icon_strip_str, icon_strip_sym, fallback_sym=sym_ui_body, max_x=632)
 
     # Also render Filled Icon Showcase Strip if Tabler-Filled or Phosphor-Fill is in strike_cache
     for filled_cand in ("humid1_icon_tabler_filled_16", "humid1_icon_phosphor_fill_16", "humid1_icon_phosphor_fill_20"):
         if filled_cand in strike_cache and strike_cache[filled_cand][0]:
             f_cps = sorted(c for c in strike_cache[filled_cand][0].keys() if c >= 0xE000)[:16]
             f_str = " ".join(chr(c) for c in f_cps)
-            draw_strike_text(44, box_y + 382, "Filled Icons:", "humid1_font_plex_sans_bold_14")
-            draw_strike_text(142, box_y + 382, f_str, filled_cand, max_x=632)
+            draw_strike_text(44, box_y + 382, "Filled Icons:", sym_ui_sub, fallback_sym=sym_ui_body)
+            draw_strike_text(146, box_y + 382, f_str, filled_cand, fallback_sym=sym_ui_body, max_x=632)
             break
 
     rx0 = 664
@@ -1057,26 +1096,31 @@ def render_specimen_sheet(
     draw.text((rx0 + 20, 104), "HUMID1 1-BPP SUB-FAMILY & SIZE LADDER (1:1 NATIVE PIXELS @ 188.15 DPI)", fill=(24, 32, 44), font=ui_fonts["section"])
 
     ladder_rows = [
-        ("Sans Normal 12px (4.6pt@188.15dpi, Manual Patch Ready)", "humid1_font_plex_sans_normal_12", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
-        ("Sans Normal 14px (5.4pt@188.15dpi, Default UI)", "humid1_font_plex_sans_normal_14", "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
-        ("Sans Bold 14px (5.4pt@188.15dpi, 2px stems)", "humid1_font_plex_sans_bold_14", "PSYCHROMETRICS  •  SYSTEM HEALTH  •  SETTLED (99%)"),
-        ("Sans Italic 14px (Metadata)", "humid1_font_plex_sans_italic_14", "(22.4°C ambient  •  TriNode thermal equilibrium active)"),
-        ("Sans Normal 16px (6.1pt@188.15dpi, Body MD)", "humid1_font_plex_sans_normal_16", "TriNode ΔT: +0.1°C  |  Vapor Pressure: 12.6 hPa"),
-        ("Sans Bold 16px (6.1pt@188.15dpi, Modal Title)", "humid1_font_plex_sans_bold_16", "ENVIRONMENTAL TELEMETRY & DEW POINT"),
-        ("Sans Bold 20px (7.6pt@188.15dpi, Section Hero)", "humid1_font_plex_sans_bold_20", "72.4°F   \uf043 46.8% RH   \uf240 4.12V"),
-        ("Sans Bold 24px (9.2pt@188.15dpi, Primary Readout)", "humid1_font_plex_sans_bold_24", "72.4°F  |  46.8% RH  |  Td 50.7°F"),
-        ("Sans Bold 32px (12.2pt@188.15dpi, Jumbo Metric)", "humid1_font_plex_sans_bold_32", "72.4°F   46.8%"),
-        ("Terminus Normal 12px (6x12 Native Console)", "humid1_font_terminus_normal_12", f"boot: humid1-os v{TOOL_VERSION}  |  SPI0 40MHz  |  0x0040 @%#08"),
-        ("Terminus Normal 16px (8x16 Native Console)", "humid1_font_terminus_normal_16", "root@humid1:~# dmesg | grep epd -> 200x200 OK"),
-        ("Mono Normal 14px (Telemetry Log)", "humid1_font_plex_mono_normal_14", "2026-11-08 20:24:55  |  328K Free  |  @%#08"),
-        ("Mono Bold 20px (Tabular Readout)", "humid1_font_plex_mono_bold_20", "72.4°F   46.8% RH   12.6 hPa"),
-        ("Mono Bold 24px (Tabular Hero)", "humid1_font_plex_mono_bold_24", "72.4°F  |  46.8% RH"),
-        ("Condensed Normal 16px (Narrow Dock)", "humid1_font_plex_cond_normal_16", "NARROW DOCK:  SHTC3 22.4°C  |  SSD1681 22.5°C  |  MCU 22.6°C"),
-        ("Serif Normal 18px (Editorial Body)", "humid1_font_plex_serif_normal_18", "Thermodynamic water vapor pressure & dew point invariants."),
-        ("Math Regular 16px (Scientific Formula)", "humid1_font_plex_math_regular_16", "e_s(T) = 6.1094 · exp(17.625·T / (T + 243.04))   [ΔT ≤ 0.15°C]"),
+        (f"UI Micro / Small ({sym_ui_micro})", sym_ui_micro, f"boot: humid1-os v{TOOL_VERSION}  |  SPI0 40MHz  |  0x0040 @%#08"),
+        (f"UI Body ({sym_ui_body})", sym_ui_body, "Humidyne humid1  •  22.4°C  48.2% RH  9.3 g/m³  @%#&80"),
+        (f"UI Body MD ({sym_ui_body_md})", sym_ui_body_md, "TriNode ΔT: +0.1°C  |  Vapor Pressure: 12.6 hPa"),
+        (f"UI Subtitle ({sym_ui_sub})", sym_ui_sub, "PSYCHROMETRICS  •  SYSTEM HEALTH  •  SETTLED (99%)"),
+        (f"UI Italic ({sym_ui_italic})", sym_ui_italic, "(22.4°C ambient  •  TriNode thermal equilibrium active)"),
+        (f"UI Title ({sym_ui_title})", sym_ui_title, "ENVIRONMENTAL TELEMETRY & DEW POINT"),
+        (f"UI Header ({sym_ui_header})", sym_ui_header, "72.4°F   \uf043 46.8% RH   \uf240 4.12V"),
+        (f"Telemetry Hero ({sym_tele_lg})", sym_tele_lg, "72.4°F  |  46.8% RH  |  Td 50.7°F"),
+        (f"Telemetry Jumbo ({sym_tele_xl})", sym_tele_xl, "72.4°F   46.8%"),
+        (f"Terminal ({sym_term})", sym_term, "root@humid1:~# dmesg | grep epd -> 200x200 OK"),
+        (f"Telemetry Body ({sym_tele_body})", sym_tele_body, "2026-11-21 01:20:00  |  328K Free  |  @%#08"),
+        (f"Telemetry MD ({sym_tele_md})", sym_tele_md, "72.4°F   46.8% RH   12.6 hPa"),
+        (f"Condensed Ribbon ({sym_cond_norm})", sym_cond_norm, "NARROW DOCK:  SHTC3 22.4°C  |  SSD1681 22.5°C  |  MCU 22.6°C"),
+        (f"Condensed Banner ({sym_cond_bold})", sym_cond_bold, "CONDENSED BANNER:  THERMAL EQUILIBRIUM ACTIVE"),
+        (f"Editorial Body ({sym_serif_body})", sym_serif_body, "Thermodynamic water vapor pressure & dew point invariants."),
+        (f"Editorial Title ({sym_serif_title})", sym_serif_title, "Psychrometric Reference"),
+        (f"Formula ({sym_formula})", sym_formula, "e_s(T) = 6.1094 · exp(17.625·T / (T + 243.04))   [ΔT ≤ 0.15°C]"),
     ]
 
-    matched_rows = [row for row in ladder_rows if row[1] in strike_cache]
+    matched_rows = []
+    seen_ladder_syms = set()
+    for lbl, sym, smp in ladder_rows:
+        if sym in strike_cache and sym not in seen_ladder_syms:
+            matched_rows.append((lbl, sym, smp))
+            seen_ladder_syms.add(sym)
     if len(matched_rows) < 6:
         seen_syms = {row[1] for row in matched_rows}
         for sym_k in sorted(strike_cache.keys()):

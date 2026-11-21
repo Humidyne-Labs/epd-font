@@ -126,160 +126,90 @@ from humid1_visual_check import (
 )
 
 
-def get_family_roles(normal_weight: int = 500, bold_weight: int = 800, italic_weight: int = 600) -> Dict[str, Dict[str, str]]:
-    """Map semantic roles to instantiated static TTF filenames."""
-    tag = {400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold"}.get(normal_weight, "Medium")
-    b_tag = {600: "SemiBold", 700: "Bold", 800: "ExtraBold"}.get(bold_weight, "ExtraBold" if normal_weight >= 500 else "Bold")
-    b_ital_tag = "ExtraBoldItalic" if b_tag == "ExtraBold" else "BoldItalic"
-    ital_tag = {400: "Italic", 500: "MediumItalic", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
-    cond_ital_tag = {400: "Italic", 500: "MedItal", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
-    mono_ital_tag = {400: "Italic", 500: "MediumItalic", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
-    serif_ital_tag = {400: "Italic", 500: "MediumItalic", 600: "SemiBoldItalic", 700: "BoldItalic", 800: "ExtraBoldItalic"}.get(italic_weight, "SemiBoldItalic")
+DEFAULT_FONT_FAMILIES_PATH = SCRIPT_DIR / "config" / "font_families.json"
 
-    plex_sans_map = {
-        "normal": f"IBMPlexSans-{tag}.ttf",
-        "regular": "IBMPlexSans-Regular.ttf",
-        "medium": "IBMPlexSans-Medium.ttf",
-        "semibold": "IBMPlexSans-SemiBold.ttf",
-        "bold": f"IBMPlexSans-{b_tag}.ttf",
-        "bold_700": "IBMPlexSans-Bold.ttf",
-        "extrabold": "IBMPlexSans-ExtraBold.ttf",
-        "italic": f"IBMPlexSans-{ital_tag}.ttf",
-        "bold_italic": f"IBMPlexSans-{b_ital_tag}.ttf",
-    }
-    plex_mono_map = {
-        "normal": f"IBMPlexMono-{tag}.ttf",
-        "regular": "IBMPlexMono-Regular.ttf",
-        "medium": "IBMPlexMono-Medium.ttf",
-        "semibold": "IBMPlexMono-SemiBold.ttf",
-        "bold": f"IBMPlexMono-{b_tag}.ttf",
-        "bold_700": "IBMPlexMono-Bold.ttf",
-        "extrabold": "IBMPlexMono-ExtraBold.ttf",
-        "italic": f"IBMPlexMono-{mono_ital_tag}.ttf",
-        "bold_italic": f"IBMPlexMono-{b_ital_tag}.ttf",
-    }
-    plex_cond_map = {
-        "normal": f"IBMPlexSansCondensed-{tag}.ttf",
-        "regular": "IBMPlexSansCondensed-Regular.ttf",
-        "medium": "IBMPlexSansCondensed-Medium.ttf",
-        "semibold": "IBMPlexSansCondensed-SemiBold.ttf",
-        "bold": f"IBMPlexSansCondensed-{b_tag}.ttf",
-        "bold_700": "IBMPlexSansCondensed-Bold.ttf",
-        "extrabold": "IBMPlexSansCondensed-ExtraBold.ttf",
-        "italic": f"IBMPlexSansCondensed-{cond_ital_tag}.ttf",
-        "bold_italic": f"IBMPlexSansCondensed-{b_ital_tag}.ttf",
-    }
-    plex_serif_map = {
-        "normal": f"IBMPlexSerif-{tag}.ttf",
-        "regular": "IBMPlexSerif-Regular.ttf",
-        "medium": "IBMPlexSerif-Medium.ttf",
-        "semibold": "IBMPlexSerif-SemiBold.ttf",
-        "bold": f"IBMPlexSerif-{b_tag}.ttf",
-        "bold_700": "IBMPlexSerif-Bold.ttf",
-        "extrabold": "IBMPlexSerif-ExtraBold.ttf",
-        "italic": f"IBMPlexSerif-{serif_ital_tag}.ttf",
-        "bold_italic": f"IBMPlexSerif-{b_ital_tag}.ttf",
-    }
-    noto_sans_map = {
-        "normal": "NotoSans-Medium.ttf",
-        "regular": "NotoSans-Regular.ttf",
-        "medium": "NotoSans-Medium.ttf",
-        "bold": "NotoSans-Black.ttf",
-        "bold_700": "NotoSans-Bold.ttf",
-        "extrabold": "NotoSans-ExtraBold.ttf",
-        "black": "NotoSans-Black.ttf",
-        "italic": "NotoSans-SemiBoldItalic.ttf",
-        "medium_italic": "NotoSans-MediumItalic.ttf",
-        "bold_italic": "NotoSans-SemiBoldItalic.ttf",
-    }
-    noto_cond_map = {
-        "normal": "NotoSans-SemiCondensedMedium.ttf",
-        "regular": "NotoSans-SemiCondensedMedium.ttf",
-        "medium": "NotoSans-SemiCondensedMedium.ttf",
-        "semibold": "NotoSans-CondensedSemiBold.ttf",
-        "bold": "NotoSans-SemiCondensedBlack.ttf",
-        "extrabold": "NotoSans-SemiCondensedExtraBold.ttf",
-        "black": "NotoSans-SemiCondensedBlack.ttf",
-        "condensed_normal": "NotoSans-CondensedSemiBold.ttf",
-        "condensed_bold": "NotoSans-CondensedBlack.ttf",
-        "condensed_italic": "NotoSans-CondensedSemiBoldItalic.ttf",
-        "italic": "NotoSans-SemiCondensedSemiBoldItalic.ttf",
-        "bold_italic": "NotoSans-SemiCondensedSemiBoldItalic.ttf",
-    }
-    noto_mono_map = {
-        "normal": "NotoSansMono-Medium.ttf",
-        "regular": "NotoSansMono-Medium.ttf",
-        "medium": "NotoSansMono-Medium.ttf",
-        "bold": "NotoSansMono-ExtraBold.ttf",
-        "extrabold": "NotoSansMono-ExtraBold.ttf",
-        "black": "NotoSansMono-Black.ttf",
-        "italic": "IBMPlexMono-MediumItalic.ttf",
-        "bold_italic": "IBMPlexMono-ExtraBoldItalic.ttf",
-    }
-    noto_serif_map = {
-        "normal": "NotoSerif-Medium.ttf",
-        "regular": "NotoSerif-Medium.ttf",
-        "medium": "NotoSerif-Medium.ttf",
-        "bold": "NotoSerif-Black.ttf",
-        "black": "NotoSerif-Black.ttf",
-        "italic": "NotoSerif-MediumItalic.ttf",
-        "semibold_italic": "NotoSerif-SemiBoldItalic.ttf",
-        "bold_italic": "NotoSerif-SemiBoldItalic.ttf",
-    }
-    noto_math_map = {
-        "regular": "NotoSansMath-Regular.ttf",
-        "normal": "NotoSansMath-Regular.ttf",
-    }
-    return {
-        "sans": plex_sans_map,
-        "plex_sans": plex_sans_map,
-        "noto_sans": noto_sans_map,
-        "mono": plex_mono_map,
-        "plex_mono": plex_mono_map,
-        "noto_mono": noto_mono_map,
-        "cond": noto_cond_map,
-        "noto_cond": noto_cond_map,
-        "plex_cond": plex_cond_map,
-        "serif": noto_serif_map,
-        "noto_serif": noto_serif_map,
-        "plex_serif": plex_serif_map,
-        "math": noto_math_map,
-        "noto_math": noto_math_map,
-        "plex_math": {
-            "regular": "IBMPlexMath-Regular.ttf",
-            "normal": "IBMPlexMath-Regular.ttf",
-        },
-        "icon_fa7": {
-            "solid": "FontAwesome7-Solid.ttf",
-            "regular": "FontAwesome7-Regular.ttf",
-            "brands": "FontAwesome7-Brands.ttf",
-            "normal": "FontAwesome7-Solid.ttf",
-        },
-        "icon_lucide": {
-            "regular": "Lucide-Regular.ttf",
-            "normal": "Lucide-Regular.ttf",
-        },
-        "terminus": {
-            "regular": "Terminus-Regular.ttf",
-            "normal": "Terminus-Regular.ttf",
-            "bold": "Terminus-Bold.ttf",
-        },
-        "icon_phosphor": {
-            "thin": "Phosphor-Thin.ttf",
-            "light": "Phosphor-Light.ttf",
-            "regular": "Phosphor-Regular.ttf",
-            "normal": "Phosphor-Regular.ttf",
-            "bold": "Phosphor-Bold.ttf",
-            "fill": "Phosphor-Fill.ttf",
-        },
-        "icon_tabler": {
-            "thin": "Tabler-Thin200.ttf",
-            "light": "Tabler-Light300.ttf",
-            "regular": "Tabler-Regular.ttf",
-            "normal": "Tabler-Regular.ttf",
-            "filled": "Tabler-Filled.ttf",
-        },
-    }
+
+def load_font_families_config(config_path: Optional[Path] = None) -> dict:
+    """Load declarative font family & weight routing registry from JSON."""
+    cfg_path = Path(config_path).expanduser().resolve() if config_path else DEFAULT_FONT_FAMILIES_PATH
+    if not cfg_path.is_file():
+        raise FileNotFoundError(f"Font families config not found: {cfg_path}")
+    return json.loads(cfg_path.read_text(encoding="utf-8"))
+
+
+def _snap_weight_entry(weight: int, table: Dict[int, str], prefer_higher: bool = False) -> str:
+    """Snap an OpenType integer weight [100..900] to the nearest entry in `table`."""
+    target = int(weight)
+    best_k = min(
+        table.keys(),
+        key=lambda k: (abs(k - target), -k if prefer_higher else k),
+    )
+    return table[best_k]
+
+
+_WEIGHT_STYLE_NAMES = {
+    400: ("regular", "italic_400"),
+    500: ("medium", "medium_italic"),
+    600: ("semibold", "semibold_italic"),
+    700: ("bold_700", "bold_italic_700"),
+    800: ("extrabold", "extrabold_italic"),
+    900: ("black", "black_italic"),
+}
+
+
+def _build_family_role_map_from_spec(
+    spec: dict,
+    normal_weight: int,
+    bold_weight: int,
+    italic_weight: int,
+) -> Dict[str, str]:
+    """Build dynamic style-to-TTF mapping for one family entry in font_families.json."""
+    role_map: Dict[str, str] = {}
+    roman_raw = spec.get("roman_weights", {})
+    ital_raw = spec.get("italic_weights", {})
+    roman_tbl = {int(k): str(v) for k, v in roman_raw.items()}
+    ital_tbl = {int(k): str(v) for k, v in ital_raw.items()}
+
+    bold_overrides = {int(k): int(v) for k, v in spec.get("bold_weight_overrides", {}).items()}
+    eff_bold_w = bold_overrides.get(int(bold_weight), int(bold_weight))
+
+    if roman_tbl:
+        role_map["normal"] = _snap_weight_entry(normal_weight, roman_tbl, prefer_higher=False)
+        role_map["bold"] = _snap_weight_entry(eff_bold_w, roman_tbl, prefer_higher=True)
+        for w_int, fname in roman_tbl.items():
+            role_map[f"w{w_int}"] = fname
+            if w_int in _WEIGHT_STYLE_NAMES:
+                role_map[_WEIGHT_STYLE_NAMES[w_int][0]] = fname
+
+    if ital_tbl:
+        role_map["italic"] = _snap_weight_entry(italic_weight, ital_tbl, prefer_higher=False)
+        role_map["bold_italic"] = _snap_weight_entry(bold_weight, ital_tbl, prefer_higher=True)
+        for w_int, fname in ital_tbl.items():
+            if w_int in _WEIGHT_STYLE_NAMES:
+                role_map[_WEIGHT_STYLE_NAMES[w_int][1]] = fname
+
+    for style_key, fname in spec.get("styles", {}).items():
+        role_map[str(style_key)] = str(fname)
+
+    return role_map
+
+
+def get_family_roles(
+    normal_weight: int = 500,
+    bold_weight: int = 800,
+    italic_weight: int = 600,
+    families_cfg: Optional[dict] = None,
+) -> Dict[str, Dict[str, str]]:
+    """Map semantic roles dynamically to instantiated static TTF filenames via font_families.json."""
+    cfg = families_cfg if families_cfg is not None else load_font_families_config()
+    fam_specs = cfg.get("families", {})
+    out: Dict[str, Dict[str, str]] = {}
+    for fam_name, spec in fam_specs.items():
+        out[fam_name] = _build_family_role_map_from_spec(spec, normal_weight, bold_weight, italic_weight)
+    for alias_name, target_fam in cfg.get("aliases", {}).items():
+        if target_fam in out:
+            out[alias_name] = out[target_fam]
+    return out
 
 
 DEFAULT_ICON_FALLBACK_RANGES = {
@@ -383,7 +313,11 @@ def load_plan_from_scheme_json(
         inc_fa = len(fa_ranges) > 0
 
         fb_pat = entry.get("fallback", None)
-        default_kern = fam in ("sans", "plex_sans", "noto_sans", "cond", "plex_cond", "noto_cond", "serif", "plex_serif", "noto_serif", "custom")
+        fam_cfg_all = load_font_families_config()
+        fam_aliases = fam_cfg_all.get("aliases", {})
+        fam_specs = fam_cfg_all.get("families", {})
+        canon_fam = fam_aliases.get(fam, fam)
+        default_kern = True if fam == "custom" else bool(fam_specs.get(canon_fam, {}).get("default_kerning", False))
         enable_kern = bool(entry.get("kerning", default_kern))
         strike_pipe_raw = entry.get("pipeline", None)
         strike_pipe = str(strike_pipe_raw).strip().lower() if strike_pipe_raw else None
@@ -1373,7 +1307,7 @@ def main() -> None:
         )
 
     if eff_sheet_debug and specimen_out_path and strike_cache:
-        render_specimen_sheet(specimen_out_path, strike_cache, static_dir=font_dir)
+        render_specimen_sheet(specimen_out_path, strike_cache, static_dir=font_dir, scheme_cfg=scheme_cfg)
 
 
 if __name__ == "__main__":

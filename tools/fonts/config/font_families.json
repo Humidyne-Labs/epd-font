@@ -1,0 +1,308 @@
+{
+  "schema_version": "1.0.23",
+  "description": "Declarative Font Family & Dynamic Weight Routing Registry for epd-font.",
+  "aliases": {
+    "sans": "plex_sans",
+    "mono": "plex_mono",
+    "cond": "noto_cond",
+    "serif": "noto_serif",
+    "math": "noto_math"
+  },
+  "families": {
+    "plex_sans": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "IBMPlexSans-Regular.ttf",
+        "500": "IBMPlexSans-Medium.ttf",
+        "600": "IBMPlexSans-SemiBold.ttf",
+        "700": "IBMPlexSans-Bold.ttf",
+        "800": "IBMPlexSans-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "IBMPlexSans-Italic.ttf",
+        "500": "IBMPlexSans-MediumItalic.ttf",
+        "600": "IBMPlexSans-SemiBoldItalic.ttf",
+        "700": "IBMPlexSans-BoldItalic.ttf",
+        "800": "IBMPlexSans-ExtraBoldItalic.ttf"
+      }
+    },
+    "plex_mono": {
+      "default_kerning": false,
+      "roman_weights": {
+        "400": "IBMPlexMono-Regular.ttf",
+        "500": "IBMPlexMono-Medium.ttf",
+        "600": "IBMPlexMono-SemiBold.ttf",
+        "700": "IBMPlexMono-Bold.ttf",
+        "800": "IBMPlexMono-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "IBMPlexMono-Italic.ttf",
+        "500": "IBMPlexMono-MediumItalic.ttf",
+        "600": "IBMPlexMono-SemiBoldItalic.ttf",
+        "700": "IBMPlexMono-BoldItalic.ttf",
+        "800": "IBMPlexMono-ExtraBoldItalic.ttf"
+      }
+    },
+    "plex_cond": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "IBMPlexSansCondensed-Regular.ttf",
+        "500": "IBMPlexSansCondensed-Medium.ttf",
+        "600": "IBMPlexSansCondensed-SemiBold.ttf",
+        "700": "IBMPlexSansCondensed-Bold.ttf",
+        "800": "IBMPlexSansCondensed-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "IBMPlexSansCondensed-Italic.ttf",
+        "500": "IBMPlexSansCondensed-MedItal.ttf",
+        "600": "IBMPlexSansCondensed-SemiBoldItalic.ttf",
+        "700": "IBMPlexSansCondensed-BoldItalic.ttf",
+        "800": "IBMPlexSansCondensed-ExtraBoldItalic.ttf"
+      }
+    },
+    "plex_serif": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "IBMPlexSerif-Regular.ttf",
+        "500": "IBMPlexSerif-Medium.ttf",
+        "600": "IBMPlexSerif-SemiBold.ttf",
+        "700": "IBMPlexSerif-Bold.ttf",
+        "800": "IBMPlexSerif-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "IBMPlexSerif-Italic.ttf",
+        "500": "IBMPlexSerif-MediumItalic.ttf",
+        "600": "IBMPlexSerif-SemiBoldItalic.ttf",
+        "700": "IBMPlexSerif-BoldItalic.ttf",
+        "800": "IBMPlexSerif-ExtraBoldItalic.ttf"
+      }
+    },
+    "plex_math": {
+      "default_kerning": false,
+      "styles": {
+        "regular": "IBMPlexMath-Regular.ttf",
+        "normal": "IBMPlexMath-Regular.ttf"
+      }
+    },
+    "noto_sans": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "NotoSans-Regular.ttf",
+        "500": "NotoSans-Medium.ttf",
+        "700": "NotoSans-Bold.ttf",
+        "800": "NotoSans-ExtraBold.ttf",
+        "900": "NotoSans-Black.ttf"
+      },
+      "italic_weights": {
+        "500": "NotoSans-MediumItalic.ttf",
+        "600": "NotoSans-SemiBoldItalic.ttf"
+      }
+    },
+    "noto_cond": {
+      "default_kerning": true,
+      "bold_weight_overrides": {
+        "700": 800
+      },
+      "roman_weights": {
+        "500": "NotoSans-SemiCondensedMedium.ttf",
+        "600": "NotoSans-CondensedSemiBold.ttf",
+        "800": "NotoSans-SemiCondensedExtraBold.ttf",
+        "900": "NotoSans-SemiCondensedBlack.ttf"
+      },
+      "italic_weights": {
+        "600": "NotoSans-SemiCondensedSemiBoldItalic.ttf"
+      },
+      "styles": {
+        "regular": "NotoSans-SemiCondensedMedium.ttf",
+        "condensed_normal": "NotoSans-CondensedSemiBold.ttf",
+        "condensed_bold": "NotoSans-CondensedBlack.ttf",
+        "condensed_italic": "NotoSans-CondensedSemiBoldItalic.ttf"
+      }
+    },
+    "noto_mono": {
+      "default_kerning": false,
+      "roman_weights": {
+        "500": "NotoSansMono-Medium.ttf",
+        "800": "NotoSansMono-ExtraBold.ttf",
+        "900": "NotoSansMono-Black.ttf"
+      },
+      "italic_weights": {
+        "400": "IBMPlexMono-Italic.ttf",
+        "500": "IBMPlexMono-MediumItalic.ttf",
+        "600": "IBMPlexMono-SemiBoldItalic.ttf",
+        "700": "IBMPlexMono-BoldItalic.ttf",
+        "800": "IBMPlexMono-ExtraBoldItalic.ttf"
+      },
+      "styles": {
+        "regular": "NotoSansMono-Medium.ttf"
+      }
+    },
+    "noto_serif": {
+      "default_kerning": true,
+      "roman_weights": {
+        "500": "NotoSerif-Medium.ttf",
+        "900": "NotoSerif-Black.ttf"
+      },
+      "italic_weights": {
+        "500": "NotoSerif-MediumItalic.ttf",
+        "600": "NotoSerif-SemiBoldItalic.ttf"
+      },
+      "styles": {
+        "regular": "NotoSerif-Medium.ttf"
+      }
+    },
+    "noto_math": {
+      "default_kerning": false,
+      "styles": {
+        "regular": "NotoSansMath-Regular.ttf",
+        "normal": "NotoSansMath-Regular.ttf"
+      }
+    },
+    "fira_sans": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "FiraSans-Regular.ttf",
+        "500": "FiraSans-Medium.ttf",
+        "600": "FiraSans-SemiBold.ttf",
+        "700": "FiraSans-Bold.ttf",
+        "800": "FiraSans-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "FiraSans-Italic.ttf",
+        "500": "FiraSans-MediumItalic.ttf",
+        "600": "FiraSans-SemiBoldItalic.ttf",
+        "700": "FiraSans-BoldItalic.ttf",
+        "800": "FiraSans-ExtraBoldItalic.ttf"
+      }
+    },
+    "inter_tight": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "InterTight-Regular.ttf",
+        "500": "InterTight-Medium.ttf",
+        "600": "InterTight-SemiBold.ttf",
+        "700": "InterTight-Bold.ttf",
+        "800": "InterTight-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "InterTight-Italic.ttf",
+        "500": "InterTight-MediumItalic.ttf",
+        "600": "InterTight-SemiBoldItalic.ttf",
+        "700": "InterTight-BoldItalic.ttf",
+        "800": "InterTight-ExtraBoldItalic.ttf"
+      }
+    },
+    "fira_cond": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "FiraSansCondensed-Regular.ttf",
+        "500": "FiraSansCondensed-Medium.ttf",
+        "600": "FiraSansCondensed-SemiBold.ttf",
+        "700": "FiraSansCondensed-Bold.ttf",
+        "800": "FiraSansCondensed-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "FiraSansCondensed-Italic.ttf",
+        "500": "FiraSansCondensed-MediumItalic.ttf",
+        "600": "FiraSansCondensed-SemiBoldItalic.ttf",
+        "700": "FiraSansCondensed-BoldItalic.ttf",
+        "800": "FiraSansCondensed-ExtraBoldItalic.ttf"
+      }
+    },
+    "jetbrains_mono": {
+      "default_kerning": false,
+      "roman_weights": {
+        "400": "JetBrainsMono-Regular.ttf",
+        "500": "JetBrainsMono-Medium.ttf",
+        "600": "JetBrainsMono-SemiBold.ttf",
+        "700": "JetBrainsMono-Bold.ttf",
+        "800": "JetBrainsMono-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "JetBrainsMono-Italic.ttf",
+        "500": "JetBrainsMono-MediumItalic.ttf",
+        "600": "JetBrainsMono-SemiBoldItalic.ttf",
+        "700": "JetBrainsMono-BoldItalic.ttf",
+        "800": "JetBrainsMono-ExtraBoldItalic.ttf"
+      }
+    },
+    "fira_code": {
+      "default_kerning": false,
+      "roman_weights": {
+        "400": "FiraCode-Regular.ttf",
+        "500": "FiraCode-Medium.ttf",
+        "600": "FiraCode-SemiBold.ttf",
+        "700": "FiraCode-Bold.ttf"
+      },
+      "italic_weights": {
+        "400": "FiraMono-Regular.ttf",
+        "500": "FiraMono-Medium.ttf",
+        "700": "FiraMono-Bold.ttf"
+      }
+    },
+    "bitter": {
+      "default_kerning": true,
+      "roman_weights": {
+        "400": "Bitter-Regular.ttf",
+        "500": "Bitter-Medium.ttf",
+        "600": "Bitter-SemiBold.ttf",
+        "700": "Bitter-Bold.ttf",
+        "800": "Bitter-ExtraBold.ttf"
+      },
+      "italic_weights": {
+        "400": "Bitter-Italic.ttf",
+        "500": "Bitter-MediumItalic.ttf",
+        "600": "Bitter-SemiBoldItalic.ttf",
+        "700": "Bitter-BoldItalic.ttf",
+        "800": "Bitter-ExtraBoldItalic.ttf"
+      }
+    },
+    "terminus": {
+      "default_kerning": false,
+      "is_bitmap_exact": true,
+      "styles": {
+        "regular": "Terminus-Regular.ttf",
+        "normal": "Terminus-Regular.ttf",
+        "bold": "Terminus-Bold.ttf",
+        "vga": "Terminus-VGA.ttf"
+      }
+    },
+    "icon_fa7": {
+      "default_kerning": false,
+      "styles": {
+        "solid": "FontAwesome7-Solid.ttf",
+        "regular": "FontAwesome7-Regular.ttf",
+        "brands": "FontAwesome7-Brands.ttf",
+        "normal": "FontAwesome7-Solid.ttf"
+      }
+    },
+    "icon_lucide": {
+      "default_kerning": false,
+      "styles": {
+        "regular": "Lucide-Regular.ttf",
+        "normal": "Lucide-Regular.ttf"
+      }
+    },
+    "icon_phosphor": {
+      "default_kerning": false,
+      "styles": {
+        "thin": "Phosphor-Thin.ttf",
+        "light": "Phosphor-Light.ttf",
+        "regular": "Phosphor-Regular.ttf",
+        "normal": "Phosphor-Regular.ttf",
+        "bold": "Phosphor-Bold.ttf",
+        "fill": "Phosphor-Fill.ttf"
+      }
+    },
+    "icon_tabler": {
+      "default_kerning": false,
+      "styles": {
+        "thin": "Tabler-Thin200.ttf",
+        "light": "Tabler-Light300.ttf",
+        "regular": "Tabler-Regular.ttf",
+        "normal": "Tabler-Regular.ttf",
+        "filled": "Tabler-Filled.ttf"
+      }
+    }
+  }
+}

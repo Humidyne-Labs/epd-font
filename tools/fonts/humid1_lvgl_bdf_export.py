@@ -15,6 +15,7 @@ backed by `esp32s3-N8R8-hw_scheme.json` and `generic_hw.json` (zero hardcoded de
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -573,19 +574,19 @@ def generate_headers(
             " * 2. Canonical HUMID1_FONT_* Semantic UI & Telemetry Role Macros (H1OS)",
             " * ========================================================================= */",
         ])
+        sem_roles = (scheme_cfg or {}).get("output_branding", {}).get("semantic_roles", {})
         emitted_macros = set()
         for suffix, target in role_pairs:
             m_name = f"HUMID1_FONT_{suffix}"
-            lines.append(f"#define {m_name:<28} (&{target})")
+            resolved_t = pick_sym(sem_roles[m_name], target) if m_name in sem_roles else target
+            lines.append(f"#define {m_name:<28} (&{resolved_t})")
             emitted_macros.add(m_name)
 
-        if scheme_cfg:
-            sem_roles = scheme_cfg.get("output_branding", {}).get("semantic_roles", {})
-            for m_name, raw_target in sem_roles.items():
-                if m_name not in emitted_macros:
-                    resolved_t = pick_sym(raw_target)
-                    lines.append(f"#define {m_name:<28} (&{resolved_t})")
-                    emitted_macros.add(m_name)
+        for m_name, raw_target in sem_roles.items():
+            if m_name not in emitted_macros:
+                resolved_t = pick_sym(raw_target)
+                lines.append(f"#define {m_name:<28} (&{resolved_t})")
+                emitted_macros.add(m_name)
 
         icon_defaults = [
             ("HUMID1_ICON_FA7_DEFAULT",      pick_sym("icon_fa7_solid_16", "icon_fa7_solid_14")),
@@ -662,12 +663,21 @@ def generate_headers(
             " * H1OS_FONT_<sz> Size/Role Aliases",
             " * ========================================================================= */",
         ]
+        sem_roles_h1os = branding_cfg.get("semantic_roles", {})
+
+        def _extract_family_prefix(sym_str: str, fallback_prefix: str) -> str:
+            m_fam = re.match(r"^(?:humid1_font_)?(.+?)_(?:normal|bold|italic|regular|medium|semibold|extrabold)_\d+$", sym_str.strip())
+            return m_fam.group(1) if m_fam else fallback_prefix
+
+        sans_prefix = _extract_family_prefix(str(sem_roles_h1os.get("HUMID1_FONT_UI_BODY", raw_default_font)), "plex_sans")
+        mono_prefix = _extract_family_prefix(str(sem_roles_h1os.get("HUMID1_FONT_TELEMETRY_BODY", "")), "plex_mono")
+
         for sz in range(10, 42, 2):
-            pref = f"plex_sans_bold_{sz}" if sz >= 20 else f"plex_sans_normal_{sz}"
-            target = pick_sym(pref, f"plex_sans_normal_{sz}")
-            s_bold = pick_sym(f"plex_sans_bold_{sz}", target)
-            m_norm = pick_sym(f"plex_mono_normal_{sz}", target)
-            m_bold = pick_sym(f"plex_mono_bold_{sz}", s_bold)
+            pref = f"{sans_prefix}_bold_{sz}" if sz >= 20 else f"{sans_prefix}_normal_{sz}"
+            target = pick_sym(pref, f"{sans_prefix}_normal_{sz}")
+            s_bold = pick_sym(f"{sans_prefix}_bold_{sz}", target)
+            m_norm = pick_sym(f"{mono_prefix}_normal_{sz}", target)
+            m_bold = pick_sym(f"{mono_prefix}_bold_{sz}", s_bold)
             h_lines.append(f"#define H1OS_FONT_{sz} (&{target})")
             h_lines.append(f"#define H1OS_FONT_BOLD_{sz} (&{s_bold})")
             h_lines.append(f"#define H1OS_FONT_MONO_{sz} (&{m_norm})")
@@ -719,7 +729,16 @@ def run_screen_width_audit(
     """Audit horizontal string widths against the target display's usable pixel width budget."""
     usable_budget = max(32, screen_width - (2 * safe_margin))
     x_max = screen_width - safe_margin
-    fb_gmap = strike_cache.get("humid1_font_plex_sans_normal_14", strike_cache.get("plex_sans_normal_14", ({}, 0, 0)))[0]
+    fb_gmap = {}
+    for fb_cand in ("humid1_font_plex_sans_normal_14", "plex_sans_normal_14"):
+        if fb_cand in strike_cache:
+            fb_gmap = strike_cache[fb_cand][0]
+            break
+    if not fb_gmap:
+        for k_s, (gm_s, _, _) in sorted(strike_cache.items()):
+            if "_normal_16" in k_s or "_normal_14" in k_s:
+                fb_gmap = gm_s
+                break
     results = []
     print("\n" + "=" * 106)
     print(
@@ -781,9 +800,12 @@ def run_screen_width_audit(
         total_sans = l_sans_px + r_sans_px
         total_mixed = l_sans_px + r_mono_px
 
-        cond_key = "humid1_font_plex_cond_normal_16" if "humid1_font_plex_cond_normal_16" in strike_cache else "plex_cond_normal_16"
-        cond_gmap = strike_cache[cond_key][0] if cond_key in strike_cache else s_gmap
-        cond_kmap = kern_cache.get(cond_key, {})
+        cond_key = next(
+            (ck for ck in sorted(strike_cache.keys()) if "_cond_normal_16" in ck or "_cond_normal_14" in ck),
+            None,
+        )
+        cond_gmap = strike_cache[cond_key][0] if cond_key else s_gmap
+        cond_kmap = kern_cache.get(cond_key, {}) if cond_key else {}
         total_cond = (
             measure_lvgl_string_px(l_str, cond_gmap, cond_kmap, fb_gmap)
             + measure_lvgl_string_px(r_str, cond_gmap, cond_kmap, fb_gmap)

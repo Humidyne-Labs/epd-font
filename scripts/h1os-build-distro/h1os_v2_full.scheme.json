@@ -1,0 +1,985 @@
+{
+  "schema_version": "1.0.23",
+  "scheme_id": "h1os_v2_full",
+  "project_brand": "Humidyne Labs H1OS v2 1-BPP EPD Typography & Modular Icon Suite",
+  "description": "H1OS v2 20cm Gaussian-PSF Qualified Full Firmware Scheme (FiraSans + InterTight + FiraSansCondensed + JetBrainsMono + FiraCode + Bitter + IBMPlexMath + Native Terminus + 4 Icon Suites).",
+  "spdx_license": "MIT AND OFL-1.1",
+  "hardware_scheme": "esp32s3-N8R8-hw_scheme.json",
+  "raster_config": {
+    "pipeline": "otsu-adaptive",
+    "math_backend": "auto",
+    "threshold": 128,
+    "gamma": 1.0,
+    "normal_weight": 500,
+    "bold_weight": 800,
+    "italic_weight": 500,
+    "patches_file": "font_icon_epd_patches.json",
+    "ascii_patches_dir": "build/h1os_v2/ascii_patches",
+    "sheet_debug": true,
+    "char_debug": false,
+    "debug_stages": true
+  },
+  "output_branding": {
+    "symbol_prefix": "humid1_",
+    "primary_header": "humid1_fonts.h",
+    "compat_header": "h1os_fonts.h",
+    "default_font": "humid1_font_fira_sans_normal_16",
+    "semantic_roles": {
+      "HUMID1_FONT_UI_MICRO": "humid1_font_terminus_bold_14",
+      "HUMID1_FONT_UI_BODY": "humid1_font_fira_sans_normal_16",
+      "HUMID1_FONT_UI_BODY_MD": "humid1_font_inter_tight_normal_16",
+      "HUMID1_FONT_UI_SUBTITLE": "humid1_font_fira_sans_bold_16",
+      "HUMID1_FONT_UI_TITLE": "humid1_font_fira_sans_bold_18",
+      "HUMID1_FONT_UI_HEADER": "humid1_font_inter_tight_bold_20",
+      "HUMID1_FONT_UI_META_ITALIC": "humid1_font_fira_sans_italic_16",
+      "HUMID1_FONT_UI_EMPHASIS": "humid1_font_fira_sans_italic_16",
+      "HUMID1_FONT_TELEMETRY_SM": "humid1_font_terminus_bold_14",
+      "HUMID1_FONT_TELEMETRY_SMALL": "humid1_font_terminus_bold_14",
+      "HUMID1_FONT_TELEMETRY_BODY": "humid1_font_jetbrains_mono_normal_16",
+      "HUMID1_FONT_TELEMETRY_MD": "humid1_font_jetbrains_mono_bold_20",
+      "HUMID1_FONT_TELEMETRY_VALUE": "humid1_font_jetbrains_mono_bold_20",
+      "HUMID1_FONT_TELEMETRY_LG": "humid1_font_jetbrains_mono_bold_24",
+      "HUMID1_FONT_TELEMETRY_HERO": "humid1_font_jetbrains_mono_bold_24",
+      "HUMID1_FONT_TELEMETRY_XL": "humid1_font_jetbrains_mono_bold_32",
+      "HUMID1_FONT_TELEMETRY_JUMBO": "humid1_font_jetbrains_mono_bold_32",
+      "HUMID1_FONT_RIBBON_COND": "humid1_font_fira_cond_normal_16",
+      "HUMID1_FONT_BANNER_COND": "humid1_font_fira_cond_bold_18",
+      "HUMID1_FONT_EDITORIAL_BODY": "humid1_font_bitter_normal_18",
+      "HUMID1_FONT_EDITORIAL_TITLE": "humid1_font_bitter_bold_24",
+      "HUMID1_FONT_EDITORIAL_ITALIC": "humid1_font_bitter_italic_18",
+      "HUMID1_FONT_FORMULA": "humid1_font_plex_math_regular_16",
+      "HUMID1_FONT_TERMINAL": "humid1_font_terminus_bold_16",
+      "HUMID1_FONT_TERMINAL_SM": "humid1_font_terminus_bold_14",
+      "HUMID1_ICON_FA7_DEFAULT": "humid1_icon_fa7_solid_16",
+      "HUMID1_ICON_LUCIDE_DEFAULT": "humid1_icon_lucide_regular_16",
+      "HUMID1_ICON_PHOSPHOR_DEFAULT": "humid1_icon_phosphor_regular_16",
+      "HUMID1_ICON_TABLER_DEFAULT": "humid1_icon_tabler_regular_16"
+    }
+  },
+  "character_sets": {
+    "ascii_printable": {
+      "description": "Standard Printable ASCII (U+0020..U+007E)",
+      "ranges": "0x0020-0x007E"
+    },
+    "latin1_units": {
+      "description": "Scientific & Technical & Environmental Units (°, ±, ², ³, µ, ·, ×, ÷)",
+      "ranges": "0x00B0,0x00B1,0x00B2,0x00B3,0x00B5,0x00B7,0x00D7,0x00F7"
+    },
+    "greek_scientific": {
+      "description": "Greek Telemetry & Scientific Symbols (Δ, Ω, α, β, γ, δ, θ, λ, μ, π, σ, τ, φ, ω)",
+      "ranges": "0x0394,0x03A9,0x03B1-0x03B5,0x03B8,0x03BB,0x03BC,0x03C0,0x03C3,0x03C4,0x03C6,0x03C9"
+    },
+    "arrows_punctuation": {
+      "description": "General Punctuation, En/Em Dashes, Bullet, Permille, Arrows (←↑→↓)",
+      "ranges": "0x2013,0x2014,0x2018,0x2019,0x201C,0x201D,0x2022,0x2026,0x2030,0x2190-0x2193"
+    },
+    "math_operators": {
+      "description": "Mathematical Operators (∀, ∂, ∃, ∅, ∆, ∇, ∈, ∑, −, √, ∝, ∞, ∧, ∨, ∩, ∪, ∫, ≈, ≠, ≡, ≤, ≥)",
+      "ranges": "0x2126,0x2200,0x2202,0x2203,0x2205-0x2209,0x220F,0x2211,0x2212,0x221A,0x221D,0x221E,0x2227-0x222B,0x2248,0x2260,0x2261,0x2264,0x2265"
+    },
+    "fa7_core": {
+      "description": "Font Awesome v7.3.1 Core Embedded UI & Telemetry Icons",
+      "vendor": "icon_fa7",
+      "icons": [
+        "check",
+        "xmark",
+        "gear",
+        "house",
+        "clock",
+        "arrows-rotate",
+        "lock",
+        "droplet",
+        "circle-check",
+        "triangle-exclamation",
+        "bolt",
+        "wifi",
+        "battery-full",
+        "battery-three-quarters",
+        "battery-half",
+        "battery-quarter",
+        "battery-empty",
+        "usb",
+        "bluetooth-b",
+        "temperature-half",
+        "microchip",
+        "gauge-high",
+        "wind",
+        "cloud",
+        "sun",
+        "bell",
+        "circle-info",
+        "chart-line",
+        "sliders",
+        "terminal",
+        "bluetooth",
+        "sd-card",
+        "power-off",
+        "play",
+        "pause",
+        "stop",
+        "plus",
+        "minus",
+        "bars",
+        "trash-can",
+        "pen",
+        "delete-left"
+      ],
+      "ranges": "0xF001,0xF008,0xF00B,0xF00C,0xF00D,0xF011,0xF013,0xF015,0xF017,0xF019,0xF01C,0xF021,0xF023,0xF026-0xF028,0xF03E,0xF043,0xF044,0xF048,0xF04B-0xF04D,0xF051-0xF054,0xF058,0xF05A,0xF067,0xF068,0xF06E,0xF070,0xF071,0xF074,0xF077-0xF079,0xF07B,0xF093,0xF095,0xF0C4,0xF0C5,0xF0C7,0xF0C9,0xF0E0,0xF0E7,0xF0EA,0xF0F3,0xF11C,0xF120,0xF124,0xF15B,0xF185,0xF1DE,0xF1EB,0xF1F8,0xF201,0xF240-0xF244,0xF287,0xF293,0xF294,0xF2C9,0xF2DB,0xF2ED,0xF304,0xF55A,0xF625,0xF72E,0xF7C2,0xF8A2"
+    },
+    "lucide_core": {
+      "description": "Lucide v1.67.0 Core Embedded UI & Sensor Icons",
+      "vendor": "icon_lucide",
+      "icons": [
+        "activity",
+        "alert-triangle",
+        "award",
+        "battery",
+        "battery-charging",
+        "battery-full",
+        "battery-low",
+        "battery-medium",
+        "battery-warning",
+        "bell",
+        "bluetooth",
+        "check",
+        "chevron-down",
+        "chevron-left",
+        "chevron-right",
+        "chevron-up",
+        "clock",
+        "cloud",
+        "cloud-rain",
+        "cpu",
+        "database",
+        "droplet",
+        "droplets",
+        "eye",
+        "flame",
+        "gauge",
+        "globe",
+        "hard-drive",
+        "heart",
+        "home",
+        "info",
+        "layers-2",
+        "lock",
+        "menu",
+        "moon",
+        "power",
+        "radio",
+        "refresh-cw",
+        "search",
+        "server",
+        "settings",
+        "shield",
+        "sliders",
+        "sun",
+        "terminal",
+        "thermometer",
+        "trending-up",
+        "usb",
+        "user",
+        "volume-2",
+        "wifi",
+        "wind",
+        "x",
+        "zap"
+      ],
+      "ranges": "0xE01D,0xE028,0xE053-0xE057,0xE05E,0xE063,0xE070,0xE072-0xE075,0xE087,0xE08A,0xE08F,0xE09E,0xE0B4,0xE0B5,0xE0DF,0xE0E5,0xE0EB,0xE0F6,0xE0FC,0xE10A,0xE148,0xE153,0xE154,0xE159,0xE167,0xE178,0xE17C,0xE182,0xE19D,0xE1A1,0xE1A8,0xE1AA,0xE1B2,0xE1D8,0xE1FB,0xE1FE,0xE202"
+    },
+    "phosphor_core": {
+      "description": "Phosphor v2.1.0 Core Embedded UI, Weather & Telemetry Icons",
+      "vendor": "icon_phosphor",
+      "icons": [
+        "alarm",
+        "archive",
+        "arrow-clockwise",
+        "arrow-down",
+        "arrow-left",
+        "arrow-right",
+        "arrow-up",
+        "battery-charging",
+        "battery-empty",
+        "battery-full",
+        "battery-high",
+        "battery-low",
+        "battery-medium",
+        "battery-warning",
+        "bell",
+        "bluetooth",
+        "broadcast",
+        "calendar",
+        "chart-bar",
+        "chart-line",
+        "check",
+        "check-circle",
+        "clock",
+        "cloud",
+        "cloud-rain",
+        "cloud-sun",
+        "compass",
+        "cpu",
+        "database",
+        "drop",
+        "drop-half",
+        "eye",
+        "fan",
+        "fire",
+        "flask",
+        "funnel",
+        "gauge",
+        "gear",
+        "globe",
+        "graph",
+        "hard-drives",
+        "heartbeat",
+        "house",
+        "info",
+        "key",
+        "lightning",
+        "link",
+        "list",
+        "lock",
+        "magnifying-glass",
+        "map-pin",
+        "memory",
+        "minus",
+        "moon",
+        "nut",
+        "plug",
+        "plus",
+        "power",
+        "pulse",
+        "question",
+        "radio",
+        "rss",
+        "scales",
+        "shield-check",
+        "sign-in",
+        "sliders",
+        "snowflake",
+        "sun",
+        "table",
+        "tag",
+        "target",
+        "terminal",
+        "thermometer",
+        "thermometer-cold",
+        "thermometer-hot",
+        "timer",
+        "trash",
+        "trend-down",
+        "trend-up",
+        "upload",
+        "usb",
+        "user",
+        "warning",
+        "warning-circle",
+        "waves",
+        "wifi-high",
+        "wifi-low",
+        "wifi-medium",
+        "wifi-none",
+        "wifi-slash",
+        "wind",
+        "wrench",
+        "x",
+        "x-circle"
+      ],
+      "ranges": "0xE002,0xE026,0xE036,0xE03E,0xE058,0xE06C,0xE094,0xE098,0xE09A,0xE09C,0xE09E,0xE0A0,0xE0A4,0xE0CE,0xE0DA,0xE0FE,0xE108,0xE13E,0xE14E,0xE15A,0xE15E,0xE196,0xE1AA,0xE1B0,0xE1B4,0xE1C8,0xE1E6,0xE1F4,0xE208,0xE20A,0xE220,0xE232,0xE242,0xE250,0xE270,0xE272,0xE292,0xE2A6,0xE2B2,0xE2B8,0xE2DE,0xE2E2,0xE2F0,0xE2FE,0xE32A,0xE32E,0xE336,0xE3B6,0xE3D0,0xE3D4,0xE3DA,0xE480,0xE482,0xE4EA,0xE4EC,0xE4EE,0xE4F0,0xE4F2,0xE4F4,0xE4F6,0xE60C"
+    },
+    "tabler_core": {
+      "description": "Tabler v3.50.0 Core Embedded UI & Telemetry Icons",
+      "vendor": "icon_tabler",
+      "icons": [
+        "activity",
+        "alert-circle",
+        "alert-triangle",
+        "arrow-down",
+        "arrow-left",
+        "arrow-right",
+        "arrow-up",
+        "battery",
+        "battery-1",
+        "battery-2",
+        "battery-3",
+        "battery-4",
+        "battery-charging",
+        "bell",
+        "bluetooth",
+        "bolt",
+        "calendar",
+        "chart-bar",
+        "chart-line",
+        "check",
+        "clock",
+        "cloud",
+        "cloud-rain",
+        "cpu",
+        "database",
+        "droplet",
+        "eye",
+        "flame",
+        "gauge",
+        "home",
+        "info-circle",
+        "lock",
+        "menu-2",
+        "moon",
+        "power",
+        "refresh",
+        "search",
+        "server",
+        "settings",
+        "shield",
+        "sun",
+        "terminal-2",
+        "thermometer",
+        "trending-up",
+        "usb",
+        "user",
+        "wifi",
+        "wind",
+        "x"
+      ],
+      "ranges": "0xEA02,0xEA08,0xEA09,0xEA19,0xEA1F,0xEA20,0xEA25,0xEA2F-0xEA35,0xEA38,0xEA3A,0xEA3D,0xEA52,0xEA59,0xEA5B,0xEA5E,0xEA70,0xEA76,0xEA7A,0xEA88,0xEA98,0xEAA4,0xEAAE,0xEAC1,0xEACB,0xEAE2,0xEAEC,0xEAF2,0xEB09,0xEB10,0xEB1C,0xEB20,0xEB30,0xEB3D,0xEB47,0xEB4E,0xEB52,0xEB54,0xEB55"
+    },
+    "tabler_filled_core": {
+      "description": "Tabler v3.50.0 Filled Core Embedded UI & Telemetry Icons (from Tabler-Filled.ttf)",
+      "vendor": "icon_tabler_filled",
+      "icons": [
+        "alarm",
+        "alert-circle",
+        "alert-triangle",
+        "archive",
+        "arrow-big-down",
+        "arrow-big-left",
+        "arrow-big-right",
+        "arrow-big-up",
+        "award",
+        "badge",
+        "battery",
+        "battery-1",
+        "battery-2",
+        "battery-3",
+        "battery-4",
+        "bell",
+        "bolt",
+        "bookmark",
+        "briefcase",
+        "bug",
+        "bulb",
+        "calendar",
+        "camera",
+        "chart-area",
+        "chart-bubble",
+        "chart-candle",
+        "chart-donut",
+        "chart-pie",
+        "circle-check",
+        "circle-x",
+        "clock",
+        "cloud",
+        "compass",
+        "copy",
+        "credit-card",
+        "crown",
+        "dashboard",
+        "device-desktop",
+        "device-floppy",
+        "device-mobile",
+        "device-speaker",
+        "device-tv",
+        "device-watch",
+        "dialpad",
+        "disc",
+        "droplet",
+        "eye",
+        "file",
+        "filter",
+        "flag",
+        "flame",
+        "flask",
+        "folder",
+        "forbid",
+        "gauge",
+        "gift",
+        "globe",
+        "graph",
+        "heart",
+        "help-circle",
+        "home",
+        "hourglass",
+        "info-circle",
+        "key",
+        "layout-dashboard",
+        "location",
+        "lock",
+        "mail",
+        "map-pin",
+        "message",
+        "microphone",
+        "moon",
+        "file-music",
+        "navigation",
+        "palette",
+        "phone",
+        "photo",
+        "pin",
+        "player-pause",
+        "player-play",
+        "player-stop",
+        "point",
+        "file-power",
+        "presentation",
+        "puzzle",
+        "radar",
+        "radioactive",
+        "scale",
+        "send",
+        "settings",
+        "shield",
+        "shield-check",
+        "shield-lock",
+        "shopping-cart",
+        "sitemap",
+        "star",
+        "sun",
+        "tag",
+        "thumb-up",
+        "trash",
+        "trophy",
+        "truck",
+        "umbrella",
+        "user",
+        "video",
+        "yin-yang",
+        "zoom-in"
+      ],
+      "ranges": "0xEE80,0xF327,0xF667-0xF69F,0xF6A0-0xF6BF"
+    }
+  },
+  "screen_audit_rows": [
+    {
+      "screen": "Screen 1: Env Dash",
+      "row": "Header (Title + Badge)",
+      "left": "HUMIDYNE LABS",
+      "right": "1/5",
+      "left_font": "fira_sans_bold_16",
+      "right_font": "jetbrains_mono_bold_16",
+      "min_gap_px": 12
+    },
+    {
+      "screen": "Screen 1: Env Dash",
+      "row": "Hero Telemetry Row",
+      "left": "104.8°F",
+      "right": " 99.9%",
+      "left_font": "inter_tight_bold_20",
+      "right_font": "jetbrains_mono_bold_20",
+      "min_gap_px": 10
+    },
+    {
+      "screen": "Screen 1: Env Dash",
+      "row": "Row 1: Settling Status",
+      "left": "Status",
+      "right": "SETTLED (100%)",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 1: Env Dash",
+      "row": "Row 2: Vapor Pressure",
+      "left": "Vapor Pressure",
+      "right": "42.8 hPa",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 2: Psychrometrics",
+      "row": "Row 1: Dew Point",
+      "left": "Dew Point",
+      "right": "78.4°F (25.8°C)",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 2: Psychrometrics",
+      "row": "Row 2: Abs Humidity",
+      "left": "Abs Humidity",
+      "right": "24.2 g/m³",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 3: Thermal Nodes",
+      "row": "Row 4: TriNode Delta T",
+      "left": "TriNode ΔT",
+      "right": "+0.4°C",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 4: System Health",
+      "row": "Row 1: Battery Voltage",
+      "left": "Battery",
+      "right": " 4.18V (100%)",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 5: Diagnostics",
+      "row": "Row 4: Heap Watermark",
+      "left": "Heap",
+      "right": "342K (Min 298K)",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 5: Diagnostics",
+      "row": "Row 6: Wake & Ring",
+      "left": "Wakes",
+      "right": "9999 (Ring 32/32)",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    },
+    {
+      "screen": "Screen 5: Diagnostics",
+      "row": "Row 7: CPU & SHTC3",
+      "left": "CPU",
+      "right": "240MHz • SHT:OK",
+      "left_font": "fira_sans_normal_16",
+      "right_font": "jetbrains_mono_normal_16",
+      "min_gap_px": 8
+    }
+  ],
+  "strikes": [
+    {
+      "family": "fira_sans",
+      "style": "normal",
+      "sizes": [
+        14,
+        16,
+        18,
+        20,
+        24
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "fira_sans",
+      "style": "bold",
+      "sizes": [
+        14,
+        16,
+        18,
+        20,
+        24,
+        28,
+        32
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "fira_sans",
+      "style": "italic",
+      "sizes": [
+        16,
+        18
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_fira_sans_normal_{size}"
+    },
+    {
+      "family": "inter_tight",
+      "style": "normal",
+      "sizes": [
+        16,
+        18,
+        20
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "inter_tight",
+      "style": "bold",
+      "sizes": [
+        16,
+        18,
+        20,
+        24,
+        32
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "inter_tight",
+      "style": "italic",
+      "sizes": [
+        16
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_inter_tight_normal_{size}"
+    },
+    {
+      "family": "fira_cond",
+      "style": "normal",
+      "sizes": [
+        14,
+        16,
+        18,
+        20
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_fira_sans_normal_{size}"
+    },
+    {
+      "family": "fira_cond",
+      "style": "bold",
+      "sizes": [
+        16,
+        18,
+        20,
+        24
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_fira_sans_bold_{size}"
+    },
+    {
+      "family": "jetbrains_mono",
+      "style": "normal",
+      "sizes": [
+        14,
+        16,
+        18,
+        20,
+        24
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "jetbrains_mono",
+      "style": "bold",
+      "sizes": [
+        14,
+        16,
+        18,
+        20,
+        24,
+        28,
+        32
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "jetbrains_mono",
+      "style": "italic",
+      "sizes": [
+        16
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_font_jetbrains_mono_normal_{size}"
+    },
+    {
+      "family": "fira_code",
+      "style": "normal",
+      "sizes": [
+        16,
+        18,
+        20
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "fira_code",
+      "style": "bold",
+      "sizes": [
+        16,
+        18,
+        20,
+        24
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "bitter",
+      "style": "normal",
+      "sizes": [
+        16,
+        18,
+        20
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_fira_sans_normal_{size}"
+    },
+    {
+      "family": "bitter",
+      "style": "bold",
+      "sizes": [
+        18,
+        20,
+        24
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_fira_sans_bold_{size}"
+    },
+    {
+      "family": "bitter",
+      "style": "italic",
+      "sizes": [
+        18
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": true,
+      "fallback": "humid1_font_bitter_normal_{size}"
+    },
+    {
+      "family": "plex_math",
+      "style": "regular",
+      "sizes": [
+        16,
+        20
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "math_operators"
+      ],
+      "kerning": false,
+      "fallback": "humid1_font_fira_sans_normal_{size}"
+    },
+    {
+      "family": "terminus",
+      "style": "bold",
+      "sizes": [
+        14,
+        16,
+        20
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "terminus",
+      "style": "vga",
+      "sizes": [
+        14,
+        16
+      ],
+      "char_sets": [
+        "ascii_printable",
+        "latin1_units",
+        "greek_scientific",
+        "arrows_punctuation"
+      ],
+      "kerning": false,
+      "fallback": "humid1_icon_fa7_solid_{size}"
+    },
+    {
+      "family": "icon_fa7",
+      "style": "solid",
+      "sizes": [
+        12,
+        14,
+        16,
+        18,
+        20,
+        24,
+        32
+      ],
+      "char_sets": [
+        "fa7_core"
+      ],
+      "kerning": false,
+      "fallback": null
+    },
+    {
+      "family": "icon_lucide",
+      "style": "regular",
+      "sizes": [
+        14,
+        16,
+        20,
+        24
+      ],
+      "char_sets": [
+        "lucide_core"
+      ],
+      "kerning": false,
+      "fallback": null
+    },
+    {
+      "family": "icon_phosphor",
+      "style": "regular",
+      "sizes": [
+        14,
+        16,
+        20,
+        24
+      ],
+      "char_sets": [
+        "phosphor_core"
+      ],
+      "kerning": false,
+      "fallback": null
+    },
+    {
+      "family": "icon_phosphor",
+      "style": "fill",
+      "sizes": [
+        16,
+        20
+      ],
+      "char_sets": [
+        "phosphor_core"
+      ],
+      "kerning": false,
+      "fallback": null
+    },
+    {
+      "family": "icon_tabler",
+      "style": "regular",
+      "sizes": [
+        14,
+        16,
+        20,
+        24
+      ],
+      "char_sets": [
+        "tabler_core"
+      ],
+      "kerning": false,
+      "fallback": null
+    },
+    {
+      "family": "icon_tabler",
+      "style": "filled",
+      "sizes": [
+        16,
+        20
+      ],
+      "char_sets": [
+        "tabler_filled_core"
+      ],
+      "kerning": false,
+      "fallback": null
+    }
+  ]
+}

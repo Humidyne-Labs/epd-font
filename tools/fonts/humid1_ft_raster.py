@@ -428,50 +428,66 @@ def _extract_raw_kerning_dict(tt: TTFont) -> Dict[Tuple[str, str], int]:
     """Extract raw glyph-name kerning pairs from `kern` and `GPOS` once per font and close TTFont."""
     raw_pairs: Dict[Tuple[str, str], int] = {}
     if "kern" in tt:
-        for subtable in tt["kern"].kernTables:
+        for subtable in getattr(tt["kern"], "kernTables", None) or ():
             if hasattr(subtable, "kernTable"):
                 for (l_name, r_name), val in subtable.kernTable.items():
                     if val != 0:
                         raw_pairs[(l_name, r_name)] = int(val)
 
     if "GPOS" in tt and hasattr(tt["GPOS"].table, "LookupList") and tt["GPOS"].table.LookupList:
-        for lookup in tt["GPOS"].table.LookupList.Lookup:
+        for lookup in getattr(tt["GPOS"].table.LookupList, "Lookup", None) or ():
             if lookup.LookupType not in (2, 9):
                 continue
-            for sub in lookup.SubTable:
-                actual = sub
-                if lookup.LookupType == 9 and hasattr(sub, "ExtSubTable"):
+            for sub in getattr(lookup, "SubTable", None) or ():
+                if lookup.LookupType == 9:
+                    if getattr(sub, "ExtensionLookupType", None) != 2 or not hasattr(sub, "ExtSubTable"):
+                        continue
                     actual = sub.ExtSubTable
-                if getattr(actual, "LookupType", 2) != 2 and not hasattr(actual, "Format"):
-                    continue
+                else:
+                    actual = sub
                 cov = getattr(actual, "Coverage", None)
                 if not cov or not hasattr(cov, "glyphs"):
                     continue
-                if actual.Format == 1:
+                fmt = getattr(actual, "Format", None)
+                if fmt == 1:
+                    pair_sets = getattr(actual, "PairSet", None)
+                    if not pair_sets:
+                        continue
                     for l_idx, l_name in enumerate(cov.glyphs):
-                        if l_idx >= len(actual.PairSet):
+                        if l_idx >= len(pair_sets):
                             continue
-                        pset = actual.PairSet[l_idx]
-                        for pvr in pset.PairValueRecord:
-                            r_name = pvr.SecondGlyph
-                            if pvr.Value1 and getattr(pvr.Value1, "XAdvance", 0):
-                                raw_pairs[(l_name, r_name)] = int(pvr.Value1.XAdvance)
-                elif actual.Format == 2:
-                    cdef1 = getattr(actual.ClassDef1, "classDefs", {})
-                    cdef2 = getattr(actual.ClassDef2, "classDefs", {})
-                    class2_Reverse: Dict[int, List[str]] = {}
+                        pset = pair_sets[l_idx]
+                        pvrs = getattr(pset, "PairValueRecord", None) if pset else None
+                        if not pvrs:
+                            continue
+                        for pvr in pvrs:
+                            r_name = getattr(pvr, "SecondGlyph", None)
+                            v1 = getattr(pvr, "Value1", None)
+                            xadv = getattr(v1, "XAdvance", 0) if v1 else 0
+                            if r_name and xadv:
+                                raw_pairs[(l_name, r_name)] = int(xadv)
+                elif fmt == 2:
+                    class1_records = getattr(actual, "Class1Record", None)
+                    if not class1_records:
+                        continue
+                    cdef1 = getattr(getattr(actual, "ClassDef1", None), "classDefs", None) or {}
+                    cdef2 = getattr(getattr(actual, "ClassDef2", None), "classDefs", None) or {}
+                    class2_reverse: Dict[int, List[str]] = {}
                     for g_n, c_idx in cdef2.items():
-                        class2_Reverse.setdefault(c_idx, []).append(g_n)
+                        class2_reverse.setdefault(c_idx, []).append(g_n)
                     for l_name in cov.glyphs:
                         c1 = cdef1.get(l_name, 0)
-                        if c1 >= len(actual.Class1Record):
+                        if c1 >= len(class1_records):
                             continue
-                        c1_rec = actual.Class1Record[c1]
-                        for c2, c2_rec in enumerate(c1_rec.Class2Record):
-                            v1 = c2_rec.Value1
+                        c1_rec = class1_records[c1]
+                        c2_recs = getattr(c1_rec, "Class2Record", None) if c1_rec else None
+                        if not c2_recs:
+                            continue
+                        for c2, c2_rec in enumerate(c2_recs):
+                            v1 = getattr(c2_rec, "Value1", None)
                             xadv = getattr(v1, "XAdvance", 0) if v1 else 0
                             if xadv:
-                                for r_name in class2_Reverse.get(c2, ()):
+                                for r_name in class2_reverse.get(c2, ()):
                                     raw_pairs[(l_name, r_name)] = int(xadv)
     return raw_pairs
 

@@ -59,137 +59,18 @@ except ImportError as exc:
 TOOL_VERSION = "1.0.23"
 
 # =============================================================================
-# 1. DECLARATIVE CONVERSION TABLES
+# 1. DECLARATIVE ASSET SOURCE REGISTRY LOADER (`tools/fonts/config/asset_sources.json`)
 # =============================================================================
 
-MONO_GREEK_ALIASES = {0x0394: "Delta", 0x03A9: "Omega", 0x03BC: "mu"}
-
-PLEX_VARIABLE_INSTANTIATION_TABLE: List[Tuple[str, str, str, Dict[str, float], Dict[int, str]]] = [
-    # --- IBM Plex Sans (wdth=100, v0.2.0 Variable, wght=100..800) ---
-    ("IBMPlexSans-Regular.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 400.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Medium.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-SemiBold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Bold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-ExtraBold.ttf", "sans", "IBM Plex Sans Var-Roman.ttf", {"wght": 800.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-Italic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-MediumItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-SemiBoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 600.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-BoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 100.0}, {}),
-    ("IBMPlexSans-ExtraBoldItalic.ttf", "sans", "IBM Plex Sans Var-Italic.ttf", {"wght": 800.0, "wdth": 100.0}, {}),
-    # --- IBM Plex Sans Condensed (wdth=85 extracted from Sans Variable, wght=300..800) ---
-    ("IBMPlexSansCondensed-Regular.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Medium.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-SemiBold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 600.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Bold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-ExtraBold.ttf", "cond", "IBM Plex Sans Var-Roman.ttf", {"wght": 800.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-Italic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 400.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-MedItal.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 500.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-SemiBoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 600.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-BoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 700.0, "wdth": 85.0}, {}),
-    ("IBMPlexSansCondensed-ExtraBoldItalic.ttf", "cond", "IBM Plex Sans Var-Italic.ttf", {"wght": 800.0, "wdth": 85.0}, {}),
-    # --- IBM Plex Mono (v1.0.0 Variable, wght=300..800) ---
-    ("IBMPlexMono-Regular.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 400.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-Medium.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 500.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-SemiBold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 600.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-Bold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 700.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-ExtraBold.ttf", "mono", "IBM Plex Mono Var-Roman.ttf", {"wght": 800.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-Italic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 400.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-MediumItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 500.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-SemiBoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 600.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-BoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 700.0}, MONO_GREEK_ALIASES),
-    ("IBMPlexMono-ExtraBoldItalic.ttf", "mono", "IBM Plex Mono Var-Italic.ttf", {"wght": 800.0}, MONO_GREEK_ALIASES),
-    # --- IBM Plex Serif (v2.0.0 Variable, wght=300..800) ---
-    ("IBMPlexSerif-Regular.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 400.0}, {}),
-    ("IBMPlexSerif-Medium.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 500.0}, {}),
-    ("IBMPlexSerif-SemiBold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 600.0}, {}),
-    ("IBMPlexSerif-Bold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 700.0}, {}),
-    ("IBMPlexSerif-ExtraBold.ttf", "serif", "IBM Plex Serif Var-Roman.ttf", {"wght": 800.0}, {}),
-    ("IBMPlexSerif-Italic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 400.0}, {}),
-    ("IBMPlexSerif-MediumItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 500.0}, {}),
-    ("IBMPlexSerif-SemiBoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 600.0}, {}),
-    ("IBMPlexSerif-BoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 700.0}, {}),
-    ("IBMPlexSerif-ExtraBoldItalic.ttf", "serif", "IBM Plex Serif Var-Italic.ttf", {"wght": 800.0}, {}),
-]
-
-# All 24 individual Terminus v4.49.1 BDF-to-TTF cuts (11 sizes x Normal/Bold + VGA 14/16)
-TERMINUS_BDF_CONVERSION_TABLE: List[Tuple[str, str, str, str, int]] = [
-    ("Terminus-Normal-10.ttf", "terminus", "ter-u12n.bdf", "Normal-10", 1),
-    ("Terminus-Bold-10.ttf",   "terminus", "ter-u12b.bdf", "Bold-10",   1),
-    ("Terminus-Normal-12.ttf", "terminus", "ter-u12n.bdf", "Normal-12", 1),
-    ("Terminus-Bold-12.ttf",   "terminus", "ter-u12b.bdf", "Bold-12",   1),
-    ("Terminus-Normal-14.ttf", "terminus", "ter-u14n.bdf", "Normal-14", 1),
-    ("Terminus-Bold-14.ttf",   "terminus", "ter-u14b.bdf", "Bold-14",   1),
-    ("Terminus-VGA-14.ttf",    "terminus", "ter-u14v.bdf", "VGA-14",    1),
-    ("Terminus-Normal-16.ttf", "terminus", "ter-u16n.bdf", "Normal-16", 1),
-    ("Terminus-Bold-16.ttf",   "terminus", "ter-u16b.bdf", "Bold-16",   1),
-    ("Terminus-VGA-16.ttf",    "terminus", "ter-u16v.bdf", "VGA-16",    1),
-    ("Terminus-Normal-18.ttf", "terminus", "ter-u18n.bdf", "Normal-18", 1),
-    ("Terminus-Bold-18.ttf",   "terminus", "ter-u18b.bdf", "Bold-18",   1),
-    ("Terminus-Normal-20.ttf", "terminus", "ter-u20n.bdf", "Normal-20", 1),
-    ("Terminus-Bold-20.ttf",   "terminus", "ter-u20b.bdf", "Bold-20",   1),
-    ("Terminus-Normal-22.ttf", "terminus", "ter-u22n.bdf", "Normal-22", 1),
-    ("Terminus-Bold-22.ttf",   "terminus", "ter-u22b.bdf", "Bold-22",   1),
-    ("Terminus-Normal-24.ttf", "terminus", "ter-u24n.bdf", "Normal-24", 1),
-    ("Terminus-Bold-24.ttf",   "terminus", "ter-u24b.bdf", "Bold-24",   1),
-    ("Terminus-Normal-26.ttf", "terminus", "ter-u24n.bdf", "Normal-26", 1),
-    ("Terminus-Bold-26.ttf",   "terminus", "ter-u24b.bdf", "Bold-26",   1),
-    ("Terminus-Normal-28.ttf", "terminus", "ter-u28n.bdf", "Normal-28", 1),
-    ("Terminus-Bold-28.ttf",   "terminus", "ter-u28b.bdf", "Bold-28",   1),
-    ("Terminus-Normal-30.ttf", "terminus", "ter-u28n.bdf", "Normal-30", 1),
-    ("Terminus-Bold-30.ttf",   "terminus", "ter-u28b.bdf", "Bold-30",   1),
-    ("Terminus-Normal-32.ttf", "terminus", "ter-u32n.bdf", "Normal-32", 1),
-    ("Terminus-Bold-32.ttf",   "terminus", "ter-u32b.bdf", "Bold-32",   1),
-    ("Terminus-Normal-34.ttf", "terminus", "ter-u32n.bdf", "Normal-34", 1),
-    ("Terminus-Bold-34.ttf",   "terminus", "ter-u32b.bdf", "Bold-34",   1),
-    ("Terminus-Normal-36.ttf", "terminus", "ter-u18n.bdf", "Normal-36", 2),
-    ("Terminus-Bold-36.ttf",   "terminus", "ter-u18b.bdf", "Bold-36",   2),
-    ("Terminus-Normal-38.ttf", "terminus", "ter-u18n.bdf", "Normal-38", 2),
-    ("Terminus-Bold-38.ttf",   "terminus", "ter-u18b.bdf", "Bold-38",   2),
-    ("Terminus-Normal-40.ttf", "terminus", "ter-u20n.bdf", "Normal-40", 2),
-    ("Terminus-Bold-40.ttf",   "terminus", "ter-u20b.bdf", "Bold-40",   2),
-]
+DEFAULT_ASSET_SOURCES_PATH = Path(__file__).resolve().parent / "config" / "asset_sources.json"
 
 
-NOTO_STATIC_COPY_TABLE: List[Tuple[str, str, str]] = [
-    ("NotoSans-Regular.ttf", "noto_sans", "NotoSans-Regular.ttf"),
-    ("NotoSans-Medium.ttf", "noto_sans", "NotoSans-Medium.ttf"),
-    ("NotoSans-Bold.ttf", "noto_sans", "NotoSans-Bold.ttf"),
-    ("NotoSans-ExtraBold.ttf", "noto_sans", "NotoSans-ExtraBold.ttf"),
-    ("NotoSans-Black.ttf", "noto_sans", "NotoSans-Black.ttf"),
-    ("NotoSans-MediumItalic.ttf", "noto_sans", "NotoSans-MediumItalic.ttf"),
-    ("NotoSans-SemiBoldItalic.ttf", "noto_sans", "NotoSans-SemiBoldItalic.ttf"),
-    ("NotoSans-SemiCondensedMedium.ttf", "noto_cond", "NotoSans-SemiCondensedMedium.ttf"),
-    ("NotoSans-SemiCondensedExtraBold.ttf", "noto_cond", "NotoSans-SemiCondensedExtraBold.ttf"),
-    ("NotoSans-SemiCondensedBlack.ttf", "noto_cond", "NotoSans-SemiCondensedBlack.ttf"),
-    ("NotoSans-SemiCondensedSemiBoldItalic.ttf", "noto_cond", "NotoSans-SemiCondensedSemiBoldItalic.ttf"),
-    ("NotoSans-CondensedSemiBold.ttf", "noto_cond", "NotoSans-CondensedSemiBold.ttf"),
-    ("NotoSans-CondensedBlack.ttf", "noto_cond", "NotoSans-CondensedBlack.ttf"),
-    ("NotoSans-CondensedSemiBoldItalic.ttf", "noto_cond", "NotoSans-CondensedSemiBoldItalic.ttf"),
-    ("NotoSansMono-Medium.ttf", "noto_mono", "NotoSansMono-Medium.ttf"),
-    ("NotoSansMono-ExtraBold.ttf", "noto_mono", "NotoSansMono-ExtraBold.ttf"),
-    ("NotoSansMono-Black.ttf", "noto_mono", "NotoSansMono-Black.ttf"),
-    ("NotoSerif-Medium.ttf", "noto_serif", "NotoSerif-Medium.ttf"),
-    ("NotoSerif-Black.ttf", "noto_serif", "NotoSerif-Black.ttf"),
-    ("NotoSerif-MediumItalic.ttf", "noto_serif", "NotoSerif-MediumItalic.ttf"),
-    ("NotoSerif-SemiBoldItalic.ttf", "noto_serif", "NotoSerif-SemiBoldItalic.ttf"),
-    ("NotoSansMath-Regular.ttf", "noto_math", "NotoSansMath-Regular.ttf"),
-]
-
-ICON_CONVERSION_TABLE: List[Tuple[str, str, str, str]] = [
-    ("FontAwesome7-Solid.ttf", "fa7", "Font Awesome 7 Free-Solid-900.otf", "otf2ttf"),
-    ("FontAwesome7-Regular.ttf", "fa7", "Font Awesome 7 Free-Regular-400.otf", "otf2ttf"),
-    ("FontAwesome7-Brands.ttf", "fa7", "Font Awesome 7 Brands-Regular-400.otf", "otf2ttf"),
-    ("Lucide-Regular.ttf", "lucide", "lucide.ttf", "clean_ttf"),
-    ("Phosphor-Regular.ttf", "phosphor", "Phosphor.ttf", "clean_ttf"),
-    ("Phosphor-Light.ttf", "phosphor", "Phosphor-Light.ttf", "clean_ttf"),
-    ("Phosphor-Thin.ttf", "phosphor", "Phosphor-Thin.ttf", "clean_ttf"),
-    ("Phosphor-Bold.ttf", "phosphor", "Phosphor-Bold.ttf", "clean_ttf"),
-    ("Phosphor-Fill.ttf", "phosphor", "Phosphor-Fill.ttf", "clean_ttf"),
-    ("Tabler-Regular.ttf", "tabler", "tabler-icons.ttf", "clean_ttf"),
-    ("Tabler-Light300.ttf", "tabler", "tabler-icons-300.ttf", "clean_ttf"),
-    ("Tabler-Thin200.ttf", "tabler", "tabler-icons-200.ttf", "clean_ttf"),
-    ("Tabler-Filled.ttf", "tabler", "tabler-icons-filled.ttf", "clean_ttf"),
-]
+def load_asset_sources_config(config_path: Optional[Path] = None) -> dict:
+    """Load declarative asset conversion tables and license rules from JSON."""
+    cfg_path = Path(config_path).expanduser().resolve() if config_path else DEFAULT_ASSET_SOURCES_PATH
+    if not cfg_path.is_file():
+        raise FileNotFoundError(f"Asset sources config not found: {cfg_path}")
+    return json.loads(cfg_path.read_text(encoding="utf-8"))
 
 
 # =============================================================================
@@ -692,6 +573,9 @@ def generate_icon_and_font_catalogs(
         json.dumps(unified_payload, indent=2) + "\n", encoding="utf-8"
     )
 
+    cfg_data = load_asset_sources_config()
+    term_strikes = [item["target"] for item in cfg_data.get("terminus_bdf_conversions", [])]
+
     if terminus_map:
         term_by_cp = {f"0x{cp:04X}": gname for cp, gname in sorted(terminus_map.items())}
         term_payload = {
@@ -700,7 +584,7 @@ def generate_icon_and_font_catalogs(
             "title": "Terminus Font v4.49.1 (24 Native & Exact-2x TrueType Strikes from BDF Masters)",
             "license": "SIL Open Font License 1.1",
             "total_glyphs": len(term_by_cp),
-            "ttf_strikes": [row[0] for row in TERMINUS_BDF_CONVERSION_TABLE],
+            "ttf_strikes": term_strikes,
             "by_codepoint": term_by_cp,
         }
         (meta_out_dir / "terminus_catalog.json").write_text(
@@ -708,19 +592,14 @@ def generate_icon_and_font_catalogs(
         )
         counts["terminus"] = len(term_by_cp)
 
-    text_families = {
-        "sans": [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "sans"],
-        "cond": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_cond"] + [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "cond"],
-        "mono": [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "mono"],
-        "serif": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_serif"] + [row[0] for row in PLEX_VARIABLE_INSTANTIATION_TABLE if row[1] == "serif"],
-        "math": ["NotoSansMath-Regular.ttf", "IBMPlexMath-Regular.ttf"],
-        "noto_sans": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_sans"],
-        "noto_cond": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_cond"],
-        "noto_mono": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_mono"],
-        "noto_serif": [row[0] for row in NOTO_STATIC_COPY_TABLE if row[1] == "noto_serif"],
-        "noto_math": ["NotoSansMath-Regular.ttf"],
-        "terminus": [row[0] for row in TERMINUS_BDF_CONVERSION_TABLE],
-    }
+    text_families: Dict[str, List[str]] = {}
+    for item in cfg_data.get("variable_instantiations", []) + cfg_data.get("static_copies", []):
+        grp = str(item["group"])
+        text_families.setdefault(grp, []).append(item["target"])
+    text_families["cond"] = text_families.get("noto_cond", []) + text_families.get("cond", [])
+    text_families["serif"] = text_families.get("noto_serif", []) + text_families.get("serif", [])
+    text_families["math"] = text_families.get("noto_math", []) + text_families.get("math", [])
+    text_families["terminus"] = term_strikes
     for cat_name in ("humid1_font_catalog.json",):
         (meta_out_dir / cat_name).write_text(
             json.dumps(
@@ -738,10 +617,15 @@ def generate_icon_and_font_catalogs(
     return counts
 
 
-def collect_upstream_licenses(file_index: Dict[str, Path], out_static_dir: Path) -> List[str]:
+def collect_upstream_licenses(
+    file_index: Dict[str, Path],
+    out_static_dir: Path,
+    license_rules: Optional[Sequence[dict]] = None,
+) -> List[str]:
     lic_dir = out_static_dir / "licenses"
     lic_dir.mkdir(parents=True, exist_ok=True)
     saved: List[str] = []
+    rules = list(license_rules) if license_rules is not None else load_asset_sources_config().get("license_rules", [])
 
     for _, path in sorted(file_index.items()):
         if not path.is_file():
@@ -750,31 +634,20 @@ def collect_upstream_licenses(file_index: Dict[str, Path], out_static_dir: Path)
         p_str = path.as_posix().lower()
         if low in ("license.txt", "license", "ofl.txt"):
             target_name = None
-            if "terminus" in p_str and low == "ofl.txt":
-                target_name = "Terminus_OFL.txt"
-            elif "math" in p_str:
-                target_name = "IBMPlex_Math_OFL.txt"
-            elif "mono" in p_str:
-                target_name = "IBMPlex_Mono_OFL.txt"
-            elif "sans" in p_str:
-                target_name = "IBMPlex_Sans_OFL.txt"
-            elif "noto" in p_str:
-                target_name = "Noto_OFL.txt"
-            elif "serif" in p_str:
-                target_name = "IBMPlex_Serif_OFL.txt"
-            elif "awsome" in p_str or "awesome" in p_str:
-                target_name = "FontAwesome7_LICENSE.txt"
-            elif "lucide" in p_str:
-                target_name = "Lucide_ISC_LICENSE.txt"
-            elif "phosphor" in p_str:
-                target_name = "Phosphor_MIT_LICENSE.txt"
-            elif "tabler" in p_str:
-                target_name = "Tabler_MIT_LICENSE.txt"
+            copy_root_ofl = False
+            for rule in rules:
+                req_fn = rule.get("filename_only")
+                if req_fn and low != str(req_fn).lower():
+                    continue
+                if str(rule.get("match", "")).lower() in p_str:
+                    target_name = str(rule["output"])
+                    copy_root_ofl = bool(rule.get("copy_root_ofl", False))
+                    break
 
             if target_name and target_name not in saved:
                 shutil.copy2(path, lic_dir / target_name)
                 saved.append(target_name)
-                if target_name.startswith("IBMPlex_Sans"):
+                if copy_root_ofl:
                     shutil.copy2(path, out_static_dir / "OFL.txt")
     return sorted(saved)
 
@@ -841,6 +714,7 @@ def build_all_static_assets(
     force: bool = False,
     extra_roots: Optional[Sequence[Path]] = None,
     jobs: Optional[int] = None,
+    assets_config: Optional[Path] = None,
 ) -> List[Path]:
     t0 = time.perf_counter()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -848,31 +722,42 @@ def build_all_static_assets(
         meta_out_dir = (out_dir.parent / "metadata") if out_dir.parent.name == "build" else (out_dir / "metadata")
     meta_out_dir.mkdir(parents=True, exist_ok=True)
 
+    cfg = load_asset_sources_config(assets_config)
     max_workers = jobs if (jobs and jobs > 0) else (os.cpu_count() or 4)
     allowed_fams = set(f.lower() for f in families_filter) if families_filter else None
+    repo_root = Path(__file__).resolve().parent.parent.parent
     roots_to_scan = [src_dir] + (list(extra_roots) if extra_roots else [])
+    for rel_root in cfg.get("search_roots", []):
+        cand_root = (repo_root / rel_root).resolve()
+        if cand_root.is_dir() and cand_root not in roots_to_scan:
+            roots_to_scan.append(cand_root)
 
     file_index = index_source_tree(roots_to_scan)
     tasks: List[dict] = []
     built_files: List[Path] = []
 
-    for target_name, fam_group, src_fname, coords, aliases in PLEX_VARIABLE_INSTANTIATION_TABLE:
-        if allowed_fams and fam_group not in allowed_fams and "plex" not in allowed_fams:
+    for item in cfg.get("variable_instantiations", []):
+        target_name = item["target"]
+        fam_group = str(item["group"]).lower()
+        src_fname = item["source"]
+        coords = {k: float(v) for k, v in item.get("coords", {}).items()}
+        aliases = {int(k): str(v) for k, v in item.get("aliases", {}).items()}
+        if allowed_fams and fam_group not in allowed_fams and "plex" not in allowed_fams and "v2" not in allowed_fams:
             continue
         dst_path = out_dir / target_name
         if dst_path.is_file() and not force:
             built_files.append(dst_path)
             continue
-        # Prefer pre-built Hinted static IBM Plex cut from assets/font_assets/ibm-plex-font/ when present
-        static_cand = file_index.get(f"ibm-plex-font/{target_name}") or file_index.get(f"hinted_static/{target_name}") or file_index.get(target_name)
-        if static_cand and static_cand.is_file() and static_cand.resolve() != dst_path.resolve():
-            tasks.append({
-                "kind": "copy_ttf",
-                "target_name": target_name,
-                "src_path": str(static_cand),
-                "dst_path": str(dst_path),
-            })
-            continue
+        if fam_group in ("sans", "cond", "mono", "serif"):
+            static_cand = file_index.get(f"ibm-plex-font/{target_name}") or file_index.get(f"hinted_static/{target_name}") or file_index.get(target_name)
+            if static_cand and static_cand.is_file() and static_cand.resolve() != dst_path.resolve():
+                tasks.append({
+                    "kind": "copy_ttf",
+                    "target_name": target_name,
+                    "src_path": str(static_cand),
+                    "dst_path": str(dst_path),
+                })
+                continue
         src_path = file_index.get(src_fname) or file_index.get(src_fname.lower())
         if src_path:
             tasks.append({
@@ -884,8 +769,11 @@ def build_all_static_assets(
                 "aliases": aliases,
             })
 
-    for target_name, fam_group, src_fname in NOTO_STATIC_COPY_TABLE:
-        if allowed_fams and fam_group not in allowed_fams and "noto" not in allowed_fams and fam_group.replace("noto_", "") not in allowed_fams:
+    for item in cfg.get("static_copies", []):
+        target_name = item["target"]
+        fam_group = str(item["group"]).lower()
+        src_fname = item["source"]
+        if allowed_fams and fam_group not in allowed_fams and "noto" not in allowed_fams and fam_group.replace("noto_", "") not in allowed_fams and "v2" not in allowed_fams:
             continue
         dst_path = out_dir / target_name
         if dst_path.is_file() and not force:
@@ -900,21 +788,12 @@ def build_all_static_assets(
                 "dst_path": str(dst_path),
             })
 
-    if not allowed_fams or "math" in allowed_fams or "plex" in allowed_fams:
-        math_src = file_index.get("IBMPlexMath-Regular.ttf") or file_index.get("ibmplexmath-regular.ttf")
-        math_dst = out_dir / "IBMPlexMath-Regular.ttf"
-        if math_src and (not math_dst.is_file() or force):
-            tasks.append({
-                "kind": "copy_ttf",
-                "target_name": "IBMPlexMath-Regular.ttf",
-                "src_path": str(math_src),
-                "dst_path": str(math_dst),
-            })
-        elif math_dst.is_file():
-            built_files.append(math_dst)
-
     if not allowed_fams or "terminus" in allowed_fams or "plex" in allowed_fams:
-        for target_name, fam_group, src_bdf_name, style_name, px_mult in TERMINUS_BDF_CONVERSION_TABLE:
+        for item in cfg.get("terminus_bdf_conversions", []):
+            target_name = item["target"]
+            src_bdf_name = item["source"]
+            style_name = item["style"]
+            px_mult = int(item.get("px_mult", 1))
             dst_path = out_dir / target_name
             src_bdf = file_index.get(src_bdf_name) or file_index.get(src_bdf_name.lower())
             if src_bdf and (not dst_path.is_file() or force):
@@ -929,7 +808,11 @@ def build_all_static_assets(
             elif dst_path.is_file():
                 built_files.append(dst_path)
 
-    for target_name, fam_group, src_fname, action in ICON_CONVERSION_TABLE:
+    for item in cfg.get("icon_conversions", []):
+        target_name = item["target"]
+        fam_group = str(item["group"]).lower()
+        src_fname = item["source"]
+        action = item.get("action", "clean_ttf")
         if allowed_fams and fam_group not in allowed_fams and "icons" not in allowed_fams:
             continue
         dst_path = out_dir / target_name
@@ -987,7 +870,7 @@ def build_all_static_assets(
         for jf in meta_out_dir.glob("*.json"):
             shutil.copy2(jf, sub_meta / jf.name)
 
-    saved_lics = collect_upstream_licenses(file_index, out_dir)
+    saved_lics = collect_upstream_licenses(file_index, out_dir, license_rules=cfg.get("license_rules"))
     ttf_list = sorted(out_dir.glob("*.ttf"))
     manifest = {
         "manifest_version": TOOL_VERSION,
@@ -1032,6 +915,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("-f", "--families", type=str, nargs="+", default=None, help="Optional family filter: plex, sans, cond, mono, serif, math, terminus, icons, fa7, lucide, phosphor, tabler")
     parser.add_argument("-j", "--jobs", type=int, default=None, help="Number of parallel CPU worker processes (default: all CPU cores)")
     parser.add_argument("--cu2qu-max-err", type=float, default=1.0, help="Curve approximation tolerance for FA7 .otf -> .ttf (default: 1.0)")
+    parser.add_argument("--assets-config", type=str, default=None, help="Optional path to declarative asset_sources.json")
     parser.add_argument("--force", action="store_true", help="Overwrite and regenerate all static .ttf files")
     parser.add_argument("--verify", action="store_true", help="Verify every generated .ttf file and print audit table")
     parser.add_argument("--verify-only", action="store_true", help="Only run diagnostic verification on --out-dir")
@@ -1061,6 +945,7 @@ def main() -> None:
             cu2qu_max_err=args.cu2qu_max_err,
             force=args.force,
             jobs=args.jobs,
+            assets_config=Path(args.assets_config) if args.assets_config else None,
         )
 
     if args.verify or args.verify_only:

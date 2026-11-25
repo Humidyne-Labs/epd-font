@@ -358,19 +358,37 @@ def run_audit_and_proofs(
         if sty in ("bold", "bold-italic"):
             base_sty = "normal" if sty == "bold" else "italic"
             base_aud = audits.get((p, mod, base_sty))
+            bold_strike = strikes_cache.get((p, mod, sty))
+            base_strike = strikes_cache.get((p, mod, base_sty))
             if base_aud is not None:
                 s_bold = next(g.metrics.get("measured_px", 0.0) for g in aud.gates if g.gate == "G_STEM")
                 s_norm = next(g.metrics.get("measured_px", 0.0) for g in base_aud.gates if g.gate == "G_STEM")
                 delta = s_bold - s_norm
                 ratio = s_bold / max(1.0, s_norm)
-                ok = (delta >= 1.0) and (p < 24 or ratio >= 1.25)
+                ink_ratio = 1.25
+                if bold_strike is not None and base_strike is not None:
+                    b_map = {g.codepoint: g for g in bold_strike.glyphs}
+                    n_map = {g.codepoint: g for g in base_strike.glyphs}
+                    b_inks = [
+                        int(np.count_nonzero(b_map[cp].bitmap))
+                        for cp in range(0x0061, 0x007B)
+                        if cp in b_map and cp in n_map
+                    ]
+                    n_inks = [
+                        int(np.count_nonzero(n_map[cp].bitmap))
+                        for cp in range(0x0061, 0x007B)
+                        if cp in b_map and cp in n_map
+                    ]
+                    if n_inks and sum(n_inks) > 0:
+                        ink_ratio = sum(b_inks) / float(sum(n_inks))
+                ok = (delta >= 1.0) and (ink_ratio >= 1.18) and (p < 24 or ratio >= 1.25)
                 aud.gates.insert(
                     1,
                     GateResult(
                         "G_CONTRAST",
                         ok,
-                        f"delta={delta:.1f}px, ratio={ratio:.2f}x",
-                        {"delta_px": delta, "ratio": round(ratio, 3)},
+                        f"delta={delta:.1f}px, ratio={ratio:.2f}x, lc_ink={ink_ratio:.2f}x",
+                        {"delta_px": delta, "ratio": round(ratio, 3), "lc_ink_ratio": round(ink_ratio, 3)},
                     ),
                 )
                 aud.passed = all(g.passed for g in aud.gates)
@@ -383,7 +401,8 @@ def run_audit_and_proofs(
     if modifiers is None or "terminus" in modifiers:
         from runner.terminus_icons import build_terminus_strikes
 
-        for t_strike in build_terminus_strikes(cfg, target_ppems):
+        term_ppems = cfg.terminus_ppem_range if (ppems is None or ppems == cfg.ppem_range) else target_ppems
+        for t_strike in build_terminus_strikes(cfg, term_ppems):
             t_gates = [
                 GateResult("G_STEM", True, "exact_bitmap (Terminus native)"),
                 GateResult("G_COUNTER", True, "exact_bitmap (Terminus native)"),
@@ -468,4 +487,12 @@ def run_audit_and_proofs(
             if not a.passed:
                 bad = [f"{g.gate}({g.detail})" for g in a.gates if not g.passed]
                 print(f"  [FAIL] {a.ppem}px {a.modifier} {a.style}: {'; '.join(bad)}")
+
+    if emit_proofs:
+        from scripts.collect_proof_sheets import collect_all_full_sheets
+
+        from runner.matrix_audit import run_matrix_audit
+
+        run_matrix_audit(cfg.repo_root)
+        collect_all_full_sheets(proof_root)
     return all_ok

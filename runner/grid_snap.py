@@ -83,19 +83,18 @@ def _scan_axis_intervals(
     return [(hits[i], hits[i + 1]) for i in range(0, len(hits) - 1, 2)]
 
 
-def _tune_s_vector_aperture(glyph: ufoLib2.objects.Glyph, cp: int, ppem: int, is_mono: bool = False) -> None:
+def _tune_s_vector_aperture(
+    glyph: ufoLib2.objects.Glyph, cp: int, ppem: int, is_mono: bool = False, is_bold: bool = False
+) -> None:
     """
-    Pure vector-outline aperture tuning for 's' (U+0073) and 12px proportional 'S' (U+0053) at UPM = 100 * P:
-    Ensures full pixel-locked x-height at 12-16px and guarantees vertical separation between
-    terminal lips and the middle spine so ttfautohint + FT_LOAD_TARGET_MONO never pinches
-    or diagonally seals the open bays.
+    Pure vector-outline aperture tuning for 's' (U+0073) at UPM = 100 * P:
+    Ensures full pixel-locked x-height at 14-16px and preserves >= 1.35px bowl thickness
+    while guaranteeing terminal-to-spine separation so ttfautohint + MONO never pinches.
     """
-    if not glyph.contours:
+    if not glyph.contours or cp != 0x0073 or ppem > 32:
         return
-    if not (cp == 0x0073 and ppem <= 32) and not (cp == 0x0053 and ppem == 12 and not is_mono):
-        return
-    if cp == 0x0073 and ppem in (12, 14, 16):
-        target_h = {12: 700.0, 14: 800.0, 16: 900.0}[ppem]
+    if ppem in (14, 16):
+        target_h = {14: 800.0, 16: 900.0}[ppem]
         b0 = glyph_bounds(glyph)
         if b0 is not None and b0[3] > b0[1]:
             sy = target_h / (b0[3] - b0[1])
@@ -118,7 +117,12 @@ def _tune_s_vector_aperture(glyph: ufoLib2.objects.Glyph, cp: int, ppem: int, is
         return
 
     segs = _flatten_pathops_segments(sk)
-    min_gap_u = 215.0 if ppem <= 16 else (190.0 if ppem <= 20 else 145.0)
+    if is_bold:
+        min_gap_u = 215.0 if ppem <= 16 else (195.0 if ppem <= 20 else 145.0)
+        min_bowl_u = 120.0 if ppem <= 16 else 135.0
+    else:
+        min_gap_u = 155.0 if ppem <= 18 else 135.0
+        min_bowl_u = 135.0
     cut = pathops.Path()
     has_cut = False
     dx = max(22.0, 0.055 * w)
@@ -130,8 +134,8 @@ def _tune_s_vector_aperture(glyph: ufoLib2.objects.Glyph, cp: int, ppem: int, is
             term_top = ivs[0][1]
             spine_bot = ivs[1][0]
             gap = spine_bot - term_top
-            if 0.0 <= gap < min_gap_u and (term_top - ivs[0][0]) > 100.0:
-                new_term_top = max(ivs[0][0] + 100.0, spine_bot - min_gap_u)
+            if 0.0 <= gap < min_gap_u and (term_top - ivs[0][0]) > min_bowl_u:
+                new_term_top = max(ivs[0][0] + min_bowl_u, spine_bot - min_gap_u)
                 if new_term_top < term_top:
                     r = pathops.Path()
                     p = r.getPen()
@@ -163,8 +167,8 @@ def _tune_s_vector_aperture(glyph: ufoLib2.objects.Glyph, cp: int, ppem: int, is
             spine_top = ivs[-2][1]
             term_bot = ivs[-1][0]
             gap = term_bot - spine_top
-            if 0.0 <= gap < min_gap_u and (ivs[-1][1] - term_bot) > 100.0:
-                new_term_bot = min(ivs[-1][1] - 100.0, spine_top + min_gap_u)
+            if 0.0 <= gap < min_gap_u and (ivs[-1][1] - term_bot) > min_bowl_u:
+                new_term_bot = min(ivs[-1][1] - min_bowl_u, spine_top + min_gap_u)
                 if new_term_bot > term_bot:
                     r = pathops.Path()
                     p = r.getPen()
@@ -368,6 +372,7 @@ def _snap_glyph_to_grid(
     is_italic: bool,
     is_mono: bool,
     mono_adv_u: int,
+    is_bold: bool = False,
 ) -> None:
     """Apply UPM=100*P sub-grid snapping, baseline/cap lock, stem snapping, and clip containment."""
     grid = 100.0
@@ -404,9 +409,9 @@ def _snap_glyph_to_grid(
             glyph.clearContours()
             rec.replay(TransformPen(RoundingSegmentPen(glyph.getPen()), (1.0, 0.0, 0.0, sy, 0.0, ty)))
 
-    # 2b. Tune 's'/'S' vector aperture & fill sub-pixel ink traps before snapping
-    if cp in (0x0073, 0x0053):
-        _tune_s_vector_aperture(glyph, cp, ppem, is_mono=is_mono)
+    # 2b. Tune 's' vector aperture & fill sub-pixel ink traps before snapping
+    if cp == 0x0073:
+        _tune_s_vector_aperture(glyph, cp, ppem, is_mono=is_mono, is_bold=is_bold)
     _close_vector_ink_traps(glyph, cp, ppem)
 
     # 2c. Prevent 'i' and 'j' tittle dot from merging into the stem in bold strikes
@@ -653,6 +658,7 @@ def prepare_snapped_ufo(
             is_italic=is_italic,
             is_mono=is_mono,
             mono_adv_u=mono_adv_u,
+            is_bold=("bold" in style),
         )
 
     out.lib["public.glyphOrder"] = glyph_order

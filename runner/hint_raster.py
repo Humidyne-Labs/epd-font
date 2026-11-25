@@ -194,6 +194,31 @@ def heal_spurious_pinholes(arr: np.ndarray, max_holes: int) -> np.ndarray:
     return out
 
 
+_STRAIGHT_STEM_CPS = {ord(c) for c in "EFHILTbdfhijlt1"}
+
+
+def _clean_c_terminal_claw(arr: np.ndarray, cp: int) -> np.ndarray:
+    """Bridge 1-2px split terminal claws (##...#.#) in 'c'/'C' caused by ttfautohint."""
+    if cp not in (0x0063, 0x0043) or arr.size == 0 or arr.shape[0] < 5:
+        return arr
+    out = arr.copy()
+    h, w = out.shape
+    for r in range(1, h - 1):
+        runs: list[tuple[int, int]] = []
+        in_r, s = False, 0
+        for c in range(w):
+            if out[r, c] and not in_r:
+                s, in_r = c, True
+            elif not out[r, c] and in_r:
+                runs.append((s, c - 1))
+                in_r = False
+        if in_r:
+            runs.append((s, w - 1))
+        if len(runs) >= 3 and (runs[-1][0] - runs[-2][1] - 1) <= 2:
+            out[r, runs[-2][1] + 1 : runs[-1][0]] = 1
+    return out
+
+
 def enforce_min_stem_floor_safe(
     arr: np.ndarray,
     cp: int,
@@ -201,13 +226,11 @@ def enforce_min_stem_floor_safe(
     max_holes: int,
 ) -> tuple[np.ndarray, int]:
     """
-    Thicken 1-px vertical/slanted stroke runs to `target_floor_px` ONLY when doing so
-    preserves exact Betti topology (no plugged counters, no bridged inter-stem gaps).
+    Thicken 1-px vertical/slanted stroke runs to `target_floor_px` ONLY on straight-stem
+    glyphs and ONLY when doing so preserves exact Betti topology (no plugged counters).
     Returns (conditioned_bitmap, extra_right_cols).
     """
-    if arr.size == 0 or cp < 0x0021 or cp > 0x03FF:
-        return arr, 0
-    if cp in (0x0073, 0x0053) or chr(cp) in ".,:;'\"!|/\\-_~^`·°":
+    if arr.size == 0 or cp not in _STRAIGHT_STEM_CPS:
         return arr, 0
     cur = arr.copy()
     extra_cols = 0
@@ -282,10 +305,10 @@ def _resolve_mono_point_dropouts(
 ) -> np.ndarray:
     """
     Resolve rare 1-2px FT_LOAD_TARGET_MONO point-sampling dropouts ONLY when FreeType's
-    analytical area coverage (FT_LOAD_TARGET_NORMAL) confirms >= 115/255 (~45%) true
-    vector ink coverage at those exact pixel coordinates. Never touches 's' or 'S'.
+    analytical area coverage (FT_LOAD_TARGET_NORMAL) confirms >= 45/255 true vector ink
+    coverage (or 1px isolated dropout). Never touches lowercase 's' (U+0073).
     """
-    if arr.size == 0 or cp in (0x0073, 0x0053) or not chr(cp).isalnum():
+    if arr.size == 0 or cp == 0x0073 or not chr(cp).isalnum():
         return arr
     _, b1 = compute_betti_numbers(arr)
     if b1 <= max_holes:
@@ -384,7 +407,9 @@ def rasterize_ttf_mono(
         for cp in (0x0030, 0x03A8, 0x03C8):
             if cp in expected_holes:
                 expected_holes[cp] = max(expected_holes[cp], 2)
-    if ppem <= 14:
+        if 0x03C9 in expected_holes:
+            expected_holes[0x03C9] = max(expected_holes[0x03C9], 1)
+    if ppem <= 18:
         for cp in (ord(c) for c in "aàáâãäå"):
             if cp in expected_holes:
                 expected_holes[cp] = max(expected_holes[cp], 2)
@@ -406,6 +431,7 @@ def rasterize_ttf_mono(
         if apply_conditioning and arr.size > 0 and 0x0021 <= cp <= 0x03FF:
             max_h = expected_holes.get(cp, 2)
             arr = _resolve_mono_point_dropouts(arr, face, cp, m_left, m_top, max_h)
+            arr = _clean_c_terminal_claw(arr, cp)
             if ppem <= 20:
                 arr, _ = enforce_min_stem_floor_safe(arr, cp, min_stem_floor, max_h)
 

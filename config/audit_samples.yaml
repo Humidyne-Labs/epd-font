@@ -1,0 +1,17 @@
+schema_version: "2.1.0"
+description: "Canonical 32+25 char audit sample matrix across stem, curve, diagonal, digit, Greek, and Unicode symbol categories."
+min_bold_ink_ratio: 1.18
+
+categories:
+  stems:
+    chars: ["I", "H", "E", "F", "L", "T", "l", "n", "r", "t"]
+  curves:
+    chars: ["c", "C", "s", "S", "e", "a", "o", "g"]
+  diagonals:
+    chars: ["M", "W", "K", "N", "v", "w", "k"]
+  digits:
+    chars: ["0", "1", "2", "4", "6", "8", "9"]
+  greek:
+    chars: ["Δ", "Θ", "Μ", "Σ", "Φ", "Ψ", "Ω", "α", "β", "μ", "π", "φ"]
+  unicode_symbols:
+    chars: ["°", "±", "×", "÷", "℃", "←", "↑", "→", "↓", "∑", "√", "∞", "≈", "≠", "≤", "≥", "∈", "∀", "⊕", "⊗", "ℕ", "ℝ", "ℤ"]

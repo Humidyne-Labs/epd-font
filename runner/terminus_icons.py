@@ -115,7 +115,10 @@ def build_terminus_strikes(cfg: ProjectConfig, ppems: list[int]) -> list[Compile
                 gid += 1
 
             sym = f"humid1_font_terminus_{style}_{p}"
-            fallback = f"humid1_icon_fa7_solid_{p}" if style == "normal" else f"humid1_font_terminus_normal_{p}"
+            if p < 14:
+                fallback = f"humid1_font_terminus_normal_{p}" if style != "normal" else None
+            else:
+                fallback = f"humid1_icon_fa7_solid_{p}" if style == "normal" else f"humid1_font_terminus_normal_{p}"
             strike = CompiledStrike(
                 ppem=p,
                 modifier="terminus",
@@ -159,11 +162,11 @@ def _build_unified_icon_catalog(cfg: ProjectConfig, icons_cfg: dict[str, Any]) -
         raw_cp = m_data.get("by_codepoint", {})
         raw_nm = m_data.get("by_name", {})
         if suite_key == "icon_tabler_filled":
-            by_cp[cat_key] = {k: v for k, v in raw_cp.items() if str(v).endswith("-filled")}
-            by_name[cat_key] = {k: v for k, v in raw_nm.items() if str(k).endswith("-filled")}
+            by_cp.setdefault(cat_key, {}).update({k: v for k, v in raw_cp.items() if str(v).endswith("-filled")})
+            by_name.setdefault(cat_key, {}).update({k: v for k, v in raw_nm.items() if str(k).endswith("-filled")})
         else:
-            by_cp[cat_key] = raw_cp
-            by_name[cat_key] = raw_nm
+            by_cp.setdefault(cat_key, {}).update(raw_cp)
+            by_name.setdefault(cat_key, {}).update(raw_nm)
     (meta_dir / "unified_icon_names.json").write_text(
         json.dumps({"schema_version": "2.1.0", "by_codepoint": by_cp, "by_name": by_name}, indent=2),
         encoding="utf-8",
@@ -180,6 +183,9 @@ def build_icon_strikes(cfg: ProjectConfig, ppems: list[int]) -> list[CompiledStr
 
     dpi = float(cfg.project.get("hardware", {}).get("dpi", 188.15))
     strikes: list[CompiledStrike] = []
+    icon_ppems = [p for p in ppems if p >= 14]
+    if not icon_ppems:
+        return []
 
     for suite_cfg in icons_cfg.get("suites", {}).values():
         fam = str(suite_cfg["family"])
@@ -205,7 +211,7 @@ def build_icon_strikes(cfg: ProjectConfig, ppems: list[int]) -> list[CompiledStr
         valid_cps = sorted(cp for cp in cps if cp in cmap)
         face = freetype.Face(str(font_path))
 
-        for p in ppems:
+        for p in icon_ppems:
             face.set_pixel_sizes(0, p)
             asc_px = max(1, round(p * 0.85))
             desc_px = max(1, p - asc_px)

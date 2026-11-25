@@ -4,10 +4,30 @@
   <unicode hex="2223"/>
   <outline>
     <contour>
-      <point x="353" y="747" type="line"/>
-      <point x="353" y="-219" type="line"/>
-      <point x="246" y="-219" type="line"/>
-      <point x="246" y="747" type="line"/>
+      <point x="227" y="747" type="line" smooth="yes"/>
+      <point x="227" y="751"/>
+      <point x="230" y="758"/>
+      <point x="235" y="763"/>
+      <point x="242" y="766"/>
+      <point x="246" y="766" type="qcurve" smooth="yes"/>
+      <point x="353" y="766" type="line" smooth="yes"/>
+      <point x="357" y="766"/>
+      <point x="364" y="763"/>
+      <point x="369" y="758"/>
+      <point x="372" y="751"/>
+      <point x="372" y="747" type="qcurve" smooth="yes"/>
+      <point x="372" y="-219" type="line" smooth="yes"/>
+      <point x="372" y="-223"/>
+      <point x="369" y="-230"/>
+      <point x="364" y="-235"/>
+      <point x="357" y="-238"/>
+      <point x="353" y="-238" type="qcurve" smooth="yes"/>
+      <point x="246" y="-238" type="line" smooth="yes"/>
+      <point x="242" y="-238"/>
+      <point x="235" y="-235"/>
+      <point x="230" y="-230"/>
+      <point x="227" y="-223"/>
+      <point x="227" y="-219" type="qcurve" smooth="yes"/>
     </contour>
   </outline>
 </glyph>

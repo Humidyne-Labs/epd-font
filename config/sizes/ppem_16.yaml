@@ -10,119 +10,119 @@ instances:
     target_stem_px: 2
     target_hbar_px: 1
     axes:
-      wght: 560
+      wght: 465
       wdth: 100
       opsz: 16
-      XTRA: 475
-      YOPQ: 58
+      XTRA: 495
+      YOPQ: 70
       ital: 0
       MONO: 0
-      XOPQ: 138
+      XOPQ: 110
   sans_italic:
     modifier: sans
     style: italic
     target_stem_px: 2
     target_hbar_px: 1
     axes:
-      wght: 560
+      wght: 465
       wdth: 100
       opsz: 16
-      XTRA: 475
-      YOPQ: 58
+      XTRA: 495
+      YOPQ: 70
       ital: 1
       MONO: 0
-      XOPQ: 138
+      XOPQ: 110
   sans_bold:
     modifier: sans
     style: bold
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 700
+      wght: 755
       wdth: 100
       opsz: 16
-      XTRA: 560
-      YOPQ: 55
+      XTRA: 540
+      YOPQ: 75
       ital: 0
       MONO: 0
-      XOPQ: 120
+      XOPQ: 136
   sans_bold-italic:
     modifier: sans
     style: bold-italic
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 700
+      wght: 755
       wdth: 100
       opsz: 16
-      XTRA: 560
-      YOPQ: 55
+      XTRA: 540
+      YOPQ: 75
       ital: 1
       MONO: 0
-      XOPQ: 120
+      XOPQ: 136
   condensed_normal:
     modifier: condensed
     style: normal
     target_stem_px: 2
     target_hbar_px: 1
     axes:
-      wght: 560
-      wdth: 78
+      wght: 465
+      wdth: 80
       opsz: 16
-      XTRA: 475
-      YOPQ: 58
+      XTRA: 495
+      YOPQ: 70
       ital: 0
       MONO: 0
-      XOPQ: 138
+      XOPQ: 110
   condensed_italic:
     modifier: condensed
     style: italic
     target_stem_px: 2
     target_hbar_px: 1
     axes:
-      wght: 560
-      wdth: 78
+      wght: 465
+      wdth: 80
       opsz: 16
-      XTRA: 475
-      YOPQ: 58
+      XTRA: 495
+      YOPQ: 70
       ital: 1
       MONO: 0
-      XOPQ: 138
+      XOPQ: 110
   condensed_bold:
     modifier: condensed
     style: bold
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 700
+      wght: 755
       wdth: 80
       opsz: 16
-      XTRA: 560
-      YOPQ: 55
+      XTRA: 540
+      YOPQ: 75
       ital: 0
       MONO: 0
-      XOPQ: 120
+      XOPQ: 134
   condensed_bold-italic:
     modifier: condensed
     style: bold-italic
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 700
+      wght: 755
       wdth: 80
       opsz: 16
-      XTRA: 560
-      YOPQ: 55
+      XTRA: 540
+      YOPQ: 75
       ital: 1
       MONO: 0
-      XOPQ: 120
+      XOPQ: 134
   mono_normal:
     modifier: mono
     style: normal
     target_stem_px: 2
     target_hbar_px: 1
     axes:
-      wght: 640
+      wght: 540
       ital: 0
       MONO: 1
   mono_italic:
@@ -131,7 +131,7 @@ instances:
     target_stem_px: 2
     target_hbar_px: 1
     axes:
-      wght: 640
+      wght: 540
       ital: 1
       MONO: 1
   mono_bold:
@@ -140,7 +140,7 @@ instances:
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 800
+      wght: 840
       ital: 0
       MONO: 1
   mono_bold-italic:
@@ -149,6 +149,6 @@ instances:
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 800
+      wght: 840
       ital: 1
       MONO: 1

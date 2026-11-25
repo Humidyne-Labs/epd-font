@@ -153,7 +153,9 @@ def render_full_glyph_sheet(
             lbl = f"{cp_txt} {ch_disp}".strip()
             draw.text((x0 + 3, y0 + cell_h - 14), lbl, fill=(75, 75, 75), font=font_lbl)
 
-    img.save(out_path)
+    tmp_out = out_path.with_suffix(".tmp.png")
+    img.save(tmp_out)
+    tmp_out.replace(out_path)
     return out_path
 
 
@@ -260,15 +262,15 @@ def render_multifont_showcase(
     def get_s(sym: str) -> CompiledStrike | None:
         return strikes_by_sym.get(sym)
 
-    # Outer frame & top status bar (inverted)
+    # Outer frame & top status bar (inverted) - 12px Terminus floor (no 12px icons)
     canvas[0:22, 0:w] = 1
     term_b12 = get_s("humid1_font_terminus_bold_12")
     term_n12 = get_s("humid1_font_terminus_normal_12")
-    fa12 = get_s("humid1_icon_fa7_solid_12")
+    fa14 = get_s("humid1_icon_fa7_solid_14")
     if term_b12:
-        _draw_text_with_fallback(canvas, 8, 4, "\uf0e7 H1OS // EPD-FONT v2.1  (LV_COLOR_FORMAT_I1)", term_b12, fa12, invert=True)
+        _draw_text_with_fallback(canvas, 8, 4, "H1OS // EPD-FONT v2.1  [12px TERMINUS FLOOR]", term_b12, invert=True)
     if term_n12:
-        _draw_text_with_fallback(canvas, 342, 4, "\uf1eb 20:41 UTC  \uf240 98%", term_n12, fa12, invert=True)
+        _draw_text_with_fallback(canvas, 342, 4, "\uf1eb 20:41 UTC  \uf240 98%", term_n12, fa14, invert=True)
 
     # Left Hero Psychrometric Card
     canvas[30:182, 8:264] = 0
@@ -348,6 +350,7 @@ def render_multifont_showcase(
         ("FA7:", "humid1_icon_fa7_solid_20"),
         ("Luc:", "humid1_icon_lucide_regular_20"),
         ("Phos:", "humid1_icon_phosphor_regular_20"),
+        ("PFill:", "humid1_icon_phosphor_fill_20"),
         ("Tab:", "humid1_icon_tabler_regular_20"),
         ("TabF:", "humid1_icon_tabler_filled_20"),
     ]
@@ -357,8 +360,8 @@ def render_multifont_showcase(
             ix = _draw_text_with_fallback(canvas, ix, 330, lbl, term_n14) + 2
         ic_s = get_s(sym)
         if ic_s:
-            txt = "".join(chr(g.codepoint) for g in ic_s.glyphs[:2])
-            ix = _draw_text_with_fallback(canvas, ix, 326, txt, ic_s) + 10
+            txt = "".join(chr(g.codepoint) for g in ic_s.glyphs[:1])
+            ix = _draw_text_with_fallback(canvas, ix, 326, txt, ic_s) + 8
 
     # Save 1x PBM, 3x Crisp E-Ink PNG, and PSF Scatter PNG
     pbm_out = proof_root / "SHOWCASE_MULTI_FONT_1x.pbm"

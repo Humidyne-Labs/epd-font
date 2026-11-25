@@ -286,7 +286,8 @@ def run_build(
     from runner.terminus_icons import build_icon_strikes, build_terminus_strikes
 
     if modifiers is None or "terminus" in modifiers:
-        strikes.extend(build_terminus_strikes(cfg, target_ppems))
+        term_ppems = cfg.terminus_ppem_range if (ppems is None or ppems == cfg.ppem_range) else target_ppems
+        strikes.extend(build_terminus_strikes(cfg, term_ppems))
     if modifiers is None or any(m.startswith("icon_") for m in modifiers):
         strikes.extend(build_icon_strikes(cfg, target_ppems))
 

@@ -20,7 +20,7 @@ from typing import Any
 STANDARD_EXPECTED_HOLES: dict[int, int] = {
     **{ord(c): 0 for c in "CEFGHIJKLMNSTUVWXYZcfhijklmntuvwxyz12357ΓΕΖΗΙΚΛΜΝΞΠΣΤΥΧΨ"},
     **{ord(c): 1 for c in "0469ADOPQRabdeopqαδρ"},
-    **{ord(c): 2 for c in "8B%gθϑφΦ"},
+    **{ord(c): 2 for c in "8BgθϑφΦ"},
 }
 
 

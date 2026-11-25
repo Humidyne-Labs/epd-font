@@ -351,12 +351,12 @@
   <instances>
     <instance name="epd_sans_normal_20px" familyname="EPD Sans" stylename="normal 20px">
       <location>
-        <dimension name="Weight" xvalue="440"/>
+        <dimension name="Weight" xvalue="430"/>
         <dimension name="Width" xvalue="100"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="475"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="65"/>
-        <dimension name="Vertical Stem Thickness" xvalue="112"/>
+        <dimension name="Counter Transparency" xvalue="480"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -380,12 +380,12 @@
     </instance>
     <instance name="epd_sans_italic_20px" familyname="EPD Sans" stylename="italic 20px">
       <location>
-        <dimension name="Weight" xvalue="440"/>
+        <dimension name="Weight" xvalue="430"/>
         <dimension name="Width" xvalue="100"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="475"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="65"/>
-        <dimension name="Vertical Stem Thickness" xvalue="112"/>
+        <dimension name="Counter Transparency" xvalue="480"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -409,12 +409,12 @@
     </instance>
     <instance name="epd_sans_bold_20px" familyname="EPD Sans" stylename="bold 20px">
       <location>
-        <dimension name="Weight" xvalue="720"/>
+        <dimension name="Weight" xvalue="755"/>
         <dimension name="Width" xvalue="100"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="540"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="68"/>
-        <dimension name="Vertical Stem Thickness" xvalue="135"/>
+        <dimension name="Counter Transparency" xvalue="530"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="136"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -438,12 +438,12 @@
     </instance>
     <instance name="epd_sans_bold-italic_20px" familyname="EPD Sans" stylename="bold-italic 20px">
       <location>
-        <dimension name="Weight" xvalue="720"/>
+        <dimension name="Weight" xvalue="755"/>
         <dimension name="Width" xvalue="100"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="540"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="68"/>
-        <dimension name="Vertical Stem Thickness" xvalue="135"/>
+        <dimension name="Counter Transparency" xvalue="530"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="136"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -467,12 +467,12 @@
     </instance>
     <instance name="epd_condensed_normal_20px" familyname="EPD Condensed" stylename="normal 20px">
       <location>
-        <dimension name="Weight" xvalue="440"/>
-        <dimension name="Width" xvalue="78"/>
+        <dimension name="Weight" xvalue="430"/>
+        <dimension name="Width" xvalue="80"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="475"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="65"/>
-        <dimension name="Vertical Stem Thickness" xvalue="112"/>
+        <dimension name="Counter Transparency" xvalue="480"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -496,12 +496,12 @@
     </instance>
     <instance name="epd_condensed_italic_20px" familyname="EPD Condensed" stylename="italic 20px">
       <location>
-        <dimension name="Weight" xvalue="440"/>
-        <dimension name="Width" xvalue="78"/>
+        <dimension name="Weight" xvalue="430"/>
+        <dimension name="Width" xvalue="80"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="475"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="65"/>
-        <dimension name="Vertical Stem Thickness" xvalue="112"/>
+        <dimension name="Counter Transparency" xvalue="480"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -525,12 +525,12 @@
     </instance>
     <instance name="epd_condensed_bold_20px" familyname="EPD Condensed" stylename="bold 20px">
       <location>
-        <dimension name="Weight" xvalue="720"/>
+        <dimension name="Weight" xvalue="755"/>
         <dimension name="Width" xvalue="80"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="540"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="68"/>
-        <dimension name="Vertical Stem Thickness" xvalue="135"/>
+        <dimension name="Counter Transparency" xvalue="530"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="134"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -554,12 +554,12 @@
     </instance>
     <instance name="epd_condensed_bold-italic_20px" familyname="EPD Condensed" stylename="bold-italic 20px">
       <location>
-        <dimension name="Weight" xvalue="720"/>
+        <dimension name="Weight" xvalue="755"/>
         <dimension name="Width" xvalue="80"/>
         <dimension name="Optical Size" xvalue="20"/>
-        <dimension name="Counter Transparency" xvalue="540"/>
-        <dimension name="Horizontal Bar Thickness" xvalue="68"/>
-        <dimension name="Vertical Stem Thickness" xvalue="135"/>
+        <dimension name="Counter Transparency" xvalue="530"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="76"/>
+        <dimension name="Vertical Stem Thickness" xvalue="134"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -641,7 +641,7 @@
     </instance>
     <instance name="epd_mono_bold_20px" familyname="EPD Mono" stylename="bold 20px">
       <location>
-        <dimension name="Weight" xvalue="860"/>
+        <dimension name="Weight" xvalue="790"/>
         <dimension name="Width" xvalue="100"/>
         <dimension name="Optical Size" xvalue="20"/>
         <dimension name="Counter Transparency" xvalue="468"/>
@@ -670,7 +670,7 @@
     </instance>
     <instance name="epd_mono_bold-italic_20px" familyname="EPD Mono" stylename="bold-italic 20px">
       <location>
-        <dimension name="Weight" xvalue="860"/>
+        <dimension name="Weight" xvalue="790"/>
         <dimension name="Width" xvalue="100"/>
         <dimension name="Optical Size" xvalue="20"/>
         <dimension name="Counter Transparency" xvalue="468"/>

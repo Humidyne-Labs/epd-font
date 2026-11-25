@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import pathops
 import ufoLib2
@@ -372,6 +373,146 @@ def _build_mono_masters(cfg: ProjectConfig, masters_dir: Path, sym_masters: dict
         ufo.save(mono_dir / f"{m_name}.ufo", overwrite=True)
 
 
+def _sk_ink_area_and_holes(sk: pathops.Path) -> tuple[float, int, pathops.Path]:
+    """Return (abs_ink_area, hole_contour_count, holes_path) for a simplified pathops.Path."""
+    contours: list[tuple[float, list[tuple[Any, Any]]]] = []
+    cur_verbs: list[tuple[Any, Any]] = []
+    cur_poly: list[tuple[float, float]] = []
+    for verb, pts in sk:
+        cur_verbs.append((verb, pts))
+        if verb == pathops.PathVerb.MOVE:
+            cur_poly = [pts[0]]
+        elif verb in (pathops.PathVerb.LINE, pathops.PathVerb.CUBIC, pathops.PathVerb.QUAD):
+            cur_poly.append(pts[-1])
+        elif verb == pathops.PathVerb.CLOSE:
+            area = 0.5 * sum(
+                cur_poly[i][0] * cur_poly[(i + 1) % len(cur_poly)][1]
+                - cur_poly[(i + 1) % len(cur_poly)][0] * cur_poly[i][1]
+                for i in range(len(cur_poly))
+            )
+            contours.append((area, cur_verbs))
+            cur_verbs = []
+            cur_poly = []
+    if not contours:
+        return 0.0, 0, pathops.Path()
+    total_area = abs(sum(a for a, _ in contours))
+    largest = max(contours, key=lambda item: abs(item[0]))[0]
+    outer_sign = 1.0 if largest >= 0.0 else -1.0
+    holes = pathops.Path()
+    h_pen = holes.getPen()
+    hole_cnt = 0
+    for a, vlist in contours:
+        if a * outer_sign < 0.0:
+            hole_cnt += 1
+            for verb, pts in vlist:
+                if verb == pathops.PathVerb.MOVE:
+                    h_pen.moveTo(pts[0])
+                elif verb == pathops.PathVerb.LINE:
+                    h_pen.lineTo(pts[0])
+                elif verb == pathops.PathVerb.QUAD:
+                    h_pen.qCurveTo(*pts)
+                elif verb == pathops.PathVerb.CUBIC:
+                    h_pen.curveTo(*pts)
+                elif verb == pathops.PathVerb.CLOSE:
+                    h_pen.closePath()
+    return total_area, hole_cnt, holes
+
+
+def ensure_bold_symbol_separation(masters_dir: Path) -> int:
+    """
+    Ensure every cp >= 0x00A0 in Bold/BoldItalic symbol masters has genuine >= 1.38x
+    vector ink area over its Regular/Italic counterpart, using counter-preserving stroke dilation.
+    Returns count of thickened glyphs across all 4 Bold symbol UFOs.
+    """
+    sym_dir = masters_dir / "symbols"
+    pairs = [
+        ("Symbols-Regular.ufo", "Symbols-Bold.ufo", False),
+        ("Symbols-Italic.ufo", "Symbols-BoldItalic.ufo", False),
+        ("Symbols-Mono-Regular.ufo", "Symbols-Mono-Bold.ufo", True),
+        ("Symbols-Mono-Italic.ufo", "Symbols-Mono-BoldItalic.ufo", True),
+    ]
+    from fontTools.pens.pointPen import SegmentToPointPen
+
+    thickened = 0
+    for reg_name, bld_name, is_mono in pairs:
+        reg_p, bld_p = sym_dir / reg_name, sym_dir / bld_name
+        if not (reg_p.is_file() and bld_p.is_file()) and not (reg_p.is_dir() and bld_p.is_dir()):
+            continue
+        reg_ufo = ufoLib2.Font.open(reg_p)
+        bld_ufo = ufoLib2.Font.open(bld_p)
+        changed = False
+        for gname in list(bld_ufo.keys()):
+            g_b = bld_ufo[gname]
+            if not g_b.unicodes or g_b.unicodes[0] < 0x00A0 or gname not in reg_ufo:
+                continue
+            g_r = reg_ufo[gname]
+            if not g_b.contours or not g_r.contours:
+                continue
+            sk_r = pathops.Path()
+            g_r.draw(sk_r.getPen())
+            sk_r.simplify(fix_winding=True)
+            area_r, _, _ = _sk_ink_area_and_holes(sk_r)
+
+            sk_b = pathops.Path()
+            g_b.draw(sk_b.getPen())
+            sk_b.simplify(fix_winding=True)
+            area_b, holes_b_cnt, holes_b_path = _sk_ink_area_and_holes(sk_b)
+
+            if area_r <= 10.0 or (area_b / area_r) >= 1.38:
+                continue
+
+            ratio = area_b / area_r
+            sw = 56.0 if ratio < 1.16 else 38.0
+            if is_mono:
+                sw = min(sw, 44.0)
+
+            best_path: pathops.Path | None = None
+            for cand_sw in (sw, sw * 0.65):
+                s_path = pathops.Path()
+                sk_b.draw(s_path.getPen())
+                s_path.stroke(cand_sw, pathops.LineCap.BUTT_CAP, pathops.LineJoin.ROUND_JOIN, 4.0)
+                s_path.convertConicsToQuads()
+                cand = pathops.op(sk_b, s_path, pathops.PathOp.UNION)
+                cand.simplify(fix_winding=True)
+                _, h_new, _ = _sk_ink_area_and_holes(cand)
+                if h_new >= holes_b_cnt:
+                    best_path = cand
+                    break
+            if best_path is None:
+                s_path = pathops.Path()
+                sk_b.draw(s_path.getPen())
+                s_path.stroke(sw * 0.65, pathops.LineCap.BUTT_CAP, pathops.LineJoin.ROUND_JOIN, 4.0)
+                s_path.convertConicsToQuads()
+                cand = pathops.op(sk_b, s_path, pathops.PathOp.UNION)
+                if holes_b_cnt > 0 and holes_b_path.bounds:
+                    cand = pathops.op(cand, holes_b_path, pathops.PathOp.DIFFERENCE)
+                cand.simplify(fix_winding=True)
+                best_path = cand
+
+            b_new = best_path.bounds
+            if b_new and (b_new[3] > BASE_ASC - 15 or b_new[1] < BASE_DESC + 15):
+                _, yn0, _, yn1 = b_new
+                avail = float((BASE_ASC - 15) - (BASE_DESC + 15))
+                if (yn1 - yn0) > avail:
+                    sy = avail / max(1.0, yn1 - yn0)
+                    ty = (BASE_DESC + 15) - yn0 * sy
+                    best_path.transform(1.0, 0.0, 0.0, sy, 0.0, ty)
+                elif yn1 > BASE_ASC - 15:
+                    best_path.transform(1.0, 0.0, 0.0, 1.0, 0.0, (BASE_ASC - 15) - yn1)
+                elif yn0 < BASE_DESC + 15:
+                    best_path.transform(1.0, 0.0, 0.0, 1.0, 0.0, (BASE_DESC + 15) - yn0)
+
+            g_b.clearContours()
+            best_path.draw(RoundingSegmentPen(SegmentToPointPen(g_b.getPointPen())))
+            union_and_extremize_glyph(g_b, round_coords=True)
+            changed = True
+            thickened += 1
+
+        if changed:
+            bld_ufo.save(bld_p, overwrite=True)
+    return thickened
+
+
 def run_normalize(cfg: ProjectConfig, force: bool = False) -> None:
     """Execute full donor normalization into masters/{symbols,sans,mono}."""
     masters_dir = cfg.repo_root / "masters"
@@ -396,6 +537,7 @@ def run_normalize(cfg: ProjectConfig, force: bool = False) -> None:
 
     print("[*] Stage 0.1: Building harmonized UFO 3 symbol masters (DejaVu + STIX Two)...")
     sym_masters = _build_symbol_masters(cfg, masters_dir)
+    ensure_bold_symbol_separation(masters_dir)
     print(f"    -> Wrote {len(sym_masters)} symbol masters in masters/symbols/")
 
     print("[*] Stage 0.2: Building orthogonal UFO 3 proportional/condensed masters (Roboto Flex)...")

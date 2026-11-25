@@ -4,7 +4,8 @@ version = "2.0.0"
 spec_id = "SPEC-EPD-FONT-001"
 spec_rev = "1.1"
 master_upm = 1000
-ppem_range = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40]
+ppem_range = [14, 16, 18, 20, 24, 28, 32, 36, 40]
+terminus_ppem_range = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40]
 
 [variants]
 styles = ["normal", "italic", "bold", "bold-italic"]
@@ -39,7 +40,6 @@ slant_deg = -10.0
 
 [schedule]
 # Explicit per-PPEM target vertical stem schedule (Section 2.2)
-12 = { normal = 2, bold = 3, normal_hbar = 1, bold_hbar = 2 }
 14 = { normal = 2, bold = 3, normal_hbar = 1, bold_hbar = 2 }
 16 = { normal = 2, bold = 3, normal_hbar = 1, bold_hbar = 2 }
 18 = { normal = 2, bold = 3, normal_hbar = 2, bold_hbar = 2 }
@@ -63,7 +63,7 @@ mono_advance_std_max = 0.0
 stem_width_mode = "sss"
 increase_x_height = 0
 symbol_mode = true
-hinting_range_min = 12
+hinting_range_min = 14
 hinting_range_max = 40
 hinting_limit = 40
 fallback_stem_width = true

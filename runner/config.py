@@ -62,6 +62,11 @@ class ProjectConfig:
     def ppem_range(self) -> list[int]:
         return [int(x) for x in self.project["project"]["ppem_range"]]
 
+    @property
+    def terminus_ppem_range(self) -> list[int]:
+        raw = self.project["project"].get("terminus_ppem_range", [12, *self.ppem_range])
+        return [int(x) for x in raw]
+
     def mandatory_codepoints(self) -> list[int]:
         """Return sorted list of all mandatory codepoints from config/donors.yaml."""
         cps: set[int] = set()

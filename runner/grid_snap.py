@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
+import numpy as np
 import pathops
 import ufoLib2
 from fontTools.pens.pointPen import SegmentToPointPen
@@ -20,6 +22,319 @@ from runner.ufo_utils import (
 )
 
 CAP_LOCK_CPS = set(range(0x0041, 0x005B)) | set(range(0x0030, 0x003A)) | set(range(0x0391, 0x03AA)) - {0x03A2} | {0x2126}
+INK_TRAP_CPS = {
+    ord(c) for c in "EFGHIJKLMNTVWXYZfhkmnrtuvwxyz12457ΓΕΖΗΙΚΛΜΝΞΠΣΤΥΧΨ"
+}
+
+
+def _flatten_pathops_segments(sk: pathops.Path) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """Flatten simplified pathops.Path cubics/quads/lines into short polyline segments."""
+    segs: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    p0 = (0.0, 0.0)
+    cur = (0.0, 0.0)
+    for verb, pts in sk:
+        if verb == pathops.PathVerb.MOVE:
+            cur = p0 = pts[0]
+        elif verb == pathops.PathVerb.LINE:
+            nxt = pts[0]
+            segs.append((cur, nxt))
+            cur = nxt
+        elif verb == pathops.PathVerb.CUBIC:
+            c1, c2, nxt = pts
+            for k in range(1, 9):
+                t = k / 8.0
+                mt = 1.0 - t
+                pt = (
+                    mt**3 * cur[0] + 3 * mt**2 * t * c1[0] + 3 * mt * t**2 * c2[0] + t**3 * nxt[0],
+                    mt**3 * cur[1] + 3 * mt**2 * t * c1[1] + 3 * mt * t**2 * c2[1] + t**3 * nxt[1],
+                )
+                segs.append((cur, pt))
+                cur = pt
+        elif verb == pathops.PathVerb.QUAD:
+            c1, nxt = pts
+            for k in range(1, 7):
+                t = k / 6.0
+                mt = 1.0 - t
+                pt = (
+                    mt**2 * cur[0] + 2 * mt * t * c1[0] + t**2 * nxt[0],
+                    mt**2 * cur[1] + 2 * mt * t * c1[1] + t**2 * nxt[1],
+                )
+                segs.append((cur, pt))
+                cur = pt
+        elif verb == pathops.PathVerb.CLOSE:
+            if cur != p0:
+                segs.append((cur, p0))
+            cur = p0
+    return segs
+
+
+def _scan_axis_intervals(
+    segs: list[tuple[tuple[float, float], tuple[float, float]]],
+    coord: float,
+    horizontal: bool,
+) -> list[tuple[float, float]]:
+    hits: list[float] = []
+    for (x1, y1), (x2, y2) in segs:
+        a1, b1, a2, b2 = (y1, x1, y2, x2) if horizontal else (x1, y1, x2, y2)
+        if (a1 <= coord < a2) or (a2 <= coord < a1):
+            t = (coord - a1) / (a2 - a1)
+            hits.append(b1 + t * (b2 - b1))
+    hits.sort()
+    return [(hits[i], hits[i + 1]) for i in range(0, len(hits) - 1, 2)]
+
+
+def _tune_s_vector_aperture(glyph: ufoLib2.objects.Glyph, cp: int, ppem: int, is_mono: bool = False) -> None:
+    """
+    Pure vector-outline aperture tuning for 's' (U+0073) and 12px proportional 'S' (U+0053) at UPM = 100 * P:
+    Ensures full pixel-locked x-height at 12-16px and guarantees vertical separation between
+    terminal lips and the middle spine so ttfautohint + FT_LOAD_TARGET_MONO never pinches
+    or diagonally seals the open bays.
+    """
+    if not glyph.contours:
+        return
+    if not (cp == 0x0073 and ppem <= 32) and not (cp == 0x0053 and ppem == 12 and not is_mono):
+        return
+    if cp == 0x0073 and ppem in (12, 14, 16):
+        target_h = {12: 700.0, 14: 800.0, 16: 900.0}[ppem]
+        b0 = glyph_bounds(glyph)
+        if b0 is not None and b0[3] > b0[1]:
+            sy = target_h / (b0[3] - b0[1])
+            if sy > 1.02:
+                ty = -b0[1] * sy
+                rec = rec_from_glyph(glyph)
+                glyph.clearContours()
+                rec.replay(TransformPen(RoundingSegmentPen(glyph.getPen()), (1.0, 0.0, 0.0, sy, 0.0, ty)))
+
+    sk = pathops.Path()
+    glyph.draw(sk.getPen())
+    sk.simplify(fix_winding=True)
+    b = sk.bounds
+    if not b:
+        return
+    xmin, ymin, xmax, ymax = b
+    w = xmax - xmin
+    h = ymax - ymin
+    if w < 200.0 or h < 400.0:
+        return
+
+    segs = _flatten_pathops_segments(sk)
+    min_gap_u = 215.0 if ppem <= 16 else (190.0 if ppem <= 20 else 145.0)
+    cut = pathops.Path()
+    has_cut = False
+    dx = max(22.0, 0.055 * w)
+
+    # Bottom-left bay aperture
+    for x in np.linspace(xmin - 25.0, xmin + 0.45 * w, 28):
+        ivs = _scan_axis_intervals(segs, float(x), horizontal=False)
+        if len(ivs) >= 2:
+            term_top = ivs[0][1]
+            spine_bot = ivs[1][0]
+            gap = spine_bot - term_top
+            if 0.0 <= gap < min_gap_u and (term_top - ivs[0][0]) > 100.0:
+                new_term_top = max(ivs[0][0] + 100.0, spine_bot - min_gap_u)
+                if new_term_top < term_top:
+                    r = pathops.Path()
+                    p = r.getPen()
+                    p.moveTo((float(x) - dx, new_term_top))
+                    p.lineTo((float(x) + dx, new_term_top))
+                    p.lineTo((float(x) + dx, spine_bot - 2.0))
+                    p.lineTo((float(x) - dx, spine_bot - 2.0))
+                    p.closePath()
+                    cut = pathops.op(cut, r, pathops.PathOp.UNION) if has_cut else r
+                    has_cut = True
+        elif len(ivs) == 1 and x < xmin + 0.25 * w:
+            y0_i, y1_i = ivs[0]
+            if y1_i - y0_i > 320.0:
+                y_mid_s = ymin + 0.44 * h
+                r = pathops.Path()
+                p = r.getPen()
+                p.moveTo((float(x) - dx, y_mid_s - 0.55 * min_gap_u))
+                p.lineTo((float(x) + dx, y_mid_s - 0.55 * min_gap_u))
+                p.lineTo((float(x) + dx, y_mid_s + 0.45 * min_gap_u))
+                p.lineTo((float(x) - dx, y_mid_s + 0.45 * min_gap_u))
+                p.closePath()
+                cut = pathops.op(cut, r, pathops.PathOp.UNION) if has_cut else r
+                has_cut = True
+
+    # Top-right bay aperture
+    for x in np.linspace(xmax - 0.45 * w, xmax + 25.0, 28):
+        ivs = _scan_axis_intervals(segs, float(x), horizontal=False)
+        if len(ivs) >= 2:
+            spine_top = ivs[-2][1]
+            term_bot = ivs[-1][0]
+            gap = term_bot - spine_top
+            if 0.0 <= gap < min_gap_u and (ivs[-1][1] - term_bot) > 100.0:
+                new_term_bot = min(ivs[-1][1] - 100.0, spine_top + min_gap_u)
+                if new_term_bot > term_bot:
+                    r = pathops.Path()
+                    p = r.getPen()
+                    p.moveTo((float(x) - dx, spine_top + 2.0))
+                    p.lineTo((float(x) + dx, spine_top + 2.0))
+                    p.lineTo((float(x) + dx, new_term_bot))
+                    p.lineTo((float(x) - dx, new_term_bot))
+                    p.closePath()
+                    cut = pathops.op(cut, r, pathops.PathOp.UNION) if has_cut else r
+                    has_cut = True
+        elif len(ivs) == 1 and x > xmax - 0.25 * w:
+            y0_i, y1_i = ivs[0]
+            if y1_i - y0_i > 320.0:
+                y_mid_s = ymin + 0.56 * h
+                r = pathops.Path()
+                p = r.getPen()
+                p.moveTo((float(x) - dx, y_mid_s - 0.45 * min_gap_u))
+                p.lineTo((float(x) + dx, y_mid_s - 0.45 * min_gap_u))
+                p.lineTo((float(x) + dx, y_mid_s + 0.55 * min_gap_u))
+                p.lineTo((float(x) - dx, y_mid_s + 0.55 * min_gap_u))
+                p.closePath()
+                cut = pathops.op(cut, r, pathops.PathOp.UNION) if has_cut else r
+                has_cut = True
+
+    if has_cut:
+        carved = pathops.op(sk, cut, pathops.PathOp.DIFFERENCE)
+        carved.simplify(fix_winding=True)
+        glyph.clearContours()
+        carved.draw(RoundingSegmentPen(SegmentToPointPen(glyph.getPointPen())))
+
+
+def _signed_contour_area(pts: list[tuple[float, float]]) -> float:
+    area = 0.0
+    n = len(pts)
+    for i in range(n):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % n]
+        area += x1 * y2 - x2 * y1
+    return 0.5 * area
+
+
+def _split_outer_and_hole_paths(sk: pathops.Path) -> tuple[pathops.Path, pathops.Path]:
+    """Separate simplified pathops.Path into outer solid contours and inner counter hole contours."""
+    outer = pathops.Path()
+    holes = pathops.Path()
+    contours: list[tuple[float, list[tuple[Any, Any]]]] = []
+    cur_verbs: list[tuple[Any, Any]] = []
+    cur_poly: list[tuple[float, float]] = []
+    for verb, pts in sk:
+        cur_verbs.append((verb, pts))
+        if verb == pathops.PathVerb.MOVE:
+            cur_poly = [pts[0]]
+        elif verb in (pathops.PathVerb.LINE, pathops.PathVerb.CUBIC, pathops.PathVerb.QUAD):
+            cur_poly.append(pts[-1])
+        elif verb == pathops.PathVerb.CLOSE:
+            contours.append((_signed_contour_area(cur_poly), cur_verbs))
+            cur_verbs = []
+            cur_poly = []
+    if not contours:
+        return outer, holes
+    largest_area = max(contours, key=lambda item: abs(item[0]))[0]
+    outer_sign = 1.0 if largest_area >= 0.0 else -1.0
+    o_pen = outer.getPen()
+    h_pen = holes.getPen()
+    for area, vlist in contours:
+        pen = o_pen if (area * outer_sign >= 0.0) else h_pen
+        for verb, pts in vlist:
+            if verb == pathops.PathVerb.MOVE:
+                pen.moveTo(pts[0])
+            elif verb == pathops.PathVerb.LINE:
+                pen.lineTo(pts[0])
+            elif verb == pathops.PathVerb.QUAD:
+                pen.qCurveTo(*pts)
+            elif verb == pathops.PathVerb.CUBIC:
+                pen.curveTo(*pts)
+            elif verb == pathops.PathVerb.CLOSE:
+                pen.closePath()
+    return outer, holes
+
+
+_OPEN_BAY_EXCLUDE = {ord(c) for c in "sScCGezZ235"}
+
+
+def _close_vector_ink_traps(glyph: ufoLib2.objects.Glyph, cp: int | None, ppem: int) -> None:
+    """
+    Fill sub-pixel acute ink traps (< 1.65px) on the outer perimeter of alphanumeric glyphs
+    (with counters temporarily solid via _split_outer_and_hole_paths) BEFORE hinting &
+    rasterization, then subtract the preserved inner counter holes back cleanly.
+    """
+    if (
+        cp is None
+        or not (0x0030 <= cp <= 0x03FF)
+        or not chr(cp).isalnum()
+        or cp in _OPEN_BAY_EXCLUDE
+        or not glyph.contours
+    ):
+        return
+    sk = pathops.Path()
+    glyph.draw(sk.getPen())
+    sk.simplify(fix_winding=True)
+    b = sk.bounds
+    if not b:
+        return
+    xmin, ymin, xmax, ymax = b
+    if xmax - xmin < 120.0 or ymax - ymin < 180.0:
+        return
+
+    outer, holes = _split_outer_and_hole_paths(sk)
+    if not outer.bounds:
+        return
+
+    segs = _flatten_pathops_segments(outer)
+    slit_u = 165.0 if ppem <= 16 else 145.0
+    step_u = 15.0
+    look_steps = 18
+    bridges = pathops.Path()
+    has_bridge = False
+
+    # Horizontal scanlines on outer contour
+    ys = np.arange(ymin + 8.0, ymax - 8.0, step_u)
+    h_scans = [_scan_axis_intervals(segs, float(y), horizontal=True) for y in ys]
+    for idx, y in enumerate(ys):
+        ivs = h_scans[idx]
+        for k in range(len(ivs) - 1):
+            g_l, g_r = ivs[k][1], ivs[k + 1][0]
+            if 0.5 < (g_r - g_l) <= slit_u and any(
+                0 <= idx + d < len(ys) and any(a0 - 8.0 <= g_l and g_r <= a1 + 8.0 for a0, a1 in h_scans[idx + d])
+                for d in range(-look_steps, look_steps + 1)
+                if d != 0
+            ):
+                pr = pathops.Path()
+                p = pr.getPen()
+                y0, y1 = float(y) - 0.8 * step_u, float(y) + 0.8 * step_u
+                p.moveTo((g_l - 8.0, y0))
+                p.lineTo((g_r + 8.0, y0))
+                p.lineTo((g_r + 8.0, y1))
+                p.lineTo((g_l - 8.0, y1))
+                p.closePath()
+                bridges = pathops.op(bridges, pr, pathops.PathOp.UNION) if has_bridge else pr
+                has_bridge = True
+
+    # Vertical scanlines on outer contour
+    xs = np.arange(xmin + 8.0, xmax - 8.0, step_u)
+    v_scans = [_scan_axis_intervals(segs, float(x), horizontal=False) for x in xs]
+    for idx, x in enumerate(xs):
+        ivs = v_scans[idx]
+        for k in range(len(ivs) - 1):
+            g_b, g_t = ivs[k][1], ivs[k + 1][0]
+            if 0.5 < (g_t - g_b) <= slit_u and any(
+                0 <= idx + d < len(xs) and any(a0 - 8.0 <= g_b and g_t <= a1 + 8.0 for a0, a1 in v_scans[idx + d])
+                for d in range(-look_steps, look_steps + 1)
+                if d != 0
+            ):
+                pr = pathops.Path()
+                p = pr.getPen()
+                x0, x1 = float(x) - 0.8 * step_u, float(x) + 0.8 * step_u
+                p.moveTo((x0, g_b - 8.0))
+                p.lineTo((x1, g_b - 8.0))
+                p.lineTo((x1, g_t + 8.0))
+                p.lineTo((x0, g_t + 8.0))
+                p.closePath()
+                bridges = pathops.op(bridges, pr, pathops.PathOp.UNION) if has_bridge else pr
+                has_bridge = True
+
+    if has_bridge:
+        merged_outer = pathops.op(outer, bridges, pathops.PathOp.UNION)
+        final_path = pathops.op(merged_outer, holes, pathops.PathOp.DIFFERENCE) if holes.bounds else merged_outer
+        final_path.simplify(fix_winding=True)
+        glyph.clearContours()
+        final_path.draw(RoundingSegmentPen(SegmentToPointPen(glyph.getPointPen())))
 
 
 def compute_pixel_vertical_metrics(ppem: int) -> tuple[int, int, int, int]:
@@ -89,16 +404,10 @@ def _snap_glyph_to_grid(
             glyph.clearContours()
             rec.replay(TransformPen(RoundingSegmentPen(glyph.getPen()), (1.0, 0.0, 0.0, sy, 0.0, ty)))
 
-    # 2b. At 12px, give 's' (U+0073) full 7px x-height clearance so upper/lower bays stay open
-    if cp == 0x0073 and ppem <= 12:
-        b_s0 = glyph_bounds(glyph)
-        if b_s0 is not None and b_s0[3] > b_s0[1]:
-            sy_s = 700.0 / (b_s0[3] - b_s0[1])
-            if sy_s > 1.02:
-                ty_s = -b_s0[1] * sy_s
-                rec = rec_from_glyph(glyph)
-                glyph.clearContours()
-                rec.replay(TransformPen(RoundingSegmentPen(glyph.getPen()), (1.0, 0.0, 0.0, sy_s, 0.0, ty_s)))
+    # 2b. Tune 's'/'S' vector aperture & fill sub-pixel ink traps before snapping
+    if cp in (0x0073, 0x0053):
+        _tune_s_vector_aperture(glyph, cp, ppem, is_mono=is_mono)
+    _close_vector_ink_traps(glyph, cp, ppem)
 
     # 2c. Prevent 'i' and 'j' tittle dot from merging into the stem in bold strikes
     if cp in (0x0069, 0x006A) and len(glyph.contours) >= 2:

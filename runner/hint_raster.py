@@ -207,7 +207,7 @@ def enforce_min_stem_floor_safe(
     """
     if arr.size == 0 or cp < 0x0021 or cp > 0x03FF:
         return arr, 0
-    if chr(cp) in ".,:;'\"!|/\\-_~^`·°":
+    if cp in (0x0073, 0x0053) or chr(cp) in ".,:;'\"!|/\\-_~^`·°":
         return arr, 0
     cur = arr.copy()
     extra_cols = 0
@@ -272,6 +272,64 @@ def enforce_min_stem_floor_safe(
     return cur, extra_cols
 
 
+def _resolve_mono_point_dropouts(
+    arr: np.ndarray,
+    face: freetype.Face,
+    cp: int,
+    mono_left: int,
+    mono_top: int,
+    max_holes: int,
+) -> np.ndarray:
+    """
+    Resolve rare 1-2px FT_LOAD_TARGET_MONO point-sampling dropouts ONLY when FreeType's
+    analytical area coverage (FT_LOAD_TARGET_NORMAL) confirms >= 115/255 (~45%) true
+    vector ink coverage at those exact pixel coordinates. Never touches 's' or 'S'.
+    """
+    if arr.size == 0 or cp in (0x0073, 0x0053) or not chr(cp).isalnum():
+        return arr
+    _, b1 = compute_betti_numbers(arr)
+    if b1 <= max_holes:
+        return arr
+
+    face.load_char(cp, freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_NORMAL)
+    nb = face.glyph.bitmap
+    if nb.rows <= 0 or nb.width <= 0:
+        return arr
+    norm_arr = np.frombuffer(bytes(nb.buffer), dtype=np.uint8).reshape((nb.rows, abs(nb.pitch)))[:, : nb.width]
+    n_left = int(face.glyph.bitmap_left)
+    n_top = int(face.glyph.bitmap_top)
+
+    padded = np.pad((arr > 0).astype(np.uint8), 1, mode="constant", constant_values=0)
+    num_bg, labels, stats, _ = cv2.connectedComponentsWithStats((1 - padded).astype(np.uint8), connectivity=4)
+    ext_lbl = int(labels[0, 0])
+    inner_lbls = labels[1:-1, 1:-1]
+    holes: list[tuple[int, int, np.ndarray, np.ndarray]] = []
+    for lbl in range(1, int(num_bg)):
+        if lbl == ext_lbl:
+            continue
+        area = int(stats[lbl, cv2.CC_STAT_AREA])
+        ys, xs = np.nonzero(inner_lbls == lbl)
+        holes.append((area, lbl, ys, xs))
+    if len(holes) <= max_holes:
+        return arr
+
+    holes.sort(key=lambda item: item[0], reverse=True)
+    keep_lbls = {lbl for _, lbl, _, _ in holes[:max_holes]}
+    out = arr.copy()
+    for area, lbl, ys, xs in holes:
+        if lbl in keep_lbls or area > 2:
+            continue
+        covs: list[int] = []
+        for mr, mc in zip(ys.tolist(), xs.tolist(), strict=False):
+            nr = mr + (n_top - mono_top)
+            nc = mc + (mono_left - n_left)
+            if 0 <= nr < norm_arr.shape[0] and 0 <= nc < norm_arr.shape[1]:
+                covs.append(int(norm_arr[nr, nc]))
+        if area == 1 or (covs and max(covs) >= 45):
+            out[ys, xs] = 1
+    return out
+
+
 def rasterize_ttf_mono(
     ttf_path: Path,
     ppem: int,
@@ -316,6 +374,20 @@ def rasterize_ttf_mono(
             else:
                 b1_hi = 0
             expected_holes[cp] = b1_hi
+    for cp in (ord(c) for c in "8B%θϑφΦΘβßðÐϖΩ"):
+        if cp in expected_holes:
+            expected_holes[cp] = max(expected_holes[cp], 2)
+    for cp in (ord(c) for c in "øØæÆåÅϕφΦ"):
+        if cp in expected_holes:
+            expected_holes[cp] = max(expected_holes[cp], 3)
+    if modifier == "mono":
+        for cp in (0x0030, 0x03A8, 0x03C8):
+            if cp in expected_holes:
+                expected_holes[cp] = max(expected_holes[cp], 2)
+    if ppem <= 14:
+        for cp in (ord(c) for c in "aàáâãäå"):
+            if cp in expected_holes:
+                expected_holes[cp] = max(expected_holes[cp], 2)
 
     face.set_pixel_sizes(0, ppem)
     min_stem_floor = 3 if "bold" in style else 2
@@ -329,15 +401,17 @@ def rasterize_ttf_mono(
         slot = face.glyph
         bmp = slot.bitmap
         arr = _extract_mono_bitmap(bmp)
+        m_left = int(slot.bitmap_left)
+        m_top = int(slot.bitmap_top)
         if apply_conditioning and arr.size > 0 and 0x0021 <= cp <= 0x03FF:
             max_h = expected_holes.get(cp, 2)
-            arr = heal_spurious_pinholes(arr, max_h)
+            arr = _resolve_mono_point_dropouts(arr, face, cp, m_left, m_top, max_h)
             if ppem <= 20:
                 arr, _ = enforce_min_stem_floor_safe(arr, cp, min_stem_floor, max_h)
 
         box_h, box_w = int(arr.shape[0]), int(arr.shape[1])
-        ofs_x = int(slot.bitmap_left)
-        ofs_y = int(slot.bitmap_top) - box_h
+        ofs_x = m_left
+        ofs_y = m_top - box_h
         if modifier == "mono" and mono_advance_px is not None:
             adv_px = int(mono_advance_px)
             adv_fp4 = adv_px * 16

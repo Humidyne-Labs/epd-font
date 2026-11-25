@@ -149,20 +149,21 @@ def _build_unified_icon_catalog(cfg: ProjectConfig, icons_cfg: dict[str, Any]) -
     meta_dir.mkdir(parents=True, exist_ok=True)
     by_cp: dict[str, dict[str, str]] = {}
     by_name: dict[str, dict[str, str]] = {}
-    for s_cfg in icons_cfg.get("suites", {}).values():
+    for suite_key, s_cfg in icons_cfg.get("suites", {}).items():
         fam = str(s_cfg["family"])
+        cat_key = "icon_tabler_filled" if suite_key == "icon_tabler_filled" else fam
         m_path = cfg.repo_root / s_cfg["manifest"]
         if not m_path.is_file():
             continue
         m_data = json.loads(m_path.read_text(encoding="utf-8"))
         raw_cp = m_data.get("by_codepoint", {})
         raw_nm = m_data.get("by_name", {})
-        if fam == "icon_tabler_filled":
-            by_cp[fam] = {k: v for k, v in raw_cp.items() if str(v).endswith("-filled")}
-            by_name[fam] = {k: v for k, v in raw_nm.items() if str(k).endswith("-filled")}
+        if suite_key == "icon_tabler_filled":
+            by_cp[cat_key] = {k: v for k, v in raw_cp.items() if str(v).endswith("-filled")}
+            by_name[cat_key] = {k: v for k, v in raw_nm.items() if str(k).endswith("-filled")}
         else:
-            by_cp[fam] = raw_cp
-            by_name[fam] = raw_nm
+            by_cp[cat_key] = raw_cp
+            by_name[cat_key] = raw_nm
     (meta_dir / "unified_icon_names.json").write_text(
         json.dumps({"schema_version": "2.1.0", "by_codepoint": by_cp, "by_name": by_name}, indent=2),
         encoding="utf-8",

@@ -169,9 +169,34 @@ def evaluate_g_counter(strike: CompiledStrike) -> GateResult:
             for lbl in range(1, int(n_op)):
                 if int(stats_op[lbl, cv2.CC_STAT_WIDTH]) >= 1 and int(stats_op[lbl, cv2.CC_STAT_HEIGHT]) >= 1:
                     bays += 1
-        details[chr(cp)] = {"open_bays": bays, "pinched_loops": b1}
-        if b1 > 0 or bays < 2:
-            failures.append(f"{chr(cp)}:bays={bays},b1={b1}")
+
+        # Dual-well 4-connected exterior clearance check on 's' and 'S'
+        top_open_px = 0
+        bot_open_px = 0
+        if cp in (0x0073, 0x0053):
+            padded_fg = np.pad(fg, 1, mode="constant", constant_values=0)
+            _, bg_lbls, _, _ = cv2.connectedComponentsWithStats((1 - padded_fg).astype(np.uint8), connectivity=4)
+            ext_mask = bg_lbls[1:-1, 1:-1] == int(bg_lbls[0, 0])
+            gh, _ = fg.shape
+            mid_r = gh // 2
+            for r in range(1, max(2, mid_r)):
+                cols_on = np.flatnonzero(fg[r])
+                if cols_on.size > 0:
+                    top_open_px += int(np.count_nonzero(ext_mask[r, int(cols_on[0]) :]))
+            for r in range(min(gh - 2, mid_r), max(1, gh - 1)):
+                cols_on = np.flatnonzero(fg[r])
+                if cols_on.size > 0:
+                    bot_open_px += int(np.count_nonzero(ext_mask[r, : int(cols_on[-1]) + 1]))
+
+        details[chr(cp)] = {
+            "open_bays": bays,
+            "pinched_loops": b1,
+            "top_open_px": top_open_px,
+            "bot_open_px": bot_open_px,
+        }
+        well_ok = (cp not in (0x0073, 0x0053)) or (top_open_px >= 2 and bot_open_px >= 2)
+        if b1 > 0 or bays < 2 or not well_ok:
+            failures.append(f"{chr(cp)}:bays={bays},b1={b1},top={top_open_px},bot={bot_open_px}")
 
     passed = len(failures) == 0
     return GateResult(
@@ -245,7 +270,12 @@ def evaluate_g_pinholes(strike: CompiledStrike) -> GateResult:
         return GateResult("G_PINHOLE", True, "0 spurious pinholes", {})
     bad: list[str] = []
     for g in strike.glyphs:
-        if not (0x0021 <= g.codepoint <= 0x03FF) or g.bitmap.size == 0:
+        cp = g.codepoint
+        if g.bitmap.size == 0:
+            continue
+        is_ascii_alnum = (0x0030 <= cp <= 0x007A) and chr(cp).isalnum()
+        is_core_greek = (0x0391 <= cp <= 0x03C9) and (cp != 0x03A2)
+        if not (is_ascii_alnum or is_core_greek):
             continue
         max_h = strike.expected_holes.get(g.codepoint, 2)
         _, b1 = compute_betti_numbers(g.bitmap)
@@ -295,7 +325,7 @@ def run_audit_and_proofs(
     emit_proofs: bool = True,
 ) -> bool:
     """Audit all built TTF strikes against all 6 gates and optionally render visual proofs."""
-    from runner.proofs import render_strike_proofs
+    from runner.proofs import render_icon_strike_proofs, render_multifont_showcase, render_strike_proofs
 
     target_ppems = ppems or cfg.ppem_range
     target_mods = modifiers or list(cfg.project["variants"]["modifiers"])
@@ -372,8 +402,29 @@ def run_audit_and_proofs(
                 gates=t_gates,
             )
             audits[(t_strike.ppem, "terminus", t_strike.style)] = t_aud
+            strikes_cache[(t_strike.ppem, "terminus", t_strike.style)] = t_strike
             if emit_proofs:
                 render_strike_proofs(cfg, t_strike, t_aud)
+
+    if emit_proofs and (modifiers is None or any(m.startswith("icon_") for m in modifiers)):
+        from runner.terminus_icons import build_icon_strikes
+
+        icon_strikes = build_icon_strikes(cfg, target_ppems)
+        uni_path = cfg.repo_root / "build" / "metadata" / "unified_icon_names.json"
+        uni_by_cp: dict[str, dict[str, str]] = {}
+        if uni_path.is_file():
+            uni_by_cp = json.loads(uni_path.read_text(encoding="utf-8")).get("by_codepoint", {})
+
+        showcase_map: dict[str, CompiledStrike] = {s.symbol_name: s for s in strikes_cache.values()}
+        for ic_s in icon_strikes:
+            showcase_map[ic_s.symbol_name] = ic_s
+            cat_key = "icon_tabler_filled" if (ic_s.modifier == "icon_tabler" and ic_s.style == "filled") else ic_s.modifier
+            raw_map = uni_by_cp.get(cat_key, {})
+            cp_names = {int(k, 0): str(v) for k, v in raw_map.items()}
+            render_icon_strike_proofs(cfg, ic_s, cp_names)
+
+        if target_ppems == cfg.ppem_range:
+            render_multifont_showcase(cfg, showcase_map)
 
     # Write aggregate audit_report.json & AUDIT.md
     proof_root = cfg.repo_root / "build" / "proofs"

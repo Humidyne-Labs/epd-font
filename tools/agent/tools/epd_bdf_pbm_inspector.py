@@ -19,8 +19,8 @@ from typing import Any
 # Expected enclosed interior hole counts for topological pinhole/counter auditing
 STANDARD_EXPECTED_HOLES: dict[int, int] = {
     **{ord(c): 0 for c in "CEFGHIJKLMNSTUVWXYZcfhijklmntuvwxyz12357ΓΕΖΗΙΚΛΜΝΞΠΣΤΥΧΨ"},
-    **{ord(c): 1 for c in "0469ADOPQRabdegopqαδρ"},
-    **{ord(c): 2 for c in "8B%θ"},
+    **{ord(c): 1 for c in "0469ADOPQRabdeopqαδρ"},
+    **{ord(c): 2 for c in "8B%gθϑφΦ"},
 }
 
 
@@ -276,6 +276,8 @@ def inspect_bdf(
     plugged: list[str] = []
     fragmented: list[str] = []
     for cp, max_h in STANDARD_EXPECTED_HOLES.items():
+        if (cp == ord("a") and int(parsed["pixel_size"]) <= 14) or (cp == ord("0") and "mono" in bp.stem.lower()):
+            max_h = 2
         g = glyphs.get(cp)
         if not g or g.box_w == 0 or g.box_h == 0:
             continue
@@ -290,6 +292,40 @@ def inspect_bdf(
             fg_c = _connected_components_8_fg(g.rows)
             if fg_c < 2:
                 fragmented.append(f"{chr(cp)}(fg={fg_c})")
+
+    filled_s_wells: list[str] = []
+    for cp in (0x0073, 0x0053):
+        g = glyphs.get(cp)
+        if not g or g.box_h < 5 or g.box_w < 3:
+            continue
+        gh, gw = len(g.rows), len(g.rows[0])
+        pw, ph = gw + 2, gh + 2
+        pgrid = [[0] * pw for _ in range(ph)]
+        for rr in range(gh):
+            for cc in range(gw):
+                pgrid[rr + 1][cc + 1] = g.rows[rr][cc]
+        ext = [[False] * pw for _ in range(ph)]
+        q: deque[tuple[int, int]] = deque([(0, 0)])
+        ext[0][0] = True
+        while q:
+            rr, cc = q.popleft()
+            for nr, nc in ((rr - 1, cc), (rr + 1, cc), (rr, cc - 1), (rr, cc + 1)):
+                if 0 <= nr < ph and 0 <= nc < pw and not ext[nr][nc] and pgrid[nr][nc] == 0:
+                    ext[nr][nc] = True
+                    q.append((nr, nc))
+        mid_r = gh // 2
+        top_open = 0
+        bot_open = 0
+        for rr in range(1, max(2, mid_r)):
+            on = [cc for cc in range(gw) if g.rows[rr][cc]]
+            if on:
+                top_open += sum(1 for cc in range(on[0], gw) if ext[rr + 1][cc + 1])
+        for rr in range(min(gh - 2, mid_r), max(1, gh - 1)):
+            on = [cc for cc in range(gw) if g.rows[rr][cc]]
+            if on:
+                bot_open += sum(1 for cc in range(on[-1] + 1) if ext[rr + 1][cc + 1])
+        if top_open < 2 or bot_open < 2:
+            filled_s_wells.append(f"{chr(cp)}(top={top_open},bot={bot_open})")
 
     # 3. Vertical alignment (caps A-Z, 0-9, Α-Ω and lowercase x-height)
     cap_tops: dict[int, int] = {}
@@ -351,6 +387,7 @@ def inspect_bdf(
             "spurious_pinhole_glyphs": pinholes,
             "plugged_counter_glyphs": plugged,
             "merged_dot_or_fragmented_glyphs": fragmented,
+            "filled_or_pinched_s_wells": filled_s_wells,
         },
         "typographic_color": {
             "lowercase_ink_density_pct": round(dens_mean, 2),

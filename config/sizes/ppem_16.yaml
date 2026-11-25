@@ -140,7 +140,7 @@ instances:
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 920
+      wght: 800
       ital: 0
       MONO: 1
   mono_bold-italic:
@@ -149,6 +149,6 @@ instances:
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 920
+      wght: 800
       ital: 1
       MONO: 1

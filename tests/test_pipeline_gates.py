@@ -15,6 +15,7 @@ from tools.agent.tools.epd_typography import (
     inspect_pbm,
     inventory_fonts,
     measure_string_budget,
+    search_icons,
 )
 
 
@@ -112,13 +113,22 @@ def test_downstream_artifacts_and_epd_typography_bridge() -> None:
 
 
 def test_bdf_and_pbm_inspector() -> None:
-    bdf_rep = inspect_bdf(
-        str(REPO_ROOT / "build" / "bdf" / "humid1_font_epd_sans_italic_18.bdf"),
-        char_query="M,Μ,r,e,s",
-    )
-    assert bdf_rep["stem_weight"]["vstem_p10_px"] >= 2.0
-    assert bdf_rep["stem_weight"]["thin_1px_glyphs"] == []
-    assert bdf_rep["topology_health"]["spurious_pinhole_glyphs"] == []
+    for bdf_name in (
+        "humid1_font_epd_sans_normal_14.bdf",
+        "humid1_font_epd_sans_normal_16.bdf",
+        "humid1_font_epd_sans_bold_16.bdf",
+        "humid1_font_epd_sans_italic_18.bdf",
+        "humid1_font_epd_mono_bold_14.bdf",
+        "humid1_font_epd_sans_bold_28.bdf",
+    ):
+        bdf_rep = inspect_bdf(
+            str(REPO_ROOT / "build" / "bdf" / bdf_name),
+            char_query="M,Μ,r,e,s,S",
+        )
+        assert bdf_rep["stem_weight"]["vstem_p10_px"] >= 2.0, bdf_name
+        assert bdf_rep["stem_weight"]["thin_1px_glyphs"] == [], bdf_name
+        assert bdf_rep["topology_health"]["spurious_pinhole_glyphs"] == [], bdf_name
+        assert bdf_rep["topology_health"]["filled_or_pinched_s_wells"] == [], bdf_name
 
     pbm_rep = inspect_pbm(
         str(REPO_ROOT / "build" / "proofs" / "18" / "sans_italic" / "specimen_1x.pbm")
@@ -126,3 +136,19 @@ def test_bdf_and_pbm_inspector() -> None:
     assert pbm_rep["ink_coverage_pct"] > 0.0
     assert pbm_rep["pinhole_specks_1_to_3px"] == []
     assert pbm_rep["width"] > 0 and pbm_rep["height"] > 0
+
+
+def test_icon_proofs_full_sheets_and_showcase() -> None:
+    for rel in (
+        "build/proofs/SHOWCASE_MULTI_FONT.png",
+        "build/proofs/SHOWCASE_MULTI_FONT_psf.png",
+        "build/proofs/SHOWCASE_MULTI_FONT_1x.pbm",
+        "build/proofs/24/icon_fa7_solid/full_glyph_sheet.png",
+        "build/proofs/24/icon_tabler_filled/full_glyph_sheet.png",
+        "build/proofs/16/sans_normal/full_glyph_sheet.png",
+    ):
+        p = REPO_ROOT / rel
+        assert p.is_file() and p.stat().st_size > 0, f"Missing proof artifact: {rel}"
+
+    res = search_icons("wifi", workspace_dir=str(REPO_ROOT))
+    assert res["total_matches"] > 0

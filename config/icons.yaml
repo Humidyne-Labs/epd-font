@@ -491,7 +491,7 @@ suites:
     - wind
     - x
   icon_tabler_filled:
-    family: icon_tabler_filled
+    family: icon_tabler
     style: filled
     font_file: masters/icons/tabler_icons_v3.50.0/tabler-icons-filled.ttf
     manifest: masters/icons/tabler_icons_v3.50.0/char_manifest_tabler_v3.50.0.json

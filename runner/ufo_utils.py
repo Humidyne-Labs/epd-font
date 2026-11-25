@@ -10,7 +10,6 @@ import pathops
 import ufoLib2
 from fontTools.agl import UV2AGL
 from fontTools.pens.boundsPen import BoundsPen
-from fontTools.pens.qu2cuPen import Qu2CuPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
@@ -83,6 +82,81 @@ def union_and_extremize_glyph(glyph: ufoLib2.objects.Glyph, round_coords: bool =
     simplified.draw(out_pen)
 
 
+class ExactQu2CuSegmentPen:
+    """
+    Lossless, point-compatible quadratic-to-cubic degree elevation pen.
+    Every quadratic segment (A0, Q1, A1) maps to exactly one cubic segment (A0, C1, C2, A1)
+    with C1 = A0 + 2/3*(Q1 - A0) and C2 = A1 + 2/3*(Q1 - A1), guaranteeing identical
+    point counts across variable masters and handling oncurve-less closed loops.
+    """
+
+    def __init__(self, out_pen: object) -> None:
+        self.out_pen = out_pen
+        self._cur: tuple[float, float] = (0.0, 0.0)
+
+    def moveTo(self, pt: tuple[float, float]) -> None:
+        self._cur = pt
+        self.out_pen.moveTo(pt)  # type: ignore[attr-defined]
+
+    def lineTo(self, pt: tuple[float, float]) -> None:
+        self._cur = pt
+        self.out_pen.lineTo(pt)  # type: ignore[attr-defined]
+
+    def curveTo(self, *pts: tuple[float, float]) -> None:
+        self._cur = pts[-1]
+        self.out_pen.curveTo(*pts)  # type: ignore[attr-defined]
+
+    def qCurveTo(self, *pts: tuple[float, float] | None) -> None:
+        if not pts:
+            return
+        if pts[-1] is None:
+            offs = [p for p in pts[:-1] if p is not None]
+            if not offs:
+                return
+            if len(offs) == 1:
+                self.moveTo(offs[0])
+                self.closePath()
+                return
+            start = (0.5 * (offs[-1][0] + offs[0][0]), 0.5 * (offs[-1][1] + offs[0][1]))
+            self.moveTo(start)
+            n = len(offs)
+            for i in range(n):
+                q = offs[i]
+                nxt = offs[(i + 1) % n]
+                a1 = (0.5 * (q[0] + nxt[0]), 0.5 * (q[1] + nxt[1]))
+                self._emit_quad(self._cur, q, a1)
+            return
+
+        on_end = pts[-1]
+        assert on_end is not None
+        offs = [p for p in pts[:-1] if p is not None]
+        if not offs:
+            self.lineTo(on_end)
+            return
+        for i, q in enumerate(offs):
+            if i + 1 < len(offs):
+                nxt = offs[i + 1]
+                a1 = (0.5 * (q[0] + nxt[0]), 0.5 * (q[1] + nxt[1]))
+            else:
+                a1 = on_end
+            self._emit_quad(self._cur, q, a1)
+
+    def _emit_quad(self, a0: tuple[float, float], q: tuple[float, float], a1: tuple[float, float]) -> None:
+        c1 = (a0[0] + (2.0 / 3.0) * (q[0] - a0[0]), a0[1] + (2.0 / 3.0) * (q[1] - a0[1]))
+        c2 = (a1[0] + (2.0 / 3.0) * (q[0] - a1[0]), a1[1] + (2.0 / 3.0) * (q[1] - a1[1]))
+        self._cur = a1
+        self.out_pen.curveTo(c1, c2, a1)  # type: ignore[attr-defined]
+
+    def closePath(self) -> None:
+        self.out_pen.closePath()  # type: ignore[attr-defined]
+
+    def endPath(self) -> None:
+        self.out_pen.endPath()  # type: ignore[attr-defined]
+
+    def addComponent(self, baseGlyphName: str, transformation: tuple[float, ...], **kwargs: object) -> None:
+        self.out_pen.addComponent(baseGlyphName, transformation, **kwargs)  # type: ignore[attr-defined]
+
+
 def draw_transformed_to_cubic_glyph(
     src_glyph: object,
     src_glyph_set: object,
@@ -97,11 +171,11 @@ def draw_transformed_to_cubic_glyph(
     rec = DecomposingRecordingPen(src_glyph_set)
     src_glyph.draw(rec)  # type: ignore[attr-defined]
 
-    base_pen = dst_glyph.getPen()
+    base_pen: object = dst_glyph.getPen()
     if round_coords:
         base_pen = RoundingSegmentPen(base_pen)
     if is_quadratic:
-        base_pen = Qu2CuPen(base_pen, max_err=1.0, all_cubic=False)
+        base_pen = ExactQu2CuSegmentPen(base_pen)
     t_pen = TransformPen(base_pen, matrix)
     rec.replay(t_pen)
 

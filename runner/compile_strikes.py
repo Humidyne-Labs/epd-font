@@ -24,7 +24,7 @@ from runner.serializers import (
     write_pbm_p1,
     write_pbm_p4,
 )
-from runner.ufo_utils import compile_designspace_to_vf_cached, extract_ttfont_to_ufo
+from runner.ufo_utils import extract_ttfont_to_ufo
 
 
 def _load_symbol_ufos(masters_dir: Path) -> dict[str, ufoLib2.Font]:
@@ -146,6 +146,57 @@ def _build_single_strike_task(task: dict[str, Any]) -> CompiledStrike:
     return strike
 
 
+def _ensure_sans_vfs_cached(cfg: ProjectConfig) -> tuple[Path, Path]:
+    """Compile self-contained Upright and Italic Sans VFs directly from masters/sans/*.ufo."""
+    up_vf = cfg.repo_root / "build" / "cache" / "EPDSans_Upright_VF.ttf"
+    it_vf = cfg.repo_root / "build" / "cache" / "EPDSans_Italic_VF.ttf"
+    if up_vf.is_file() and it_vf.is_file():
+        return up_vf, it_vf
+    up_vf.parent.mkdir(parents=True, exist_ok=True)
+    import ufo2ft
+    from fontTools.designspaceLib import AxisDescriptor, DesignSpaceDocument, SourceDescriptor
+
+    sans_dir = cfg.repo_root / "masters" / "sans"
+    corners = [
+        ("Default", 400, 100, 14, 468, 79, 96),
+        ("Bold", 900, 100, 14, 468, 79, 96),
+        ("Cond", 400, 75, 14, 468, 79, 96),
+        ("CondBold", 900, 75, 14, 468, 79, 96),
+        ("Opsz12", 400, 100, 12, 468, 79, 96),
+        ("Opsz40", 400, 100, 40, 468, 79, 96),
+        ("XTRA560", 400, 100, 14, 560, 79, 96),
+        ("YOPQ55", 400, 100, 14, 468, 55, 96),
+        ("YOPQ130", 400, 100, 14, 468, 130, 96),
+        ("XOPQ60", 400, 100, 14, 468, 79, 60),
+        ("XOPQ175", 400, 100, 14, 468, 79, 175),
+    ]
+    for out_p, prefix in ((up_vf, "Upright"), (it_vf, "Italic")):
+        doc = DesignSpaceDocument()
+        doc.addAxis(AxisDescriptor(tag="wght", name="Weight", minimum=400, default=400, maximum=900))
+        doc.addAxis(AxisDescriptor(tag="wdth", name="Width", minimum=75, default=100, maximum=100))
+        doc.addAxis(AxisDescriptor(tag="opsz", name="Optical Size", minimum=12, default=14, maximum=40))
+        doc.addAxis(AxisDescriptor(tag="XTRA", name="Counter Transparency", minimum=468, default=468, maximum=560))
+        doc.addAxis(AxisDescriptor(tag="YOPQ", name="Horizontal Bar Thickness", minimum=55, default=79, maximum=130))
+        doc.addAxis(AxisDescriptor(tag="XOPQ", name="Vertical Stem Thickness", minimum=60, default=96, maximum=175))
+        for tag, wg, wd, op, xt, yo, xo in corners:
+            src = SourceDescriptor()
+            src.font = ufoLib2.Font.open(sans_dir / f"EPDSans-{prefix}-{tag}.ufo")
+            src.font.features.text = ""
+            src.location = {
+                "Weight": wg,
+                "Width": wd,
+                "Optical Size": op,
+                "Counter Transparency": xt,
+                "Horizontal Bar Thickness": yo,
+                "Vertical Stem Thickness": xo,
+            }
+            doc.addSource(src)
+        vf = ufo2ft.compileVariableTTF(doc, inplace=True)
+        vf.save(str(out_p))
+        vf.close()
+    return up_vf, it_vf
+
+
 def _ensure_mono_vfs_cached(cfg: ProjectConfig) -> tuple[Path, Path]:
     """Compile clean Upright and Italic Mono VFs from masters/mono/*.ufo."""
     up_vf = cfg.repo_root / "build" / "cache" / "EPDMono_Upright_VF.ttf"
@@ -188,10 +239,7 @@ def run_build(
     dpi = float(cfg.project.get("hardware", {}).get("dpi", 188.15))
     specimens = cfg.proofs["specimens"]
 
-    sans_vf = compile_designspace_to_vf_cached(
-        cfg.repo_root / cfg.donors["donors"]["roboto_flex"]["designspace"],
-        cfg.repo_root / "build" / "cache" / "RobotoFlex_VF.ttf",
-    )
+    sans_up_vf, sans_it_vf = _ensure_sans_vfs_cached(cfg)
     mono_up_vf, mono_it_vf = _ensure_mono_vfs_cached(cfg)
 
     tasks: list[dict[str, Any]] = []
@@ -205,7 +253,10 @@ def run_build(
                 continue
             if styles and sty not in styles:
                 continue
-            vf_sel = (mono_it_vf if "italic" in sty else mono_up_vf) if mod == "mono" else sans_vf
+            if mod == "mono":
+                vf_sel = mono_it_vf if "italic" in sty else mono_up_vf
+            else:
+                vf_sel = sans_it_vf if "italic" in sty else sans_up_vf
             tasks.append({
                 "repo_root": str(cfg.repo_root),
                 "ppem": p,
@@ -226,11 +277,18 @@ def run_build(
     print(f"[*] Building {len(tasks)} strikes across {len(target_ppems)} PPEM(s) with {max(1, jobs)} worker(s)...")
     strikes: list[CompiledStrike] = []
     if jobs <= 1 or len(tasks) <= 2:
-        for t in tasks:
-            strikes.append(_build_single_strike_task(t))
+        strikes = [_build_single_strike_task(t) for t in tasks]
     else:
         with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as pool:
             strikes = list(pool.map(_build_single_strike_task, tasks))
+
+    # Build Terminus bitmap strikes & PUA Icon suites when not filtered out
+    from runner.terminus_icons import build_icon_strikes, build_terminus_strikes
+
+    if modifiers is None or "terminus" in modifiers:
+        strikes.extend(build_terminus_strikes(cfg, target_ppems))
+    if modifiers is None or any(m.startswith("icon_") for m in modifiers):
+        strikes.extend(build_icon_strikes(cfg, target_ppems))
 
     export_master_headers(strikes, cfg.repo_root / "build" / "c_arrays")
     export_strike_vault(strikes, cfg.repo_root / "build" / "dist" / "humid1_epd_vault.json.gz")

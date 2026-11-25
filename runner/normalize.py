@@ -279,19 +279,22 @@ def _build_sans_masters(cfg: ProjectConfig, masters_dir: Path, sym_masters: dict
     # Extract Basic Latin + Latin-1 from Roboto Flex; symbols come from Symbols-* masters
     latin_cps = parse_range_list(["0x0020-0x007E", "0x00A0-0x00FF"])
 
-    # Compact orthogonal corner set covering wght [400..900], wdth [75..100], opsz [12..40], XTRA [468..560], YOPQ [55..130], ital {0,1}
+    # Compact orthogonal corner set covering wght [400..900], wdth [75..100], opsz [12..40],
+    # XTRA [468..560], YOPQ [55..130], XOPQ [60..175], ital {0,1}
     corners: list[tuple[str, dict[str, float], float]] = []
-    for ital_val, slnt_val, i_tag in ((0, 0.0, "Upright"), (1, -10.0, "Italic")):
+    for _ital_val, slnt_val, i_tag in ((0, 0.0, "Upright"), (1, -10.0, "Italic")):
         corners.extend([
-            (f"EPDSans-{i_tag}-Default", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 79, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-Bold", {"wght": 900, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 79, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-Cond", {"wght": 400, "wdth": 75, "opsz": 14, "XTRA": 468, "YOPQ": 79, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-CondBold", {"wght": 900, "wdth": 75, "opsz": 14, "XTRA": 468, "YOPQ": 79, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-Opsz12", {"wght": 400, "wdth": 100, "opsz": 12, "XTRA": 468, "YOPQ": 79, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-Opsz40", {"wght": 400, "wdth": 100, "opsz": 40, "XTRA": 468, "YOPQ": 79, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-XTRA560", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 560, "YOPQ": 79, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-YOPQ55", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 55, "slnt": slnt_val}, slnt_val),
-            (f"EPDSans-{i_tag}-YOPQ130", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 130, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-Default", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 79, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-Bold", {"wght": 900, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 79, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-Cond", {"wght": 400, "wdth": 75, "opsz": 14, "XTRA": 468, "YOPQ": 79, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-CondBold", {"wght": 900, "wdth": 75, "opsz": 14, "XTRA": 468, "YOPQ": 79, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-Opsz12", {"wght": 400, "wdth": 100, "opsz": 12, "XTRA": 468, "YOPQ": 79, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-Opsz40", {"wght": 400, "wdth": 100, "opsz": 40, "XTRA": 468, "YOPQ": 79, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-XTRA560", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 560, "YOPQ": 79, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-YOPQ55", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 55, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-YOPQ130", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 130, "XOPQ": 96, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-XOPQ60", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 79, "XOPQ": 60, "slnt": slnt_val}, slnt_val),
+            (f"EPDSans-{i_tag}-XOPQ175", {"wght": 400, "wdth": 100, "opsz": 14, "XTRA": 468, "YOPQ": 79, "XOPQ": 175, "slnt": slnt_val}, slnt_val),
         ])
 
     vf_tt = TTFont(str(vf_path))
@@ -377,12 +380,19 @@ def run_normalize(cfg: ProjectConfig, force: bool = False) -> None:
     mono_dir = masters_dir / "mono"
 
     sym_exists = sym_dir.is_dir() and len(list(sym_dir.glob("*.ufo"))) >= 8
-    sans_exists = sans_dir.is_dir() and len(list(sans_dir.glob("*.ufo"))) >= 18
+    sans_exists = sans_dir.is_dir() and len(list(sans_dir.glob("*.ufo"))) >= 22
     mono_exists = mono_dir.is_dir() and len(list(mono_dir.glob("*.ufo"))) >= 6
 
     if not force and sym_exists and sans_exists and mono_exists:
-        print("[=] Masters already normalized in masters/{symbols,sans,mono} (pass --force to rebuild).")
+        print("[=] Stock masters verified in masters/{symbols,sans,mono,terminus,icons} (pass --force to rebuild).")
         return
+
+    donor_ds = cfg.repo_root / cfg.donors["donors"]["roboto_flex"]["designspace"]
+    if not donor_ds.is_file():
+        raise FileNotFoundError(
+            "Upstream donor archive (assets/UFO_assets/) is not present; "
+            "stock masters in masters/ are already normalized and self-contained."
+        )
 
     print("[*] Stage 0.1: Building harmonized UFO 3 symbol masters (DejaVu + STIX Two)...")
     sym_masters = _build_symbol_masters(cfg, masters_dir)

@@ -10,26 +10,28 @@ instances:
     target_stem_px: 2
     target_hbar_px: 2
     axes:
-      wght: 420
+      wght: 440
       wdth: 100
       opsz: 20
       XTRA: 475
       YOPQ: 65
       ital: 0
       MONO: 0
+      XOPQ: 112
   sans_italic:
     modifier: sans
     style: italic
     target_stem_px: 2
     target_hbar_px: 2
     axes:
-      wght: 420
+      wght: 440
       wdth: 100
       opsz: 20
       XTRA: 475
       YOPQ: 65
       ital: 1
       MONO: 0
+      XOPQ: 112
   sans_bold:
     modifier: sans
     style: bold
@@ -43,6 +45,7 @@ instances:
       YOPQ: 68
       ital: 0
       MONO: 0
+      XOPQ: 135
   sans_bold-italic:
     modifier: sans
     style: bold-italic
@@ -56,32 +59,35 @@ instances:
       YOPQ: 68
       ital: 1
       MONO: 0
+      XOPQ: 135
   condensed_normal:
     modifier: condensed
     style: normal
     target_stem_px: 2
     target_hbar_px: 2
     axes:
-      wght: 420
+      wght: 440
       wdth: 78
       opsz: 20
       XTRA: 475
       YOPQ: 65
       ital: 0
       MONO: 0
+      XOPQ: 112
   condensed_italic:
     modifier: condensed
     style: italic
     target_stem_px: 2
     target_hbar_px: 2
     axes:
-      wght: 420
+      wght: 440
       wdth: 78
       opsz: 20
       XTRA: 475
       YOPQ: 65
       ital: 1
       MONO: 0
+      XOPQ: 112
   condensed_bold:
     modifier: condensed
     style: bold
@@ -95,6 +101,7 @@ instances:
       YOPQ: 68
       ital: 0
       MONO: 0
+      XOPQ: 135
   condensed_bold-italic:
     modifier: condensed
     style: bold-italic
@@ -108,13 +115,14 @@ instances:
       YOPQ: 68
       ital: 1
       MONO: 0
+      XOPQ: 135
   mono_normal:
     modifier: mono
     style: normal
     target_stem_px: 2
     target_hbar_px: 2
     axes:
-      wght: 440
+      wght: 560
       ital: 0
       MONO: 1
   mono_italic:
@@ -123,7 +131,7 @@ instances:
     target_stem_px: 2
     target_hbar_px: 2
     axes:
-      wght: 440
+      wght: 560
       ital: 1
       MONO: 1
   mono_bold:
@@ -132,7 +140,7 @@ instances:
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 760
+      wght: 860
       ital: 0
       MONO: 1
   mono_bold-italic:
@@ -141,6 +149,6 @@ instances:
     target_stem_px: 3
     target_hbar_px: 2
     axes:
-      wght: 760
+      wght: 860
       ital: 1
       MONO: 1

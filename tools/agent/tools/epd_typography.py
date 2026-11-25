@@ -21,6 +21,11 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+try:
+    from tools.agent.tools.epd_bdf_pbm_inspector import inspect_bdf, inspect_pbm  # noqa: F401
+except ImportError:
+    from epd_bdf_pbm_inspector import inspect_bdf, inspect_pbm  # noqa: F401
+
 TOOL_VERSION = "1.0.23"
 
 # Built-in FontAwesome PUA mappings for LVGL built-in LV_SYMBOL_* macros

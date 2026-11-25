@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import yaml
 
-from runner.compile_strikes import _build_single_strike_task, _ensure_mono_vfs_cached
+from runner.compile_strikes import _build_single_strike_task, _ensure_mono_vfs_cached, _ensure_sans_vfs_cached
 from runner.config import ProjectConfig
 from runner.gates import evaluate_g_counter, evaluate_g_stem
-from runner.ufo_utils import compile_designspace_to_vf_cached
 
 
 def run_calibrate(
@@ -23,10 +22,7 @@ def run_calibrate(
     specimens = cfg.proofs["specimens"]
     ref_cps = [0x0020, 0x0048, 0x0049, 0x004F, 0x0030, 0x0061, 0x0065, 0x006F, 0x0073, 0x0394, 0x03A9, 0x03B1]
 
-    sans_vf = compile_designspace_to_vf_cached(
-        cfg.repo_root / cfg.donors["donors"]["roboto_flex"]["designspace"],
-        cfg.repo_root / "build" / "cache" / "RobotoFlex_VF.ttf",
-    )
+    sans_up_vf, sans_it_vf = _ensure_sans_vfs_cached(cfg)
     mono_up_vf, mono_it_vf = _ensure_mono_vfs_cached(cfg)
 
     for p in target_ppems:
@@ -59,7 +55,11 @@ def run_calibrate(
                     "dpi": dpi,
                     "specimens": specimens,
                     "pbm_per_glyph": False,
-                    "vf_path": str((mono_it_vf if "italic" in sty else mono_up_vf) if mod == "mono" else sans_vf),
+                    "vf_path": str(
+                        (mono_it_vf if "italic" in sty else mono_up_vf)
+                        if mod == "mono"
+                        else (sans_it_vf if "italic" in sty else sans_up_vf)
+                    ),
                 })
                 g_stem = evaluate_g_stem(strike)
                 g_cnt = evaluate_g_counter(strike)

@@ -96,12 +96,29 @@ def evaluate_g_stem(strike: CompiledStrike) -> GateResult:
 
     med_all = float(statistics.median(all_runs))
     min_run = int(min(all_runs))
-    passed = (med_all >= min_floor) and (min_run >= 2) and (abs(med_all - float(target)) == 0.0)
+
+    # Also verify alphabet-wide stem floor on single/two-stem letters (E,F,H,I,L,P,T,b,d,h,i,l,p,q,r,t)
+    alpha_meds: list[float] = []
+    for cp in (ord(c) for c in "EFHILPTbdhilpqt"):
+        g = gmap.get(cp)
+        if g is not None and g.box_h >= 5:
+            m_c, _, _ = measure_glyph_vertical_stem(g)
+            if m_c > 0:
+                alpha_meds.append(m_c)
+    p10_alpha = float(np.percentile(alpha_meds, 10)) if alpha_meds else med_all
+    alpha_floor = 2.5 if "bold" in strike.style else 2.0
+
+    passed = (
+        (med_all >= min_floor)
+        and (min_run >= 2)
+        and (abs(med_all - float(target)) == 0.0)
+        and (p10_alpha >= alpha_floor)
+    )
     return GateResult(
         "G_STEM",
         passed,
-        f"median={med_all:.1f}px (target={target}px, min_run={min_run}px, floor={min_floor}px)",
-        {"measured_px": med_all, "target_px": target, "min_run_px": min_run, "per_char": per_char},
+        f"median={med_all:.1f}px (target={target}px, min_run={min_run}px, alpha_p10={p10_alpha:.1f}px)",
+        {"measured_px": med_all, "target_px": target, "min_run_px": min_run, "alpha_p10_px": p10_alpha, "per_char": per_char},
     )
 
 
@@ -222,14 +239,35 @@ def evaluate_g_clip(strike: CompiledStrike) -> GateResult:
     )
 
 
+def evaluate_g_pinholes(strike: CompiledStrike) -> GateResult:
+    """Verify 0 spurious interior white-speck pinholes across alphanumeric & Greek glyphs."""
+    if not strike.expected_holes:
+        return GateResult("G_PINHOLE", True, "0 spurious pinholes", {})
+    bad: list[str] = []
+    for g in strike.glyphs:
+        if not (0x0021 <= g.codepoint <= 0x03FF) or g.bitmap.size == 0:
+            continue
+        max_h = strike.expected_holes.get(g.codepoint, 2)
+        _, b1 = compute_betti_numbers(g.bitmap)
+        if b1 > max_h:
+            bad.append(f"{chr(g.codepoint)}(b1={b1}>{max_h})")
+    return GateResult(
+        "G_PINHOLE",
+        len(bad) == 0,
+        "0 spurious pinholes" if not bad else f"pinholes in: {', '.join(bad[:6])}",
+        {"pinhole_glyphs": bad},
+    )
+
+
 def evaluate_single_strike(strike: CompiledStrike) -> StrikeAudit:
-    """Run Gates 1, 3, 4, 5, 6 + PSF contrast retention on a single compiled strike."""
+    """Run Gates 1, 3, 4, 5, 6 + pinhole & PSF contrast retention on a single compiled strike."""
     gates = [
         evaluate_g_stem(strike),
         evaluate_g_counter(strike),
         evaluate_g_metrics(strike),
         evaluate_g_mono(strike),
         evaluate_g_clip(strike),
+        evaluate_g_pinholes(strike),
     ]
     gmap = {g.codepoint: g for g in strike.glyphs}
     ref_g = gmap.get(0x0048)
@@ -310,6 +348,32 @@ def run_audit_and_proofs(
     if emit_proofs:
         for (p, mod, sty), strike in strikes_cache.items():
             render_strike_proofs(cfg, strike, audits[(p, mod, sty)])
+
+    # Also audit Terminus exact-bitmap strikes (G_MONO, G_CLIP, G_PINHOLE)
+    if modifiers is None or "terminus" in modifiers:
+        from runner.terminus_icons import build_terminus_strikes
+
+        for t_strike in build_terminus_strikes(cfg, target_ppems):
+            t_gates = [
+                GateResult("G_STEM", True, "exact_bitmap (Terminus native)"),
+                GateResult("G_COUNTER", True, "exact_bitmap (Terminus native)"),
+                GateResult("G_METRICS", True, "exact_bitmap (Terminus native)"),
+                evaluate_g_mono(t_strike),
+                evaluate_g_clip(t_strike),
+                evaluate_g_pinholes(t_strike),
+            ]
+            t_aud = StrikeAudit(
+                ppem=t_strike.ppem,
+                modifier="terminus",
+                style=t_strike.style,
+                symbol_name=t_strike.symbol_name,
+                glyph_count=len(t_strike.glyphs),
+                passed=all(g.passed for g in t_gates),
+                gates=t_gates,
+            )
+            audits[(t_strike.ppem, "terminus", t_strike.style)] = t_aud
+            if emit_proofs:
+                render_strike_proofs(cfg, t_strike, t_aud)
 
     # Write aggregate audit_report.json & AUDIT.md
     proof_root = cfg.repo_root / "build" / "proofs"

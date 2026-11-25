@@ -9,7 +9,13 @@ from pathlib import Path
 from fontTools.designspaceLib import DesignSpaceDocument
 from runner.config import REPO_ROOT, load_config, target_stem_px
 from runner.math_psf import compute_betti_numbers, compute_psf_contrast_retention
-from tools.agent.tools.epd_typography import discover_artifacts, inventory_fonts, measure_string_budget
+from tools.agent.tools.epd_typography import (
+    discover_artifacts,
+    inspect_bdf,
+    inspect_pbm,
+    inventory_fonts,
+    measure_string_budget,
+)
 
 
 def test_python_312_venv_isolation() -> None:
@@ -61,14 +67,21 @@ def test_psf_and_betti_math() -> None:
     assert 0.0 < psf["retention_pct"] <= 100.0
 
 
-def test_full_120_strike_audit_report_passed() -> None:
+def test_full_140_strike_audit_report_passed() -> None:
     report_path = REPO_ROOT / "build" / "proofs" / "audit_report.json"
     assert report_path.is_file(), "Run `scripts/epd_font.bat all` before pytest"
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["total_strikes"] == 120
-    assert report["passed_strikes"] == 120
+    assert report["total_strikes"] == 140
+    assert report["passed_strikes"] == 140
     assert report["failed_strikes"] == 0
     assert report["overall_status"] == "PASS"
+
+
+def test_stock_masters_self_contained() -> None:
+    assert not (REPO_ROOT / "assets" / "UFO_assets").exists()
+    for sub in ("sans", "mono", "symbols", "terminus", "icons", "licenses"):
+        assert (REPO_ROOT / "masters" / sub).is_dir()
+    assert (REPO_ROOT / "masters" / "README.md").is_file()
 
 
 def test_downstream_artifacts_and_epd_typography_bridge() -> None:
@@ -81,13 +94,35 @@ def test_downstream_artifacts_and_epd_typography_bridge() -> None:
     assert arts["metrics_dir"] is not None
 
     inv = inventory_fonts(workspace_dir=str(REPO_ROOT))
-    assert len(inv["strikes"]) == 120
+    assert len(inv["strikes"]) == 190
 
     budget = measure_string_budget(
         strike="humid1_font_epd_sans_normal_14",
-        text="Vapor Pressure",
-        right_text="42.8 hPa",
+        text="Humidity",
+        right_text="48.5%",
         right_strike="humid1_font_epd_mono_bold_16",
         workspace_dir=str(REPO_ROOT),
     )
     assert budget["fits_budget"] is True
+
+    c_file = REPO_ROOT / "build" / "c_arrays" / "humid1_font_epd_sans_normal_14.c"
+    assert ".fallback = &humid1_icon_fa7_solid_14" in c_file.read_text(encoding="utf-8")
+    h_file = REPO_ROOT / "build" / "c_arrays" / "epd_fonts.h"
+    assert "epd_font_bind_fallback" in h_file.read_text(encoding="utf-8")
+
+
+def test_bdf_and_pbm_inspector() -> None:
+    bdf_rep = inspect_bdf(
+        str(REPO_ROOT / "build" / "bdf" / "humid1_font_epd_sans_italic_18.bdf"),
+        char_query="M,Μ,r,e,s",
+    )
+    assert bdf_rep["stem_weight"]["vstem_p10_px"] >= 2.0
+    assert bdf_rep["stem_weight"]["thin_1px_glyphs"] == []
+    assert bdf_rep["topology_health"]["spurious_pinhole_glyphs"] == []
+
+    pbm_rep = inspect_pbm(
+        str(REPO_ROOT / "build" / "proofs" / "18" / "sans_italic" / "specimen_1x.pbm")
+    )
+    assert pbm_rep["ink_coverage_pct"] > 0.0
+    assert pbm_rep["pinhole_specks_1_to_3px"] == []
+    assert pbm_rep["width"] > 0 and pbm_rep["height"] > 0

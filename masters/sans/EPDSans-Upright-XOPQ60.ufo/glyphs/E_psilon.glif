@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Epsilon" format="2">
+  <advance width="616"/>
+  <unicode hex="0395"/>
+  <outline>
+    <contour>
+      <point x="96" y="711" type="line"/>
+      <point x="545" y="711" type="line"/>
+      <point x="545" y="630" type="line"/>
+      <point x="192" y="630" type="line"/>
+      <point x="192" y="420" type="line"/>
+      <point x="531" y="420" type="line"/>
+      <point x="531" y="339" type="line"/>
+      <point x="192" y="339" type="line"/>
+      <point x="192" y="81" type="line"/>
+      <point x="554" y="81" type="line"/>
+      <point x="554" y="0" type="line"/>
+      <point x="96" y="0" type="line"/>
+    </contour>
+  </outline>
+</glyph>

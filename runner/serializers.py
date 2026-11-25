@@ -222,8 +222,11 @@ def export_lvgl_c_file(strike: CompiledStrike, out_path: Path) -> int:
         lines.extend(["};", ""])
 
     cmaps_ptr = "cmaps" if cmaps else "NULL"
+    fb_sym = strike.fallback_symbol if (strike.fallback_symbol and strike.fallback_symbol != sym) else None
+    fb_extern = f"extern const lv_font_t {fb_sym};\n" if fb_sym else ""
+    fb_ptr = f"&{fb_sym}" if fb_sym else "NULL"
     lines.extend([
-        "static const lv_font_fmt_txt_dsc_t font_dsc = {",
+        fb_extern + "static const lv_font_fmt_txt_dsc_t font_dsc = {",
         "    .glyph_bitmap = glyph_bitmap,",
         "    .glyph_dsc = glyph_dsc,",
         f"    .cmaps = {cmaps_ptr},",
@@ -244,7 +247,7 @@ def export_lvgl_c_file(strike: CompiledStrike, out_path: Path) -> int:
         "    .underline_position = -1,",
         "    .underline_thickness = 1,",
         "    .dsc = &font_dsc,",
-        "    .fallback = NULL,",
+        f"    .fallback = {fb_ptr},",
         "    .user_data = NULL,",
         "};",
         "",
@@ -272,7 +275,7 @@ def export_csv_metrics(strike: CompiledStrike, metrics_dir: Path) -> None:
 
 
 def export_master_headers(strikes: list[CompiledStrike], c_dir: Path) -> None:
-    """Emit epd_fonts.h and humid1_fonts.h / h1os_fonts.h declarations."""
+    """Emit epd_fonts.h and humid1_fonts.h / h1os_fonts.h declarations + runtime fallback helper."""
     c_dir.mkdir(parents=True, exist_ok=True)
     decls = [f"LV_FONT_DECLARE({s.symbol_name});" for s in sorted(strikes, key=lambda x: x.symbol_name)]
     header_body = "\n".join([
@@ -280,6 +283,15 @@ def export_master_headers(strikes: list[CompiledStrike], c_dir: Path) -> None:
         '#include "lvgl.h"',
         "",
         *decls,
+        "",
+        "/* Dynamic runtime fallback binding (clone ROM lv_font_t into RAM and attach icon/fallback font) */",
+        "static inline void epd_font_bind_fallback(lv_font_t * dst_ram_font, const lv_font_t * base_font, const lv_font_t * fallback_font) {",
+        "    if (!dst_ram_font || !base_font) {",
+        "        return;",
+        "    }",
+        "    *dst_ram_font = *base_font;",
+        "    dst_ram_font->fallback = fallback_font;",
+        "}",
         "",
     ])
     (c_dir / "epd_fonts.h").write_text(header_body, encoding="utf-8")

@@ -10,13 +10,19 @@
       <point x="666" y="711" type="line"/>
       <point x="595" y="711" type="line"/>
       <point x="309" y="182" type="line"/>
-      <point x="293" y="145"/>
-      <point x="279" y="118"/>
-      <point x="273" y="102" type="qcurve"/>
+      <point x="298" y="157"/>
+      <point x="290" y="140"/>
+      <point x="286" y="131" type="curve" smooth="yes"/>
+      <point x="282" y="122"/>
+      <point x="277" y="112"/>
+      <point x="273" y="102" type="curve"/>
       <point x="269" y="102" type="line"/>
-      <point x="268" y="118"/>
-      <point x="260" y="160"/>
-      <point x="254" y="185" type="qcurve"/>
+      <point x="268" y="112"/>
+      <point x="267" y="125"/>
+      <point x="264" y="139" type="curve"/>
+      <point x="262" y="153"/>
+      <point x="258" y="168"/>
+      <point x="254" y="185" type="curve"/>
       <point x="158" y="711" type="line"/>
     </contour>
   </outline>

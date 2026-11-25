@@ -6,6 +6,7 @@
     <axis tag="opsz" name="Optical Size" minimum="12" maximum="40" default="28"/>
     <axis tag="XTRA" name="Counter Transparency" minimum="468" maximum="560" default="468"/>
     <axis tag="YOPQ" name="Horizontal Bar Thickness" minimum="55" maximum="130" default="79"/>
+    <axis tag="XOPQ" name="Vertical Stem Thickness" minimum="60" maximum="175" default="96"/>
     <axis tag="ital" name="Italic" values="0 1" default="0"/>
     <axis tag="MONO" name="Monospace" values="0 1" default="0"/>
   </axes>
@@ -17,6 +18,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -28,6 +30,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -39,6 +42,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -50,6 +54,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -61,6 +66,7 @@
         <dimension name="Optical Size" xvalue="12"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -72,6 +78,7 @@
         <dimension name="Optical Size" xvalue="40"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -83,6 +90,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="560"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -94,6 +102,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -105,6 +114,31 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="130"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-XOPQ60.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-XOPQ60">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="60"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-XOPQ175.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-XOPQ175">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="175"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -116,6 +150,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -127,6 +162,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -138,6 +174,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -149,6 +186,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -160,6 +198,7 @@
         <dimension name="Optical Size" xvalue="12"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -171,6 +210,7 @@
         <dimension name="Optical Size" xvalue="40"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -182,6 +222,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="560"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -193,6 +234,7 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -204,6 +246,31 @@
         <dimension name="Optical Size" xvalue="14"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="130"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-XOPQ60.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-XOPQ60">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="60"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-XOPQ175.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-XOPQ175">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="175"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -215,6 +282,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -226,6 +294,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -237,6 +306,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -248,6 +318,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -259,6 +330,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -270,6 +342,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -283,6 +356,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="475"/>
         <dimension name="Horizontal Bar Thickness" xvalue="75"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -311,6 +385,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="475"/>
         <dimension name="Horizontal Bar Thickness" xvalue="75"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -339,6 +414,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="520"/>
         <dimension name="Horizontal Bar Thickness" xvalue="80"/>
+        <dimension name="Vertical Stem Thickness" xvalue="135"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -367,6 +443,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="520"/>
         <dimension name="Horizontal Bar Thickness" xvalue="80"/>
+        <dimension name="Vertical Stem Thickness" xvalue="135"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -395,6 +472,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="475"/>
         <dimension name="Horizontal Bar Thickness" xvalue="75"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -423,6 +501,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="475"/>
         <dimension name="Horizontal Bar Thickness" xvalue="75"/>
+        <dimension name="Vertical Stem Thickness" xvalue="102"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -451,6 +530,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="520"/>
         <dimension name="Horizontal Bar Thickness" xvalue="80"/>
+        <dimension name="Vertical Stem Thickness" xvalue="135"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -479,6 +559,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="520"/>
         <dimension name="Horizontal Bar Thickness" xvalue="80"/>
+        <dimension name="Vertical Stem Thickness" xvalue="135"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="0"/>
       </location>
@@ -507,6 +588,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -535,6 +617,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -563,6 +646,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="0"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>
@@ -591,6 +675,7 @@
         <dimension name="Optical Size" xvalue="28"/>
         <dimension name="Counter Transparency" xvalue="468"/>
         <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Vertical Stem Thickness" xvalue="96"/>
         <dimension name="Italic" xvalue="1"/>
         <dimension name="Monospace" xvalue="1"/>
       </location>

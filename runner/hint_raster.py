@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import cv2
 import freetype
 import numpy as np
 import ttfautohint
@@ -14,6 +15,7 @@ import ufoLib2
 from fontTools.ttLib import TTFont
 
 from runner.grid_snap import compute_pixel_vertical_metrics
+from runner.math_psf import compute_betti_numbers
 
 
 @dataclass
@@ -67,6 +69,8 @@ class CompiledStrike:
     base_line: int
     glyphs: list[RasterizedGlyph]
     kern_pairs: list[tuple[int, int, int, int, int]]  # (l_gid, r_gid, l_cp, r_cp, kern_px)
+    fallback_symbol: str | None = None
+    expected_holes: dict[int, int] | None = None
 
 
 def compile_and_hint_ufo(
@@ -146,6 +150,128 @@ def _extract_mono_bitmap(bmp: freetype.Bitmap) -> np.ndarray:
     return arr
 
 
+def _count_open_bays(fg: np.ndarray) -> int:
+    ys, xs = np.nonzero(fg > 0)
+    if len(xs) < 3:
+        return 0
+    pts = np.column_stack((xs, ys)).astype(np.int32)
+    hull = cv2.convexHull(pts)
+    hull_img = np.zeros_like(fg, dtype=np.uint8)
+    cv2.fillConvexPoly(hull_img, hull, 1)
+    open_mask = (hull_img > 0) & (fg == 0)
+    n_op, _, stats_op, _ = cv2.connectedComponentsWithStats(open_mask.astype(np.uint8), connectivity=4)
+    return sum(
+        1
+        for lbl in range(1, int(n_op))
+        if int(stats_op[lbl, cv2.CC_STAT_WIDTH]) >= 1 and int(stats_op[lbl, cv2.CC_STAT_HEIGHT]) >= 1
+    )
+
+
+def heal_spurious_pinholes(arr: np.ndarray, max_holes: int) -> np.ndarray:
+    """
+    Remove spurious 1-2px enclosed white dropout specks (e.g. inside italic M, Μ, W, K)
+    by keeping at most `max_holes` largest 4-connected interior background components.
+    """
+    if arr.size == 0 or np.count_nonzero(arr) == 0:
+        return arr
+    padded = np.pad((arr > 0).astype(np.uint8), 1, mode="constant", constant_values=0)
+    num_bg, labels, stats, _ = cv2.connectedComponentsWithStats((1 - padded).astype(np.uint8), connectivity=4)
+    ext_lbl = int(labels[0, 0])
+    holes: list[tuple[int, int]] = []
+    for lbl in range(1, int(num_bg)):
+        if lbl == ext_lbl:
+            continue
+        holes.append((int(stats[lbl, cv2.CC_STAT_AREA]), lbl))
+    if len(holes) <= max_holes:
+        return arr
+    holes.sort(reverse=True)
+    keep_lbls = {lbl for _, lbl in holes[:max_holes]}
+    out = arr.copy()
+    inner_lbls = labels[1:-1, 1:-1]
+    for _, lbl in holes:
+        if lbl not in keep_lbls:
+            out[inner_lbls == lbl] = 1
+    return out
+
+
+def enforce_min_stem_floor_safe(
+    arr: np.ndarray,
+    cp: int,
+    target_floor_px: int,
+    max_holes: int,
+) -> tuple[np.ndarray, int]:
+    """
+    Thicken 1-px vertical/slanted stroke runs to `target_floor_px` ONLY when doing so
+    preserves exact Betti topology (no plugged counters, no bridged inter-stem gaps).
+    Returns (conditioned_bitmap, extra_right_cols).
+    """
+    if arr.size == 0 or cp < 0x0021 or cp > 0x03FF:
+        return arr, 0
+    if chr(cp) in ".,:;'\"!|/\\-_~^`·°":
+        return arr, 0
+    cur = arr.copy()
+    extra_cols = 0
+    open_bay_cp = cp in (0x0073, 0x0053, 0x0063, 0x0043, 0x0065, 0x0032, 0x0033, 0x0035, 0x007A)
+    orig_bays = _count_open_bays(cur) if open_bay_cp else 0
+
+    for min_w in range(2, target_floor_px + 1):
+        h, w = cur.shape
+        if h < 4 or w < 1:
+            break
+        b0_ref, b1_ref = compute_betti_numbers(cur)
+        for r in range(h):
+            runs: list[tuple[int, int]] = []
+            in_r, s = False, 0
+            for c in range(w):
+                if cur[r, c] and not in_r:
+                    s, in_r = c, True
+                elif not cur[r, c] and in_r:
+                    runs.append((s, c - 1))
+                    in_r = False
+            if in_r:
+                runs.append((s, w - 1))
+            if len(runs) > 3:
+                continue
+            for c0, c1 in runs:
+                run_w = c1 - c0 + 1
+                if run_w >= min_w:
+                    continue
+                has_vert = False
+                for nr in (r - 1, r + 1):
+                    if 0 <= nr < h and np.any(cur[nr, max(0, c0 - 1) : min(w, c1 + 2)]):
+                        has_vert = True
+                        break
+                if not has_vert:
+                    continue
+
+                cands_x: list[int] = []
+                if c1 + 1 < w:
+                    if c1 + 2 >= w or cur[r, c1 + 2] == 0:
+                        cands_x.append(c1 + 1)
+                elif c1 + 1 == w:
+                    cands_x.append(c1 + 1)
+                if c0 - 1 >= 0 and (c0 - 2 < 0 or cur[r, c0 - 2] == 0):
+                    cands_x.append(c0 - 1)
+
+                for cx in cands_x:
+                    if cx >= cur.shape[1]:
+                        test = np.pad(cur, ((0, 0), (0, 1)), mode="constant", constant_values=0)
+                    else:
+                        test = cur.copy()
+                    test[r, cx] = 1
+                    b0_t, b1_t = compute_betti_numbers(test)
+                    if b0_t != b0_ref or b1_t > min(b1_ref, max_holes) or b1_t < b1_ref:
+                        continue
+                    if open_bay_cp and _count_open_bays(test) < orig_bays:
+                        continue
+                    if cx >= cur.shape[1]:
+                        extra_cols += 1
+                    cur = test
+                    w = cur.shape[1]
+                    break
+    return cur, extra_cols
+
+
 def rasterize_ttf_mono(
     ttf_path: Path,
     ppem: int,
@@ -153,6 +279,7 @@ def rasterize_ttf_mono(
     style: str,
     codepoints: list[int],
     mono_advance_px: int | None = None,
+    apply_conditioning: bool = True,
 ) -> CompiledStrike:
     """Rasterize a hinted TTF at PPEM using FT_LOAD_RENDER | FT_LOAD_TARGET_MONO."""
     ascent_px, descent_px, _, _ = compute_pixel_vertical_metrics(ppem)
@@ -160,12 +287,38 @@ def rasterize_ttf_mono(
     base_line = descent_px
 
     face = freetype.Face(str(ttf_path))
-    face.set_pixel_sizes(0, ppem)
     load_flags = freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_MONO
 
     tt = TTFont(str(ttf_path), lazy=True)
     cmap = tt.getBestCmap() or {}
     tt.close()
+
+    expected_holes: dict[int, int] = {}
+    _known_zero_hole = {
+        0x004B, 0x004D, 0x004E, 0x0056, 0x0057, 0x0058, 0x0059, 0x005A,
+        0x006B, 0x006D, 0x006E, 0x0076, 0x0077, 0x0078, 0x0079, 0x007A,
+        0x0396, 0x039A, 0x039C, 0x039D, 0x03A7, 0x03BA, 0x03BC, 0x03BD, 0x03C7,
+    }
+    norm_flags = freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_NORMAL
+    face.set_pixel_sizes(0, 64)
+    for cp in codepoints:
+        if cp in cmap and 0x0021 <= cp <= 0x03FF:
+            if cp in _known_zero_hole:
+                expected_holes[cp] = 0
+                continue
+            face.load_char(cp, norm_flags)
+            hb = face.glyph.bitmap
+            if hb.rows > 0 and hb.width > 0:
+                hi_arr = (
+                    np.array(hb.buffer, dtype=np.uint8).reshape(hb.rows, hb.width) >= 128
+                ).astype(np.uint8)
+                _, b1_hi = compute_betti_numbers(hi_arr)
+            else:
+                b1_hi = 0
+            expected_holes[cp] = b1_hi
+
+    face.set_pixel_sizes(0, ppem)
+    min_stem_floor = 3 if "bold" in style else 2
 
     glyphs: list[RasterizedGlyph] = []
     gid = 1
@@ -176,6 +329,12 @@ def rasterize_ttf_mono(
         slot = face.glyph
         bmp = slot.bitmap
         arr = _extract_mono_bitmap(bmp)
+        if apply_conditioning and arr.size > 0 and 0x0021 <= cp <= 0x03FF:
+            max_h = expected_holes.get(cp, 2)
+            arr = heal_spurious_pinholes(arr, max_h)
+            if ppem <= 20:
+                arr, _ = enforce_min_stem_floor_safe(arr, cp, min_stem_floor, max_h)
+
         box_h, box_w = int(arr.shape[0]), int(arr.shape[1])
         ofs_x = int(slot.bitmap_left)
         ofs_y = int(slot.bitmap_top) - box_h
@@ -183,7 +342,6 @@ def rasterize_ttf_mono(
             adv_px = int(mono_advance_px)
             adv_fp4 = adv_px * 16
         else:
-            # FreeType advance.x is 26.6 fixed-point; LVGL adv_w is FP4 (1/16 px)
             adv_fp4 = max(0, round(float(slot.advance.x) / 4.0))
             adv_px = (adv_fp4 + 8) >> 4
 
@@ -205,6 +363,11 @@ def rasterize_ttf_mono(
 
     style_sym = style.replace("-", "_")
     symbol_name = f"humid1_font_epd_{modifier}_{style_sym}_{ppem}"
+    fallback_sym = (
+        f"humid1_icon_fa7_solid_{ppem}"
+        if (modifier == "sans" and style == "normal")
+        else f"humid1_font_epd_sans_normal_{ppem}"
+    )
     return CompiledStrike(
         ppem=ppem,
         modifier=modifier,
@@ -217,4 +380,6 @@ def rasterize_ttf_mono(
         base_line=base_line,
         glyphs=glyphs,
         kern_pairs=[],
+        fallback_symbol=fallback_sym,
+        expected_holes=expected_holes,
     )

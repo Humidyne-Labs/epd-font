@@ -5,24 +5,27 @@
   <outline>
     <contour>
       <point x="549" y="563" type="line"/>
-      <point x="421" y="433"/>
-      <point x="263" y="398" type="qcurve"/>
-      <point x="422" y="363"/>
-      <point x="549" y="233" type="qcurve"/>
+      <point x="464" y="476"/>
+      <point x="368" y="421"/>
+      <point x="263" y="398" type="curve"/>
+      <point x="369" y="375"/>
+      <point x="464" y="320"/>
+      <point x="549" y="233" type="curve"/>
       <point x="549" y="74" type="line"/>
-      <point x="353" y="311"/>
+      <point x="352" y="311"/>
       <point x="51" y="335" type="qcurve"/>
       <point x="51" y="461" type="line"/>
-      <point x="358" y="478"/>
+      <point x="358" y="479"/>
       <point x="549" y="722" type="qcurve"/>
     </contour>
     <contour>
-      <point x="51" y="141" type="qcurve"/>
+      <point x="51" y="141" type="curve"/>
       <point x="51" y="252" type="line"/>
-      <point x="371" y="199"/>
+      <point x="370" y="200"/>
       <point x="549" y="-42" type="qcurve"/>
       <point x="549" y="-194" type="line"/>
-      <point x="361" y="84"/>
+      <point x="424" y="-8"/>
+      <point x="258" y="103"/>
     </contour>
   </outline>
 </glyph>

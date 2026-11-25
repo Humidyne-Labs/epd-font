@@ -32,6 +32,7 @@ def generate_designspace_for_ppem(cfg: ProjectConfig, ppem: int) -> Path:
         ("opsz", "Optical Size", 12, ppem, 40),
         ("XTRA", "Counter Transparency", 468, 468, 560),
         ("YOPQ", "Horizontal Bar Thickness", 55, 79, 130),
+        ("XOPQ", "Vertical Stem Thickness", 60, 96, 175),
     ]:
         ax = AxisDescriptor()
         ax.tag = tag
@@ -58,26 +59,30 @@ def generate_designspace_for_ppem(cfg: ProjectConfig, ppem: int) -> Path:
 
     # Sans / Condensed sources (MONO = 0)
     sans_map = [
-        ("EPDSans-Upright-Default.ufo", 0, 400, 100, 14, 468, 79),
-        ("EPDSans-Upright-Bold.ufo", 0, 900, 100, 14, 468, 79),
-        ("EPDSans-Upright-Cond.ufo", 0, 400, 75, 14, 468, 79),
-        ("EPDSans-Upright-CondBold.ufo", 0, 900, 75, 14, 468, 79),
-        ("EPDSans-Upright-Opsz12.ufo", 0, 400, 100, 12, 468, 79),
-        ("EPDSans-Upright-Opsz40.ufo", 0, 400, 100, 40, 468, 79),
-        ("EPDSans-Upright-XTRA560.ufo", 0, 400, 100, 14, 560, 79),
-        ("EPDSans-Upright-YOPQ55.ufo", 0, 400, 100, 14, 468, 55),
-        ("EPDSans-Upright-YOPQ130.ufo", 0, 400, 100, 14, 468, 130),
-        ("EPDSans-Italic-Default.ufo", 1, 400, 100, 14, 468, 79),
-        ("EPDSans-Italic-Bold.ufo", 1, 900, 100, 14, 468, 79),
-        ("EPDSans-Italic-Cond.ufo", 1, 400, 75, 14, 468, 79),
-        ("EPDSans-Italic-CondBold.ufo", 1, 900, 75, 14, 468, 79),
-        ("EPDSans-Italic-Opsz12.ufo", 1, 400, 100, 12, 468, 79),
-        ("EPDSans-Italic-Opsz40.ufo", 1, 400, 100, 40, 468, 79),
-        ("EPDSans-Italic-XTRA560.ufo", 1, 400, 100, 14, 560, 79),
-        ("EPDSans-Italic-YOPQ55.ufo", 1, 400, 100, 14, 468, 55),
-        ("EPDSans-Italic-YOPQ130.ufo", 1, 400, 100, 14, 468, 130),
+        ("EPDSans-Upright-Default.ufo", 0, 400, 100, 14, 468, 79, 96),
+        ("EPDSans-Upright-Bold.ufo", 0, 900, 100, 14, 468, 79, 96),
+        ("EPDSans-Upright-Cond.ufo", 0, 400, 75, 14, 468, 79, 96),
+        ("EPDSans-Upright-CondBold.ufo", 0, 900, 75, 14, 468, 79, 96),
+        ("EPDSans-Upright-Opsz12.ufo", 0, 400, 100, 12, 468, 79, 96),
+        ("EPDSans-Upright-Opsz40.ufo", 0, 400, 100, 40, 468, 79, 96),
+        ("EPDSans-Upright-XTRA560.ufo", 0, 400, 100, 14, 560, 79, 96),
+        ("EPDSans-Upright-YOPQ55.ufo", 0, 400, 100, 14, 468, 55, 96),
+        ("EPDSans-Upright-YOPQ130.ufo", 0, 400, 100, 14, 468, 130, 96),
+        ("EPDSans-Upright-XOPQ60.ufo", 0, 400, 100, 14, 468, 79, 60),
+        ("EPDSans-Upright-XOPQ175.ufo", 0, 400, 100, 14, 468, 79, 175),
+        ("EPDSans-Italic-Default.ufo", 1, 400, 100, 14, 468, 79, 96),
+        ("EPDSans-Italic-Bold.ufo", 1, 900, 100, 14, 468, 79, 96),
+        ("EPDSans-Italic-Cond.ufo", 1, 400, 75, 14, 468, 79, 96),
+        ("EPDSans-Italic-CondBold.ufo", 1, 900, 75, 14, 468, 79, 96),
+        ("EPDSans-Italic-Opsz12.ufo", 1, 400, 100, 12, 468, 79, 96),
+        ("EPDSans-Italic-Opsz40.ufo", 1, 400, 100, 40, 468, 79, 96),
+        ("EPDSans-Italic-XTRA560.ufo", 1, 400, 100, 14, 560, 79, 96),
+        ("EPDSans-Italic-YOPQ55.ufo", 1, 400, 100, 14, 468, 55, 96),
+        ("EPDSans-Italic-YOPQ130.ufo", 1, 400, 100, 14, 468, 130, 96),
+        ("EPDSans-Italic-XOPQ60.ufo", 1, 400, 100, 14, 468, 79, 60),
+        ("EPDSans-Italic-XOPQ175.ufo", 1, 400, 100, 14, 468, 79, 175),
     ]
-    for fn, ital_v, wght_v, wdth_v, opsz_v, xtra_v, yopq_v in sans_map:
+    for fn, ital_v, wght_v, wdth_v, opsz_v, xtra_v, yopq_v, xopq_v in sans_map:
         src = SourceDescriptor()
         src.filename = f"../masters/sans/{fn}"
         src.familyName = "EPD Sans"
@@ -88,6 +93,7 @@ def generate_designspace_for_ppem(cfg: ProjectConfig, ppem: int) -> Path:
             "Optical Size": opsz_v,
             "Counter Transparency": xtra_v,
             "Horizontal Bar Thickness": yopq_v,
+            "Vertical Stem Thickness": xopq_v,
             "Italic": ital_v,
             "Monospace": 0,
         }
@@ -113,6 +119,7 @@ def generate_designspace_for_ppem(cfg: ProjectConfig, ppem: int) -> Path:
             "Optical Size": ppem,
             "Counter Transparency": 468,
             "Horizontal Bar Thickness": 79,
+            "Vertical Stem Thickness": 96,
             "Italic": ital_v,
             "Monospace": 1,
         }
@@ -131,6 +138,7 @@ def generate_designspace_for_ppem(cfg: ProjectConfig, ppem: int) -> Path:
             "Optical Size": float(ax_vals.get("opsz", ppem)),
             "Counter Transparency": float(ax_vals.get("XTRA", 468)),
             "Horizontal Bar Thickness": float(ax_vals.get("YOPQ", 79)),
+            "Vertical Stem Thickness": float(ax_vals.get("XOPQ", 96)),
             "Italic": int(ax_vals.get("ital", 0)),
             "Monospace": int(ax_vals.get("MONO", 0)),
         }

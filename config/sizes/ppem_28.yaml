@@ -17,6 +17,7 @@ instances:
       YOPQ: 75
       ital: 0
       MONO: 0
+      XOPQ: 102
   sans_italic:
     modifier: sans
     style: italic
@@ -30,6 +31,7 @@ instances:
       YOPQ: 75
       ital: 1
       MONO: 0
+      XOPQ: 102
   sans_bold:
     modifier: sans
     style: bold
@@ -43,6 +45,7 @@ instances:
       YOPQ: 80
       ital: 0
       MONO: 0
+      XOPQ: 135
   sans_bold-italic:
     modifier: sans
     style: bold-italic
@@ -56,6 +59,7 @@ instances:
       YOPQ: 80
       ital: 1
       MONO: 0
+      XOPQ: 135
   condensed_normal:
     modifier: condensed
     style: normal
@@ -69,6 +73,7 @@ instances:
       YOPQ: 75
       ital: 0
       MONO: 0
+      XOPQ: 102
   condensed_italic:
     modifier: condensed
     style: italic
@@ -82,6 +87,7 @@ instances:
       YOPQ: 75
       ital: 1
       MONO: 0
+      XOPQ: 102
   condensed_bold:
     modifier: condensed
     style: bold
@@ -95,6 +101,7 @@ instances:
       YOPQ: 80
       ital: 0
       MONO: 0
+      XOPQ: 135
   condensed_bold-italic:
     modifier: condensed
     style: bold-italic
@@ -108,6 +115,7 @@ instances:
       YOPQ: 80
       ital: 1
       MONO: 0
+      XOPQ: 135
   mono_normal:
     modifier: mono
     style: normal

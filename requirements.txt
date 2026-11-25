@@ -1,11 +1,19 @@
-# Core required packages for epd-font (v1.0.23) asset generation, rasterization & evaluation
-fonttools>=4.40.0
-Pillow>=10.0.0
+# Runtime dependencies for epd-font v2.0.0 (Python 3.12 .venv)
+fonttools[ufo,lxml,unicode]>=4.53.0
+ufoLib2>=0.16.0
+ufo2ft>=3.2.0
+fontmake>=3.9.0
+skia-pathops>=0.8.0
+ttfautohint-py>=0.5.1
+cffsubr>=0.3.0
 freetype-py>=2.4.0
-numpy>=1.24.0
-opencv-python>=4.8.0
+numpy>=1.26.0,<2.3.0
+opencv-python-headless>=4.9.0
+Pillow>=10.3.0
+PyYAML>=6.0.1
 
-# Optional GPU / OpenCL mathematical acceleration backend (tools/fonts/math_backends/opencl_kernels.py)
-# If your system does not have OpenCL headers/ICD installed, omit this line or install core packages above;
-# the pipeline automatically falls back to OpenCV UMat or the vectorized NumPy/OpenCV CPU backend.
-# pyopencl>=2023.1
+# Dev / Audit dependencies
+pytest>=8.0.0
+ruff>=0.6.0
+mypy>=1.11.0
+types-PyYAML

@@ -1,0 +1,146 @@
+ppem: 20
+regime: proportional
+build_upm: 2000
+grid_snap_units: 100
+mono_advance_px: 12
+instances:
+  sans_normal:
+    modifier: sans
+    style: normal
+    target_stem_px: 2
+    target_hbar_px: 2
+    axes:
+      wght: 420
+      wdth: 100
+      opsz: 20
+      XTRA: 475
+      YOPQ: 65
+      ital: 0
+      MONO: 0
+  sans_italic:
+    modifier: sans
+    style: italic
+    target_stem_px: 2
+    target_hbar_px: 2
+    axes:
+      wght: 420
+      wdth: 100
+      opsz: 20
+      XTRA: 475
+      YOPQ: 65
+      ital: 1
+      MONO: 0
+  sans_bold:
+    modifier: sans
+    style: bold
+    target_stem_px: 3
+    target_hbar_px: 2
+    axes:
+      wght: 720
+      wdth: 100
+      opsz: 20
+      XTRA: 540
+      YOPQ: 68
+      ital: 0
+      MONO: 0
+  sans_bold-italic:
+    modifier: sans
+    style: bold-italic
+    target_stem_px: 3
+    target_hbar_px: 2
+    axes:
+      wght: 720
+      wdth: 100
+      opsz: 20
+      XTRA: 540
+      YOPQ: 68
+      ital: 1
+      MONO: 0
+  condensed_normal:
+    modifier: condensed
+    style: normal
+    target_stem_px: 2
+    target_hbar_px: 2
+    axes:
+      wght: 420
+      wdth: 78
+      opsz: 20
+      XTRA: 475
+      YOPQ: 65
+      ital: 0
+      MONO: 0
+  condensed_italic:
+    modifier: condensed
+    style: italic
+    target_stem_px: 2
+    target_hbar_px: 2
+    axes:
+      wght: 420
+      wdth: 78
+      opsz: 20
+      XTRA: 475
+      YOPQ: 65
+      ital: 1
+      MONO: 0
+  condensed_bold:
+    modifier: condensed
+    style: bold
+    target_stem_px: 3
+    target_hbar_px: 2
+    axes:
+      wght: 720
+      wdth: 80
+      opsz: 20
+      XTRA: 540
+      YOPQ: 68
+      ital: 0
+      MONO: 0
+  condensed_bold-italic:
+    modifier: condensed
+    style: bold-italic
+    target_stem_px: 3
+    target_hbar_px: 2
+    axes:
+      wght: 720
+      wdth: 80
+      opsz: 20
+      XTRA: 540
+      YOPQ: 68
+      ital: 1
+      MONO: 0
+  mono_normal:
+    modifier: mono
+    style: normal
+    target_stem_px: 2
+    target_hbar_px: 2
+    axes:
+      wght: 440
+      ital: 0
+      MONO: 1
+  mono_italic:
+    modifier: mono
+    style: italic
+    target_stem_px: 2
+    target_hbar_px: 2
+    axes:
+      wght: 440
+      ital: 1
+      MONO: 1
+  mono_bold:
+    modifier: mono
+    style: bold
+    target_stem_px: 3
+    target_hbar_px: 2
+    axes:
+      wght: 760
+      ital: 0
+      MONO: 1
+  mono_bold-italic:
+    modifier: mono
+    style: bold-italic
+    target_stem_px: 3
+    target_hbar_px: 2
+    axes:
+      wght: 760
+      ital: 1
+      MONO: 1

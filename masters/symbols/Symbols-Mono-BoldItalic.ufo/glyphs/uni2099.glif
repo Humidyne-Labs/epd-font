@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="uni2099" format="2">
+  <advance width="600"/>
+  <unicode hex="2099"/>
+  <outline>
+    <contour>
+      <point x="444" y="192" type="qcurve" smooth="yes"/>
+      <point x="406" y="0" type="line"/>
+      <point x="319" y="0" type="line"/>
+      <point x="354" y="180" type="line" smooth="yes"/>
+      <point x="360" y="212"/>
+      <point x="344" y="240"/>
+      <point x="321" y="240" type="qcurve" smooth="yes"/>
+      <point x="297" y="240"/>
+      <point x="280" y="221" type="qcurve"/>
+      <point x="262" y="203"/>
+      <point x="256" y="169" type="qcurve" smooth="yes"/>
+      <point x="223" y="0" type="line"/>
+      <point x="135" y="0" type="line"/>
+      <point x="193" y="296" type="line"/>
+      <point x="280" y="296" type="line"/>
+      <point x="272" y="251" type="line"/>
+      <point x="286" y="276"/>
+      <point x="311" y="289" type="qcurve" smooth="yes"/>
+      <point x="336" y="303"/>
+      <point x="368" y="303" type="qcurve" smooth="yes"/>
+      <point x="417" y="303"/>
+      <point x="436" y="275" type="qcurve" smooth="yes"/>
+      <point x="454" y="247"/>
+    </contour>
+  </outline>
+</glyph>

@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="omicrontonos" format="2">
+  <advance width="600"/>
+  <unicode hex="03CC"/>
+  <outline>
+    <contour>
+      <point x="51" y="194" type="qcurve" smooth="yes"/>
+      <point x="51" y="345"/>
+      <point x="208" y="534"/>
+      <point x="334" y="534" type="qcurve" smooth="yes"/>
+      <point x="435" y="534"/>
+      <point x="549" y="421"/>
+      <point x="549" y="320" type="qcurve" smooth="yes"/>
+      <point x="549" y="168"/>
+      <point x="392" y="-21"/>
+      <point x="266" y="-21" type="qcurve" smooth="yes"/>
+      <point x="165" y="-21"/>
+      <point x="51" y="93"/>
+    </contour>
+    <contour>
+      <point x="410" y="315" type="qcurve" smooth="yes"/>
+      <point x="410" y="367"/>
+      <point x="366" y="422"/>
+      <point x="326" y="422" type="qcurve" smooth="yes"/>
+      <point x="268" y="422"/>
+      <point x="190" y="294"/>
+      <point x="190" y="197" type="qcurve" smooth="yes"/>
+      <point x="190" y="147"/>
+      <point x="236" y="90"/>
+      <point x="275" y="90" type="qcurve" smooth="yes"/>
+      <point x="332" y="90"/>
+      <point x="410" y="219"/>
+    </contour>
+    <contour>
+      <point x="428" y="765" type="line"/>
+      <point x="579" y="765" type="line"/>
+      <point x="371" y="588" type="line"/>
+      <point x="278" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

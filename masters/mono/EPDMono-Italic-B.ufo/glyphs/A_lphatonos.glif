@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Alphatonos" format="2">
+  <advance width="600"/>
+  <unicode hex="0386"/>
+  <outline>
+    <contour>
+      <point x="311" y="697" type="line"/>
+      <point x="427" y="697" type="line"/>
+      <point x="505" y="-7" type="line"/>
+      <point x="410" y="-7" type="line"/>
+      <point x="394" y="176" type="line"/>
+      <point x="149" y="176" type="line"/>
+      <point x="62" y="-7" type="line"/>
+      <point x="-40" y="-7" type="line"/>
+    </contour>
+    <contour>
+      <point x="356" y="617" type="line"/>
+      <point x="184" y="253" type="line"/>
+      <point x="387" y="253" type="line"/>
+    </contour>
+    <contour>
+      <point x="225" y="765" type="line"/>
+      <point x="328" y="765" type="line"/>
+      <point x="142" y="588" type="line"/>
+      <point x="68" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

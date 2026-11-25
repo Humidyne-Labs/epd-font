@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="iotatonos" format="2">
+  <advance width="376"/>
+  <unicode hex="03AF"/>
+  <outline>
+    <contour>
+      <point x="244" y="163" type="line" smooth="yes"/>
+      <point x="244" y="103"/>
+      <point x="267" y="73"/>
+      <point x="321" y="73"/>
+      <point x="336" y="75" type="qcurve"/>
+      <point x="336" y="-14" type="line"/>
+      <point x="307" y="-26"/>
+      <point x="206" y="-26" type="qcurve" smooth="yes"/>
+      <point x="175" y="-26"/>
+      <point x="144" y="-16" type="qcurve" smooth="yes"/>
+      <point x="95" y="-2"/>
+      <point x="82" y="41" type="qcurve" smooth="yes"/>
+      <point x="75" y="61"/>
+      <point x="75" y="103" type="qcurve" smooth="yes"/>
+      <point x="75" y="521" type="line"/>
+      <point x="244" y="521" type="line"/>
+    </contour>
+    <contour>
+      <point x="207" y="765" type="line"/>
+      <point x="341" y="765" type="line"/>
+      <point x="167" y="588" type="line"/>
+      <point x="74" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

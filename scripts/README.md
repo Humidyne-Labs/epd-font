@@ -1,9 +1,13 @@
 # One-Click Windows Batch Workflows (`scripts/`) — `epd-font` v1.0.23
 
-Each subdirectory under `scripts/` provides self-contained Windows `.bat` launchers (`00` through `07`/`08` and `99_run_full_pipeline.bat`) with zero hardcoded user paths, using `"hardware_scheme"` inside each `.scheme.json` (or `--hw-scheme` on `humid1_font_eval.py`):
+See [docs/WORKFLOW_AND_SCRIPT_CATALOG.md](../docs/WORKFLOW_AND_SCRIPT_CATALOG.md) for the full 5-workflow specification and module inventory.
 
-1. `scripts/h1os-build-distro/` — Builds the `H1OS` / `humid1-os` firmware font suite (`h1os_full.scheme.json` and `h1os_lite.scheme.json`; `h1os_debug.scheme.json` is excluded from the packaged H1OS distro zip and used by `08_run_single_font_debug.bat`) referencing `esp32s3-N8R8-hw_scheme.json` into `build/h1os/` and packages `dist/epd-font_h1os_v1.0.23.zip`. Includes `03b_compare_all_9_methods_pngs.bat` to render full 9-pipeline visual comparison sheets across all H1OS fonts/sizes into `build/h1os_9method_audit/`.
-2. `scripts/example-build-distro/` — Builds the general-purpose embedded project template (`example.scheme.json`) referencing `generic_hw.json` into `build/example/` and packages `dist/epd-font_example_v1.0.23.zip`.
-3. `scripts/full-audit-build-distro/` — Runs the complete `10px - 40px` (`step size 2px`) visual audit across all fonts, icons, and all 9 resolution-reduction pipelines (`raw-unhinted`, `raw-hinted`, `svg-potrace`, `svg-potrace-jfa`, `mdf`, `msdf`, `sdf-smoothstep`, `adf-biquadratic`, `otsu-adaptive`) referencing `esp32s3-N8R8-hw_scheme.json` into `build/audit/` and packages `dist/epd-font_audit_v1.0.23.zip`.
-4. `scripts/font-eval-suite/` — Runs `humid1_font_eval.py` across all 9 resolution-reduction pipelines (`01_run_font_eval.bat` for `build/static_ttfs` and `02_run_font_eval.bat <custom_font_dir>` for external font collections) using `--hw-scheme esp32s3-N8R8-hw_scheme.json`.
-5. `scripts/probe_hardware.py` & `scripts/check_PyOpenCL.py` — Multi-device OpenCL (`Ellesmere` 32 CUs + `AMD Ryzen 5 5600G` 12 CUs) & `75%` Shared GPU RAM (`CL_MEM_ALLOC_HOST_PTR`, `--stress-shared-mb`) diagnostic utilities.
+All suites share [scripts/ensure_local_vlm_server.ps1](file:///C:/Users/Matt/Documents/GitHub/epd-font/scripts/ensure_local_vlm_server.ps1) inside `00_setup_env.bat` so the local `llama-server` VLM endpoint (`http://127.0.0.1:8090/v1/models`) is verified or auto-started before downstream steps run:
+
+1. **`scripts/h1os-build-distro-v1/`** (`00`–`10` + `99`) — **H1OS v1 (Baseline):** `IBM Plex + Noto + Terminus` -> `build/h1os_v1/` -> `dist/epd-font_h1os_v1_v1.0.23.zip`.
+2. **`scripts/h1os-build-distro-v2/`** (`00`–`10` + `99`) — **H1OS v2 (20 cm Natural):** `FiraSans + InterTight + FiraSansCondensed (wght=700) + JetBrainsMono + FiraCode + Bitter + Terminus` -> `build/h1os_v2/` -> `dist/epd-font_h1os_v2_v1.0.23.zip`.
+3. **`scripts/h1os-build-distro-v3/`** (`00`–`10` + `99`) — **H1OS v3 (4-Round Funnel + Adams Adoption + Micro-Tuned + VLM Patched):** `01_select_v3_tournament_fonts.bat` auto-runs triage if needed, crowning `adams_six` UI + `adams_mono_one` Mono -> `build/h1os_v3/` -> `dist/epd-font_h1os_v3_v1.0.23.zip`.
+4. **`scripts/font-eval-suite/`** (`00`–`03` + `99`) — **Evaluation & Tournament Only (No Distro):** Extract bench fonts (`01`), run Rounds 0–2 Good-Apple triage & dynamic Adams adoption (`02`), and run Round 3 OpenType + 9-pipeline Big Fish tournament (`03`).
+5. **`scripts/font-audit-suite/`** (`00`–`03` + `99`) — **Read-Only Font Audit (No Distro):** Complete `10px–40px` (`step=2px`) 9-pipeline comparison sheets and VLM vision audit into `build/audit/`.
+6. **`scripts/example-build-distro/`** — General-purpose embedded project template (`generic_hw.json`) -> `build/example/` -> `dist/epd-font_example_v1.0.23.zip`.
+7. **`scripts/probe_hardware.py` & `scripts/check_PyOpenCL.py`** — Multi-device OpenCL & Shared GPU RAM diagnostic utilities.

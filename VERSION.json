@@ -1,116 +1,28 @@
 {
   "repository": "https://github.com/Humidyne-Labs/epd-font",
   "repository_name": "epd-font",
-  "project_tagline": "A 1-bit EPD font generator and asset pipeline for embedded displays",
+  "project_tagline": "UFO 3 + DesignSpace 5.1 1-bit bi-level EPD typography system for embedded displays",
   "organization": "Humidyne Labs / Humiditron",
-  "authors": [
-    "Humiditron (https://github.com/humiditron)",
-    "AI/LLM Collaborative Development Partner"
-  ],
-  "version": "1.0.23",
-  "release_archive_tag": "v1.0.23",
-  "previous_version": "1.0.22",
-  "release_date": "2026-11-19",
-  "repository_license": "MIT",
-  "spdx_license": "MIT AND OFL-1.1 AND CC-BY-4.0 AND ISC",
+  "version": "2.0.0",
+  "spec_id": "SPEC-EPD-FONT-001",
+  "spec_revision": "1.1",
+  "master_format": "UFO 3 + DesignSpace 5.1",
+  "python_toolchain": "3.12 (.venv via uv)",
   "lvgl_compatibility": ">= 9.6.0 (LVGL v9+)",
-  "supported_platforms": [
-    "Windows (Primary)",
-    "Linux (Supported)"
+  "ppem_range": [12, 14, 16, 18, 20, 24, 28, 32, 36, 40],
+  "styles": ["normal", "italic", "bold", "bold-italic"],
+  "modifiers": ["sans", "mono", "condensed"],
+  "output_artifacts": [
+    "build/ttf/*.ttf",
+    "build/bdf/*.bdf",
+    "build/pbm/*",
+    "build/c_arrays/*.{c,h}",
+    "build/metrics/*.csv",
+    "build/dist/humid1_epd_vault.json.gz",
+    "build/proofs/*"
   ],
-  "conversion_pipelines": [
-    "raw-unhinted",
-    "raw-hinted",
-    "svg-potrace",
-    "svg-potrace-jfa",
-    "mdf",
-    "msdf",
-    "sdf-smoothstep",
-    "adf-biquadratic",
-    "otsu-adaptive"
-  ],
-  "default_threshold": 128,
-  "default_gamma": 1.0,
-  "root_patch_manifest": "font_icon_epd_patches.json",
   "hardware_schemes": [
     "esp32s3-N8R8-hw_scheme.json",
     "generic_hw.json"
-  ],
-  "naming_scheme": {
-    "prefix": "humid1_",
-    "plex_fonts": "humid1_font_plex_<family>_<style>_<size>",
-    "noto_fonts": "humid1_font_noto_<family>_<style>_<size>",
-    "terminus_fonts": "humid1_font_terminus_<style>_<size>",
-    "icons": "humid1_icon_<vendor>_<style>_<size>",
-    "primary_header": "humid1_fonts.h",
-    "strike_vault": "humid1_epd_vault.json.gz",
-    "generator_script": "tools/fonts/humid1_generate_1bpp.py",
-    "firmware_emitter": "tools/fonts/humid1_fw_emit.py",
-    "cmake_builder": "tools/fonts/humid1_cmake_font_builder.py",
-    "distro_packager": "tools/fonts/humid1_package_distro.py"
-  },
-  "build_hierarchy": {
-    "static_ttfs": "build/static_ttfs (112 static .ttf files including 10px-40px Terminus strikes)",
-    "metadata": "build/metadata",
-    "cache": "build/cache",
-    "evals": "build/evals",
-    "audits": "build/audits",
-    "ascii_patches": "build/<workflow>/ascii_patches",
-    "debug_stages": "build/<workflow>/debug_stages",
-    "dist": "dist/<workflow>_distro & dist/epd-font_<workflow>_v1.0.23.zip"
-  },
-  "target_hardware": {
-    "chip_name": "ESP32-S3-N8R8",
-    "partition_label": "3 MBytes",
-    "partition_bytes": 3145728,
-    "allow_hardcoded_defaults": false
-  },
-  "static_ttf_count": 112,
-  "patch_count": 0,
-  "codename": "Singular Configuration Matrix, 5-Mode Hardware Delegation & Structured Visual Audit Edition",
-  "target_display_dpi": 188.15,
-  "math_backends": [
-    "tools/fonts/math_backends/opencl_kernels.py (PyOpenCL 3D NDRange GPU/CPU + 75% Shared GPU RAM Arena + 1+JFA Marching Squares)",
-    "tools/fonts/math_backends/umat_math.py (OpenCV UMat OpenCL)",
-    "tools/fonts/math_backends/cpu_math.py (Vectorized NumPy/OpenCV SIMD CPU + L1 LUT + 1+JFA Marching Squares)",
-    "tools/fonts/math_backends/hw_dispatch.py (Multi-Device Runtime Probe & Function Router)"
-  ],
-  "requirements_file": "requirements.txt",
-  "opencl_acceleration": {
-    "work_item_dimensions": 3,
-    "ndrange_layout": "3D (dim_x, dim_y, dim_z_batch)",
-    "local_work_group_3d": [
-      8,
-      8,
-      4
-    ],
-    "striped_command_queues": 4,
-    "shared_gpu_memory_flag": "CL_MEM_ALLOC_HOST_PTR",
-    "single_owner_gpu_context": true,
-    "supported_opencl_runtimes": [
-      "AMD Accelerated Parallel Processing (PAL,HSAIL / ROCm OpenCL)",
-      "Intel CPU Runtime for OpenCL Applications with SYCL Support (x86_64 AMD Ryzen & Intel Core/Xeon)",
-      "NVIDIA OpenCL ICD Runtime",
-      "Portable Computing Language (pocl) & Khronos OpenCL ICD Loader"
-    ],
-    "deterministic_teardown": true,
-    "shared_gpu_memory_cap_ratio": 0.75,
-    "shared_gpu_memory_staging": "CL_MEM_ALLOC_HOST_PTR + clEnqueueMapBuffer (Persistent Host-Visible GTT Slots)",
-    "jfa_marching_squares_kernels": [
-      "jfa_init_marching_seeds_3d_kernel",
-      "jfa_flood_step_3d_kernel",
-      "jfa_marching_squares_reconstruct_3d_kernel"
-    ]
-  },
-  "potrace_submodes": [
-    "potrace",
-    "jfa-marching"
-  ],
-  "math_backend_modes": {
-    "auto": "Probes hardware upfront; delegates heavy/distance-field/icon strikes to persistent OpenCL GPU worker and lightweight/bitmap strikes to async CPU workers (or all CPU workers if no GPU is present).",
-    "cpu": "Uses only the host CPU across all tasks (N async ProcessPoolExecutor CPU workers, zero GPU contexts).",
-    "gpu": "Requires a verified OpenCL/UMat GPU (raises an explicit error if unavailable); executes all applicable math, distance-field, thresholding, and sorting operations on the GPU while CPU orchestrates I/O.",
-    "hybrid": "Requires both a verified OpenCL GPU and multi-core CPU (raises an explicit error if unavailable); runs dual-pool deque work-stealing (1 GPU worker + N-1 CPU workers).",
-    "sync": "Executes all tasks sequentially in a single process without multiprocessing pools."
-  }
+  ]
 }

@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="ocircumflex" format="2">
+  <advance width="600"/>
+  <unicode hex="00F4"/>
+  <outline>
+    <contour>
+      <point x="410" y="534"/>
+      <point x="526" y="391"/>
+      <point x="526" y="121"/>
+      <point x="410" y="-21"/>
+      <point x="190" y="-21"/>
+      <point x="74" y="121"/>
+      <point x="74" y="391"/>
+      <point x="190" y="534"/>
+    </contour>
+    <contour>
+      <point x="300" y="460" type="qcurve" smooth="yes"/>
+      <point x="234" y="460"/>
+      <point x="166" y="357"/>
+      <point x="166" y="256" type="qcurve" smooth="yes"/>
+      <point x="166" y="156"/>
+      <point x="234" y="53"/>
+      <point x="366" y="53"/>
+      <point x="434" y="156"/>
+      <point x="434" y="256" type="qcurve" smooth="yes"/>
+      <point x="434" y="357"/>
+      <point x="366" y="460"/>
+    </contour>
+    <contour>
+      <point x="265" y="765" type="line"/>
+      <point x="335" y="765" type="line"/>
+      <point x="451" y="588" type="line"/>
+      <point x="385" y="588" type="line"/>
+      <point x="300" y="703" type="line"/>
+      <point x="215" y="588" type="line"/>
+      <point x="150" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

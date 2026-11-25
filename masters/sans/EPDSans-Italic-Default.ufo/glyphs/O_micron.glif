@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Omicron" format="2">
+  <advance width="740"/>
+  <unicode hex="039F"/>
+  <outline>
+    <contour>
+      <point x="308" y="0" type="qcurve" smooth="yes"/>
+      <point x="182" y="0"/>
+      <point x="38" y="150"/>
+      <point x="38" y="280" type="qcurve" smooth="yes"/>
+      <point x="38" y="354"/>
+      <point x="94" y="509"/>
+      <point x="144" y="570" type="qcurve" smooth="yes"/>
+      <point x="202" y="641"/>
+      <point x="345" y="711"/>
+      <point x="431" y="711" type="qcurve" smooth="yes"/>
+      <point x="557" y="711"/>
+      <point x="702" y="563"/>
+      <point x="702" y="435" type="qcurve" smooth="yes"/>
+      <point x="702" y="356"/>
+      <point x="647" y="203"/>
+      <point x="596" y="141" type="qcurve" smooth="yes"/>
+      <point x="537" y="70"/>
+      <point x="395" y="0"/>
+    </contour>
+    <contour>
+      <point x="429" y="636" type="qcurve" smooth="yes"/>
+      <point x="353" y="636"/>
+      <point x="236" y="562"/>
+      <point x="193" y="486" type="qcurve" smooth="yes"/>
+      <point x="165" y="438"/>
+      <point x="136" y="330"/>
+      <point x="136" y="274" type="qcurve" smooth="yes"/>
+      <point x="136" y="179"/>
+      <point x="228" y="75"/>
+      <point x="311" y="75" type="qcurve" smooth="yes"/>
+      <point x="386" y="75"/>
+      <point x="504" y="150"/>
+      <point x="546" y="224" type="qcurve" smooth="yes"/>
+      <point x="574" y="274"/>
+      <point x="604" y="382"/>
+      <point x="604" y="437" type="qcurve" smooth="yes"/>
+      <point x="604" y="532"/>
+      <point x="512" y="636"/>
+    </contour>
+  </outline>
+</glyph>

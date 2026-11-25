@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Omicron" format="2">
+  <advance width="600"/>
+  <unicode hex="039F"/>
+  <outline>
+    <contour>
+      <point x="529" y="355" type="qcurve" smooth="yes"/>
+      <point x="529" y="176"/>
+      <point x="416" y="0"/>
+      <point x="184" y="0"/>
+      <point x="71" y="175"/>
+      <point x="71" y="535"/>
+      <point x="184" y="711"/>
+      <point x="416" y="711"/>
+      <point x="529" y="535"/>
+    </contour>
+    <contour>
+      <point x="432" y="355" type="qcurve" smooth="yes"/>
+      <point x="432" y="506"/>
+      <point x="370" y="636"/>
+      <point x="230" y="636"/>
+      <point x="168" y="506"/>
+      <point x="168" y="355" type="qcurve" smooth="yes"/>
+      <point x="168" y="205"/>
+      <point x="230" y="75"/>
+      <point x="370" y="75"/>
+      <point x="432" y="204"/>
+    </contour>
+  </outline>
+</glyph>

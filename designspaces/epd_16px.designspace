@@ -1,0 +1,616 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<designspace format="5.1">
+  <axes>
+    <axis tag="wght" name="Weight" minimum="300" maximum="1000" default="400"/>
+    <axis tag="wdth" name="Width" minimum="75" maximum="100" default="100"/>
+    <axis tag="opsz" name="Optical Size" minimum="12" maximum="40" default="16"/>
+    <axis tag="XTRA" name="Counter Transparency" minimum="468" maximum="560" default="468"/>
+    <axis tag="YOPQ" name="Horizontal Bar Thickness" minimum="55" maximum="130" default="79"/>
+    <axis tag="ital" name="Italic" values="0 1" default="0"/>
+    <axis tag="MONO" name="Monospace" values="0 1" default="0"/>
+  </axes>
+  <sources>
+    <source filename="../masters/sans/EPDSans-Upright-Default.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-Default">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-Bold.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-Bold">
+      <location>
+        <dimension name="Weight" xvalue="900"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-Cond.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-Cond">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="75"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-CondBold.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-CondBold">
+      <location>
+        <dimension name="Weight" xvalue="900"/>
+        <dimension name="Width" xvalue="75"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-Opsz12.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-Opsz12">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="12"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-Opsz40.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-Opsz40">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="40"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-XTRA560.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-XTRA560">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="560"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-YOPQ55.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-YOPQ55">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Upright-YOPQ130.ufo" familyname="EPD Sans" stylename="EPDSans-Upright-YOPQ130">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="130"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-Default.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-Default">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-Bold.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-Bold">
+      <location>
+        <dimension name="Weight" xvalue="900"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-Cond.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-Cond">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="75"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-CondBold.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-CondBold">
+      <location>
+        <dimension name="Weight" xvalue="900"/>
+        <dimension name="Width" xvalue="75"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-Opsz12.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-Opsz12">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="12"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-Opsz40.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-Opsz40">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="40"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-XTRA560.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-XTRA560">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="560"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-YOPQ55.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-YOPQ55">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/sans/EPDSans-Italic-YOPQ130.ufo" familyname="EPD Sans" stylename="EPDSans-Italic-YOPQ130">
+      <location>
+        <dimension name="Weight" xvalue="400"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="14"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="130"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+    </source>
+    <source filename="../masters/mono/EPDMono-Upright-A.ufo" familyname="EPD Mono" stylename="EPDMono-Upright-A">
+      <location>
+        <dimension name="Weight" xvalue="300"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+    </source>
+    <source filename="../masters/mono/EPDMono-Upright-B.ufo" familyname="EPD Mono" stylename="EPDMono-Upright-B">
+      <location>
+        <dimension name="Weight" xvalue="800"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+    </source>
+    <source filename="../masters/mono/EPDMono-Upright-C.ufo" familyname="EPD Mono" stylename="EPDMono-Upright-C">
+      <location>
+        <dimension name="Weight" xvalue="1000"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+    </source>
+    <source filename="../masters/mono/EPDMono-Italic-A.ufo" familyname="EPD Mono" stylename="EPDMono-Italic-A">
+      <location>
+        <dimension name="Weight" xvalue="300"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+    </source>
+    <source filename="../masters/mono/EPDMono-Italic-B.ufo" familyname="EPD Mono" stylename="EPDMono-Italic-B">
+      <location>
+        <dimension name="Weight" xvalue="800"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+    </source>
+    <source filename="../masters/mono/EPDMono-Italic-C.ufo" familyname="EPD Mono" stylename="EPDMono-Italic-C">
+      <location>
+        <dimension name="Weight" xvalue="1000"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+    </source>
+  </sources>
+  <instances>
+    <instance name="epd_sans_normal_16px" familyname="EPD Sans" stylename="normal 16px">
+      <location>
+        <dimension name="Weight" xvalue="560"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="475"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="58"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_sans_italic_16px" familyname="EPD Sans" stylename="italic 16px">
+      <location>
+        <dimension name="Weight" xvalue="560"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="475"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="58"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_sans_bold_16px" familyname="EPD Sans" stylename="bold 16px">
+      <location>
+        <dimension name="Weight" xvalue="700"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="560"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_sans_bold-italic_16px" familyname="EPD Sans" stylename="bold-italic 16px">
+      <location>
+        <dimension name="Weight" xvalue="700"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="560"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_condensed_normal_16px" familyname="EPD Condensed" stylename="normal 16px">
+      <location>
+        <dimension name="Weight" xvalue="560"/>
+        <dimension name="Width" xvalue="78"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="475"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="58"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_condensed_italic_16px" familyname="EPD Condensed" stylename="italic 16px">
+      <location>
+        <dimension name="Weight" xvalue="560"/>
+        <dimension name="Width" xvalue="78"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="475"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="58"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_condensed_bold_16px" familyname="EPD Condensed" stylename="bold 16px">
+      <location>
+        <dimension name="Weight" xvalue="700"/>
+        <dimension name="Width" xvalue="80"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="560"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_condensed_bold-italic_16px" familyname="EPD Condensed" stylename="bold-italic 16px">
+      <location>
+        <dimension name="Weight" xvalue="700"/>
+        <dimension name="Width" xvalue="80"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="560"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="55"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="0"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_mono_normal_16px" familyname="EPD Mono" stylename="normal 16px">
+      <location>
+        <dimension name="Weight" xvalue="560"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_mono_italic_16px" familyname="EPD Mono" stylename="italic 16px">
+      <location>
+        <dimension name="Weight" xvalue="560"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_mono_bold_16px" familyname="EPD Mono" stylename="bold 16px">
+      <location>
+        <dimension name="Weight" xvalue="800"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="0"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+    <instance name="epd_mono_bold-italic_16px" familyname="EPD Mono" stylename="bold-italic 16px">
+      <location>
+        <dimension name="Weight" xvalue="800"/>
+        <dimension name="Width" xvalue="100"/>
+        <dimension name="Optical Size" xvalue="16"/>
+        <dimension name="Counter Transparency" xvalue="468"/>
+        <dimension name="Horizontal Bar Thickness" xvalue="79"/>
+        <dimension name="Italic" xvalue="1"/>
+        <dimension name="Monospace" xvalue="1"/>
+      </location>
+      <lib>
+        <dict>
+          <key>public.fontInfo</key>
+          <dict>
+            <key>ascender</key>
+            <integer>1248</integer>
+            <key>capHeight</key>
+            <integer>1138</integer>
+            <key>descender</key>
+            <integer>-352</integer>
+            <key>unitsPerEm</key>
+            <integer>1600</integer>
+            <key>xHeight</key>
+            <integer>845</integer>
+          </dict>
+        </dict>
+      </lib>
+    </instance>
+  </instances>
+</designspace>

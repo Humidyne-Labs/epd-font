@@ -1,0 +1,75 @@
+[project]
+name = "epd-typography-master"
+version = "2.0.0"
+spec_id = "SPEC-EPD-FONT-001"
+spec_rev = "1.1"
+master_upm = 1000
+ppem_range = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40]
+
+[variants]
+styles = ["normal", "italic", "bold", "bold-italic"]
+modifiers = ["sans", "mono", "condensed"]
+
+[metrics]
+# Unified UPM=1000 vertical proportions locked across all masters
+ascender = 780
+descender = -220
+cap_height = 711
+x_height = 528
+
+[scaling.normal]
+stem_floor_px = 2
+stem_em_ratio = 0.11
+
+[scaling.italic]
+stem_floor_px = 2
+stem_em_ratio = 0.11
+slant_deg = -10.0
+
+[scaling.bold]
+stem_floor_px = 3
+stem_em_ratio = 0.17
+min_bold_delta_px = 1
+
+[scaling.bold-italic]
+stem_floor_px = 3
+stem_em_ratio = 0.17
+min_bold_delta_px = 1
+slant_deg = -10.0
+
+[schedule]
+# Explicit per-PPEM target vertical stem schedule (Section 2.2)
+12 = { normal = 2, bold = 3, normal_hbar = 1, bold_hbar = 2 }
+14 = { normal = 2, bold = 3, normal_hbar = 1, bold_hbar = 2 }
+16 = { normal = 2, bold = 3, normal_hbar = 1, bold_hbar = 2 }
+18 = { normal = 2, bold = 3, normal_hbar = 2, bold_hbar = 2 }
+20 = { normal = 2, bold = 3, normal_hbar = 2, bold_hbar = 2 }
+24 = { normal = 3, bold = 4, normal_hbar = 2, bold_hbar = 3 }
+28 = { normal = 3, bold = 5, normal_hbar = 2, bold_hbar = 3 }
+32 = { normal = 4, bold = 5, normal_hbar = 3, bold_hbar = 4 }
+36 = { normal = 4, bold = 6, normal_hbar = 3, bold_hbar = 4 }
+40 = { normal = 4, bold = 7, normal_hbar = 3, bold_hbar = 5 }
+
+[gates]
+min_counter_void_px = 1
+max_clipped_rows = 0
+stem_tolerance_px = 0
+min_contrast_ratio_ge24 = 1.25
+baseline_drift_tolerance_px = 0
+mono_advance_std_max = 0.0
+
+[hinting.ttfautohint]
+# Spec "strong" maps to ttfautohint strong stem width mode across gray/GDI/DW ("sss")
+stem_width_mode = "sss"
+increase_x_height = 0
+symbol_mode = true
+hinting_range_min = 12
+hinting_range_max = 40
+hinting_limit = 40
+fallback_stem_width = true
+
+[hardware]
+scheme_file = "esp32s3-N8R8-hw_scheme.json"
+dpi = 188.15
+pixel_pitch_um = 135.0
+usable_width_px = 188

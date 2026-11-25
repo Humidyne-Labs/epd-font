@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Odieresis" format="2">
+  <advance width="600"/>
+  <unicode hex="00D6"/>
+  <outline>
+    <contour>
+      <point x="536" y="235" type="qcurve" smooth="yes"/>
+      <point x="536" y="51"/>
+      <point x="419" y="-130"/>
+      <point x="181" y="-130"/>
+      <point x="65" y="50"/>
+      <point x="65" y="235" type="qcurve" smooth="yes"/>
+      <point x="65" y="419"/>
+      <point x="181" y="600"/>
+      <point x="419" y="600"/>
+      <point x="536" y="419"/>
+    </contour>
+    <contour>
+      <point x="436" y="390"/>
+      <point x="372" y="523"/>
+      <point x="228" y="523"/>
+      <point x="164" y="390"/>
+      <point x="164" y="80"/>
+      <point x="228" y="-53"/>
+      <point x="372" y="-53"/>
+      <point x="436" y="80"/>
+    </contour>
+    <contour>
+      <point x="160" y="765" type="line"/>
+      <point x="256" y="765" type="line"/>
+      <point x="256" y="669" type="line"/>
+      <point x="160" y="669" type="line"/>
+    </contour>
+    <contour>
+      <point x="345" y="765" type="line"/>
+      <point x="440" y="765" type="line"/>
+      <point x="440" y="669" type="line"/>
+      <point x="345" y="669" type="line"/>
+    </contour>
+  </outline>
+</glyph>

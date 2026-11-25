@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Iotadieresis" format="2">
+  <advance width="359"/>
+  <unicode hex="03AA"/>
+  <outline>
+    <contour>
+      <point x="89" y="574" type="line"/>
+      <point x="270" y="574" type="line"/>
+      <point x="270" y="-130" type="line"/>
+      <point x="89" y="-130" type="line"/>
+    </contour>
+    <contour>
+      <point x="33" y="765" type="line"/>
+      <point x="144" y="765" type="line"/>
+      <point x="144" y="649" type="line"/>
+      <point x="33" y="649" type="line"/>
+    </contour>
+    <contour>
+      <point x="219" y="765" type="line"/>
+      <point x="330" y="765" type="line"/>
+      <point x="330" y="649" type="line"/>
+      <point x="219" y="649" type="line"/>
+    </contour>
+  </outline>
+</glyph>

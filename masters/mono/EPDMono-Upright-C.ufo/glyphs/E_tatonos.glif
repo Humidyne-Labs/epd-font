@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Etatonos" format="2">
+  <advance width="600"/>
+  <unicode hex="0389"/>
+  <outline>
+    <contour>
+      <point x="74" y="697" type="line"/>
+      <point x="170" y="697" type="line"/>
+      <point x="170" y="408" type="line"/>
+      <point x="430" y="408" type="line"/>
+      <point x="430" y="697" type="line"/>
+      <point x="526" y="697" type="line"/>
+      <point x="526" y="-7" type="line"/>
+      <point x="430" y="-7" type="line"/>
+      <point x="430" y="328" type="line"/>
+      <point x="170" y="328" type="line"/>
+      <point x="170" y="-7" type="line"/>
+      <point x="74" y="-7" type="line"/>
+    </contour>
+    <contour>
+      <point x="12" y="765" type="line"/>
+      <point x="106" y="765" type="line"/>
+      <point x="-48" y="588" type="line"/>
+      <point x="-120" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

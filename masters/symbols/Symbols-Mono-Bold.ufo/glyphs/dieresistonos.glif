@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="dieresistonos" format="2">
+  <advance width="600"/>
+  <unicode hex="0385"/>
+  <outline>
+    <contour>
+      <point x="364" y="765" type="line"/>
+      <point x="497" y="765" type="line"/>
+      <point x="323" y="588" type="line"/>
+      <point x="231" y="588" type="line"/>
+    </contour>
+    <contour>
+      <point x="151" y="548" type="line"/>
+      <point x="263" y="548" type="line"/>
+      <point x="263" y="432" type="line"/>
+      <point x="151" y="432" type="line"/>
+    </contour>
+    <contour>
+      <point x="338" y="548" type="line"/>
+      <point x="449" y="548" type="line"/>
+      <point x="449" y="432" type="line"/>
+      <point x="338" y="432" type="line"/>
+    </contour>
+  </outline>
+</glyph>

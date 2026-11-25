@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Ograve" format="2">
+  <advance width="600"/>
+  <unicode hex="00D2"/>
+  <outline>
+    <contour>
+      <point x="536" y="221" type="qcurve" smooth="yes"/>
+      <point x="536" y="37"/>
+      <point x="419" y="-144"/>
+      <point x="181" y="-144"/>
+      <point x="65" y="36"/>
+      <point x="65" y="221" type="qcurve" smooth="yes"/>
+      <point x="65" y="405"/>
+      <point x="181" y="586"/>
+      <point x="419" y="586"/>
+      <point x="536" y="405"/>
+    </contour>
+    <contour>
+      <point x="436" y="376"/>
+      <point x="372" y="509"/>
+      <point x="228" y="509"/>
+      <point x="164" y="376"/>
+      <point x="164" y="66"/>
+      <point x="228" y="-67"/>
+      <point x="372" y="-67"/>
+      <point x="436" y="66"/>
+    </contour>
+    <contour>
+      <point x="274" y="765" type="line"/>
+      <point x="367" y="641" type="line"/>
+      <point x="294" y="641" type="line"/>
+      <point x="187" y="765" type="line"/>
+    </contour>
+  </outline>
+</glyph>

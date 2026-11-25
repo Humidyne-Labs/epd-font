@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Edieresis" format="2">
+  <advance width="490"/>
+  <unicode hex="00CB"/>
+  <outline>
+    <contour>
+      <point x="10" y="0" type="line"/>
+      <point x="413" y="0" type="line"/>
+      <point x="424" y="62" type="line"/>
+      <point x="94" y="62" type="line"/>
+      <point x="142" y="336" type="line"/>
+      <point x="421" y="336" type="line"/>
+      <point x="431" y="398" type="line"/>
+      <point x="153" y="398" type="line"/>
+      <point x="197" y="649" type="line"/>
+      <point x="522" y="649" type="line"/>
+      <point x="533" y="711" type="line"/>
+      <point x="136" y="711" type="line"/>
+    </contour>
+    <contour>
+      <point x="214" y="846" type="qcurve" smooth="yes"/>
+      <point x="210" y="825"/>
+      <point x="230" y="799"/>
+      <point x="254" y="799" type="qcurve" smooth="yes"/>
+      <point x="278" y="799"/>
+      <point x="309" y="825"/>
+      <point x="312" y="846" type="qcurve" smooth="yes"/>
+      <point x="316" y="868"/>
+      <point x="294" y="894"/>
+      <point x="271" y="894" type="qcurve" smooth="yes"/>
+      <point x="247" y="894"/>
+      <point x="218" y="869"/>
+    </contour>
+    <contour>
+      <point x="414" y="845" type="qcurve" smooth="yes"/>
+      <point x="410" y="825"/>
+      <point x="432" y="798"/>
+      <point x="455" y="798" type="qcurve" smooth="yes"/>
+      <point x="480" y="798"/>
+      <point x="509" y="825"/>
+      <point x="512" y="845" type="qcurve" smooth="yes"/>
+      <point x="516" y="868"/>
+      <point x="496" y="894"/>
+      <point x="471" y="894" type="qcurve" smooth="yes"/>
+      <point x="448" y="894"/>
+      <point x="418" y="869"/>
+    </contour>
+  </outline>
+</glyph>

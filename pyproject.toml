@@ -1,0 +1,41 @@
+[project]
+name = "epd-font"
+version = "2.0.0"
+description = "EPD Bi-Level Typography System (UFO 3 + DesignSpace 5.1)"
+requires-python = "==3.12.*"
+dependencies = [
+    "fonttools[ufo,lxml,unicode]>=4.53.0",
+    "ufoLib2>=0.16.0",
+    "ufo2ft>=3.2.0",
+    "fontmake>=3.9.0",
+    "skia-pathops>=0.8.0",
+    "ttfautohint-py>=0.5.1",
+    "cffsubr>=0.3.0",
+    "freetype-py>=2.4.0",
+    "numpy>=1.26.0,<2.3.0",
+    "opencv-python-headless>=4.9.0",
+    "Pillow>=10.3.0",
+    "PyYAML>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "types-PyYAML",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["runner", "tests"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -151,6 +151,7 @@ def discover_artifacts(
                 r / "firmware" / "components" / "h1os" / "tools" / "fonts" / "metrics",
                 *sorted((r / "firmware" / "managed_components").glob("*h1os*/tools/fonts/metrics") if (r / "firmware" / "managed_components").is_dir() else []),
                 r / "dist" / "h1os_distro" / "metrics",
+                r / "build" / "metrics",
                 r / "build" / "h1os" / "metrics",
                 *sorted((r / "dist").glob("*/metrics") if (r / "dist").is_dir() else []),
                 *sorted((r / "build").glob("*/metrics") if (r / "build").is_dir() else []),
@@ -196,6 +197,7 @@ def discover_artifacts(
             r / "firmware" / "components" / "h1os" / "tools" / "fonts" / "fonts",
             *sorted((r / "firmware" / "managed_components").glob("*h1os*/tools/fonts/fonts") if (r / "firmware" / "managed_components").is_dir() else []),
             r / "dist" / "h1os_distro" / "fonts",
+            r / "build" / "c_arrays",
             r / "build" / "h1os" / "fonts",
         ):
             if c.is_dir():

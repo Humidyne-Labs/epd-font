@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="angle" format="2">
+  <advance width="866"/>
+  <unicode hex="2220"/>
+  <outline>
+    <contour>
+      <point x="759" y="7" type="line"/>
+      <point x="759" y="-88" type="line"/>
+      <point x="82" y="-88" type="line"/>
+      <point x="532" y="616" type="line"/>
+      <point x="646" y="616" type="line"/>
+      <point x="259" y="7" type="line"/>
+    </contour>
+  </outline>
+</glyph>

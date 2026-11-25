@@ -1,0 +1,29 @@
+schema_version: "2.0.0"
+
+specimens:
+  latin: "Hamburgefonstiv 0123456789"
+  greek: "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ αβγδεζηθικλμνξοπρστυφχψω"
+  telemetry: "ΔT = ±0.25 ℃ | RH 48.5% | ∑(xᵢ − µ)² / N ≤ 1.05×10⁻³ Ω·m"
+  trouble: "e a o s α 0 8 B g θ H O Δ Ω"
+
+grid_8x:
+  zoom_factor: 8
+  padding_px: 8
+  line_spacing_px: 4
+  colors:
+    background: "#FFFFFF"
+    ink: "#111111"
+    pixel_grid: "#E0E0E0"
+    metrics_cyan: "#00BCD4"
+    bbx_magenta: "#E91E63"
+    baseline_blue: "#1976D2"
+
+epd_psf:
+  dpi: 188.15
+  pixel_pitch_um: 135.0
+  r_bg: 190.0
+  r_ink: 23.0
+  kernels_um:
+    scatter_135um: 135.0
+    scatter_270um: 270.0
+    nominal_20cm: 169.0

@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="asteriskmath" format="2">
+  <advance width="809"/>
+  <unicode hex="2217"/>
+  <outline>
+    <contour>
+      <point x="293" y="264" type="line"/>
+      <point x="114" y="367" type="line"/>
+      <point x="170" y="464" type="line"/>
+      <point x="348" y="361" type="line"/>
+      <point x="348" y="566" type="line"/>
+      <point x="461" y="566" type="line"/>
+      <point x="461" y="361" type="line"/>
+      <point x="639" y="464" type="line"/>
+      <point x="694" y="367" type="line"/>
+      <point x="516" y="264" type="line"/>
+      <point x="694" y="161" type="line"/>
+      <point x="639" y="65" type="line"/>
+      <point x="461" y="168" type="line"/>
+      <point x="461" y="-38" type="line"/>
+      <point x="348" y="-38" type="line"/>
+      <point x="348" y="168" type="line"/>
+      <point x="170" y="65" type="line"/>
+      <point x="114" y="161" type="line"/>
+    </contour>
+  </outline>
+</glyph>

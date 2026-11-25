@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="uni22C1" format="2">
+  <advance width="792"/>
+  <unicode hex="22C1"/>
+  <outline>
+    <contour>
+      <point x="344" y="-176" type="line"/>
+      <point x="-3" y="704" type="line"/>
+      <point x="93" y="704" type="line"/>
+      <point x="396" y="-76" type="line"/>
+      <point x="699" y="704" type="line"/>
+      <point x="795" y="704" type="line"/>
+      <point x="449" y="-176" type="line"/>
+    </contour>
+  </outline>
+</glyph>

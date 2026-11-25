@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Ugrave" format="2">
+  <advance width="677"/>
+  <unicode hex="00D9"/>
+  <outline>
+    <contour>
+      <point x="76" y="233" type="line" smooth="yes"/>
+      <point x="76" y="109"/>
+      <point x="229" y="-15"/>
+      <point x="448" y="-15"/>
+      <point x="601" y="109"/>
+      <point x="601" y="233" type="qcurve" smooth="yes"/>
+      <point x="601" y="711" type="line"/>
+      <point x="506" y="711" type="line"/>
+      <point x="506" y="233" type="line" smooth="yes"/>
+      <point x="506" y="149"/>
+      <point x="413" y="68"/>
+      <point x="264" y="68"/>
+      <point x="172" y="149"/>
+      <point x="172" y="233" type="qcurve" smooth="yes"/>
+      <point x="172" y="711" type="line"/>
+      <point x="76" y="711" type="line"/>
+    </contour>
+    <contour>
+      <point x="317" y="791" type="line"/>
+      <point x="374" y="825" type="line"/>
+      <point x="277" y="980" type="line"/>
+      <point x="197" y="934" type="line"/>
+    </contour>
+  </outline>
+</glyph>

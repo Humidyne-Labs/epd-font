@@ -1,0 +1,15 @@
+languagesystem DFLT dflt;
+languagesystem latn dflt;
+languagesystem grek dflt;
+
+feature tnum {
+    # Tabular figures supported via aligned monospace/proportional metrics
+} tnum;
+
+feature case {
+    # Case-sensitive punctuation alignment
+} case;
+
+feature frac {
+    # Fractions
+} frac;

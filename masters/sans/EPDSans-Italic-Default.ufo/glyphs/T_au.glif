@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Tau" format="2">
+  <advance width="596"/>
+  <unicode hex="03A4"/>
+  <outline>
+    <contour>
+      <point x="58" y="711" type="line"/>
+      <point x="659" y="711" type="line"/>
+      <point x="644" y="630" type="line"/>
+      <point x="390" y="630" type="line"/>
+      <point x="268" y="0" type="line"/>
+      <point x="171" y="0" type="line"/>
+      <point x="293" y="630" type="line"/>
+      <point x="42" y="630" type="line"/>
+    </contour>
+  </outline>
+</glyph>

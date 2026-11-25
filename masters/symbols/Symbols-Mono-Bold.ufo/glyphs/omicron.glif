@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="omicron" format="2">
+  <advance width="600"/>
+  <unicode hex="03BF"/>
+  <outline>
+    <contour>
+      <point x="56" y="405"/>
+      <point x="188" y="554"/>
+      <point x="412" y="554"/>
+      <point x="545" y="405"/>
+      <point x="545" y="149"/>
+      <point x="412" y="0"/>
+      <point x="188" y="0"/>
+      <point x="56" y="149"/>
+    </contour>
+    <contour>
+      <point x="250" y="442"/>
+      <point x="194" y="355"/>
+      <point x="194" y="199"/>
+      <point x="250" y="112"/>
+      <point x="350" y="112"/>
+      <point x="406" y="199"/>
+      <point x="406" y="355"/>
+      <point x="350" y="442"/>
+    </contour>
+  </outline>
+</glyph>

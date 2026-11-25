@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="Epsilontonos" format="2">
+  <advance width="817"/>
+  <unicode hex="0388"/>
+  <outline>
+    <contour>
+      <point x="244" y="697" type="line"/>
+      <point x="734" y="697" type="line"/>
+      <point x="734" y="559" type="line"/>
+      <point x="426" y="559" type="line"/>
+      <point x="426" y="428" type="line"/>
+      <point x="716" y="428" type="line"/>
+      <point x="716" y="291" type="line"/>
+      <point x="426" y="291" type="line"/>
+      <point x="426" y="130" type="line"/>
+      <point x="744" y="130" type="line"/>
+      <point x="744" y="-7" type="line"/>
+      <point x="244" y="-7" type="line"/>
+    </contour>
+    <contour>
+      <point x="110" y="765" type="line"/>
+      <point x="243" y="765" type="line"/>
+      <point x="69" y="588" type="line"/>
+      <point x="-23" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

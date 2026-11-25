@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="anoteleia" format="2">
+  <advance width="367"/>
+  <unicode hex="0387"/>
+  <outline>
+    <contour>
+      <point x="117" y="427" type="line"/>
+      <point x="287" y="427" type="line"/>
+      <point x="251" y="244" type="line"/>
+      <point x="81" y="244" type="line"/>
+    </contour>
+  </outline>
+</glyph>

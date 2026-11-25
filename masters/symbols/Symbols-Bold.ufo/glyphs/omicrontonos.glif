@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="omicrontonos" format="2">
+  <advance width="663"/>
+  <unicode hex="03CC"/>
+  <outline>
+    <contour>
+      <point x="332" y="534" type="qcurve" smooth="yes"/>
+      <point x="469" y="534"/>
+      <point x="622" y="386"/>
+      <point x="622" y="126"/>
+      <point x="469" y="-21"/>
+      <point x="332" y="-21" type="qcurve" smooth="yes"/>
+      <point x="196" y="-21"/>
+      <point x="41" y="126"/>
+      <point x="41" y="386"/>
+      <point x="196" y="534"/>
+    </contour>
+    <contour>
+      <point x="276" y="413"/>
+      <point x="217" y="332"/>
+      <point x="217" y="180"/>
+      <point x="276" y="100"/>
+      <point x="388" y="100"/>
+      <point x="446" y="180"/>
+      <point x="446" y="332"/>
+      <point x="388" y="413"/>
+    </contour>
+    <contour>
+      <point x="355" y="765" type="line"/>
+      <point x="489" y="765" type="line"/>
+      <point x="315" y="588" type="line"/>
+      <point x="223" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

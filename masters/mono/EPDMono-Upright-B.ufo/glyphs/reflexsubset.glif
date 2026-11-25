@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="reflexsubset" format="2">
+  <advance width="600"/>
+  <unicode hex="2286"/>
+  <outline>
+    <contour>
+      <point x="549" y="115" type="line"/>
+      <point x="276" y="115" type="line" smooth="yes"/>
+      <point x="182" y="115"/>
+      <point x="117" y="181" type="qcurve" smooth="yes"/>
+      <point x="51" y="246"/>
+      <point x="51" y="434"/>
+      <point x="117" y="500" type="qcurve" smooth="yes"/>
+      <point x="182" y="566"/>
+      <point x="276" y="566" type="qcurve" smooth="yes"/>
+      <point x="549" y="566" type="line"/>
+      <point x="549" y="495" type="line"/>
+      <point x="276" y="495" type="line" smooth="yes"/>
+      <point x="211" y="495"/>
+      <point x="122" y="404"/>
+      <point x="122" y="340" type="qcurve" smooth="yes"/>
+      <point x="122" y="275"/>
+      <point x="166" y="231" type="qcurve" smooth="yes"/>
+      <point x="212" y="186"/>
+      <point x="276" y="186" type="qcurve" smooth="yes"/>
+      <point x="549" y="186" type="line"/>
+    </contour>
+    <contour>
+      <point x="549" y="42" type="line"/>
+      <point x="549" y="-38" type="line"/>
+      <point x="51" y="-38" type="line"/>
+      <point x="51" y="42" type="line"/>
+    </contour>
+  </outline>
+</glyph>

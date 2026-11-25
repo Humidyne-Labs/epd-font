@@ -1,0 +1,88 @@
+schema_version: "2.0.0"
+
+donors:
+  roboto_flex:
+    role: "Primary Proportional & Condensed Base"
+    license: "SIL OFL-1.1"
+    license_file: "assets/UFO_assets/roboto-flex-3.200/OFL.txt"
+    designspace: "assets/UFO_assets/roboto-flex-3.200/sources/RobotoFlex.designspace"
+    upm: 2048
+    spline_type: "quadratic"
+
+  recursive:
+    role: "Primary Monospace Base (MONO=1, CASL=0 Linear)"
+    license: "SIL OFL-1.1"
+    license_file: "assets/UFO_assets/recursive-1.085/OFL.txt"
+    designspace: "assets/UFO_assets/recursive-1.085/src/ufo/recursive-MONO_CASL_wght_slnt_ital--full_gsub.designspace"
+    upm: 1000
+    spline_type: "cubic"
+
+  dejavu:
+    role: "UI Greek, Subscripts/Superscripts, Arrows, Math & Bold Operators"
+    license: "Bitstream Vera"
+    license_file: "assets/UFO_assets/dejavu-fonts-version_2_37/LICENSE"
+    upm: 2048
+    spline_type: "quadratic"
+    ufos:
+      normal: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSans.ufo"
+      bold: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSans-Bold.ufo"
+      italic: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSans-Oblique.ufo"
+      bold-italic: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSans-BoldOblique.ufo"
+      mono_normal: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSansMono.ufo"
+      mono_bold: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSansMono-Bold.ufo"
+      mono_italic: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSansMono-Oblique.ufo"
+      mono_bold-italic: "assets/UFO_assets/dejavu-fonts-version_2_37/DejaVuSansMono-BoldOblique.ufo"
+
+  stix_two:
+    role: "Scientific Greek Variants & Technical Symbols Fallback"
+    license: "SIL OFL-1.1"
+    license_file: "assets/UFO_assets/stixfonts-2.13b171/OFL.txt"
+    upm: 1000
+    spline_type: "cubic"
+    ren_file: "assets/UFO_assets/stixfonts-2.13b171/source/STIX2-Dev2Post.ren"
+    ufos:
+      normal: "assets/UFO_assets/stixfonts-2.13b171/source/STIXTwoText-Regular.ufo"
+      bold: "assets/UFO_assets/stixfonts-2.13b171/source/STIXTwoText-Bold.ufo"
+      italic: "assets/UFO_assets/stixfonts-2.13b171/source/STIXTwoText-Italic.ufo"
+      bold-italic: "assets/UFO_assets/stixfonts-2.13b171/source/STIXTwoText-BoldItalic.ufo"
+      math: "assets/UFO_assets/stixfonts-2.13b171/source/STIXTwoMath-Regular.ufo"
+
+  plex_mono_ref:
+    role: "Secondary Reference Donor (Mono)"
+    license: "SIL OFL-1.1"
+    license_file: "assets/UFO_assets/plex-mono-2.5.0/OFL.txt"
+    upm: 1000
+
+  plex_cond_ref:
+    role: "Secondary Reference Donor (Condensed)"
+    license: "SIL OFL-1.1"
+    license_file: "assets/UFO_assets/plex-sans-condensed-2.3.1/OFL.txt"
+    upm: 1000
+
+# Mandatory Unicode Coverage Blocks (SPEC-EPD-FONT-001 Section 2.3)
+unicode_blocks:
+  basic_latin:
+    ranges: ["0x0020-0x007E"]
+    priority: ["base", "dejavu", "stix_two"]
+  latin1_supplement:
+    ranges: ["0x00A0-0x00FF"]
+    priority: ["base", "dejavu", "stix_two"]
+  greek_and_coptic:
+    # Monotonic modern Greek + scientific variants (vartheta, phi, varpi, rho, varepsilon)
+    ranges: ["0x0384-0x038A", "0x038C", "0x038E-0x03A1", "0x03A3-0x03CE", "0x03D1", "0x03D5", "0x03D6", "0x03F1", "0x03F5"]
+    priority: ["dejavu", "stix_two", "base"]
+  superscripts_subscripts:
+    ranges: ["0x1D62-0x1D65", "0x2070-0x2071", "0x2074-0x208E", "0x2090-0x209C"]
+    priority: ["dejavu", "stix_two"]
+  letterlike_units:
+    ranges: ["0x2103", "0x2109", "0x210F", "0x2113", "0x2115", "0x211D", "0x2124", "0x2126", "0x212B"]
+    priority: ["dejavu", "stix_two"]
+  arrows:
+    ranges: ["0x2190-0x2199", "0x21D0-0x21D5"]
+    priority: ["dejavu", "stix_two"]
+  math_operators:
+    ranges: ["0x2200-0x22FF"]
+    priority: ["dejavu", "stix_two"]
+  misc_technical:
+    ranges: ["0x2300", "0x2308-0x230B", "0x2329-0x232A", "0x27E8-0x27E9"]
+    priority: ["dejavu", "stix_two"]

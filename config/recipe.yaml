@@ -1,0 +1,32 @@
+schema_version: "2.0.0"
+pipeline_name: "epd-font-ufo-bilevel-v2"
+
+stages:
+  - id: "normalize_masters"
+    description: "Ingest UFO 3 donors, standardize UPM=1000, harmonize xHeight/math-axis, convert to cubic, round coords"
+    output_dir: "masters"
+
+  - id: "generate_designspaces"
+    description: "Generate DesignSpace 5.1 XML files per PPEM from config/sizes/ppem_*.yaml"
+    output_dir: "designspaces"
+
+  - id: "instantiate_and_snap"
+    description: "Instantiate per-size UFOs, graft weight-matched symbols, union overlaps, scale to 100*P, snap stems/counters/baseline"
+    output_dir: "build/snapped_ufo"
+
+  - id: "compile_and_hint_ttf"
+    description: "Compile snapped UFOs to TrueType via ufo2ft and apply ttfautohint strong monochrome hinting"
+    output_dir: "build/ttf"
+
+  - id: "rasterize_and_serialize"
+    description: "Rasterize via FreeType FT_LOAD_TARGET_MONO and emit BDF 2.1, PBM P1/P4, LVGL C/H arrays, and CSV manifests"
+    outputs:
+      bdf: "build/bdf"
+      pbm: "build/pbm"
+      c_arrays: "build/c_arrays"
+      metrics: "build/metrics"
+      vault: "build/dist/humid1_epd_vault.json.gz"
+
+  - id: "audit_gates_and_proofs"
+    description: "Evaluate all 6 hard gates (G_STEM, G_CONTRAST, G_COUNTER, G_METRICS, G_MONO, G_CLIP) and render 1x/8x/PSF proofs"
+    output_dir: "build/proofs"

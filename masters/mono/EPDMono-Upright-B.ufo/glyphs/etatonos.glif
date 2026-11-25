@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="etatonos" format="2">
+  <advance width="600"/>
+  <unicode hex="03AE"/>
+  <outline>
+    <contour>
+      <point x="505" y="320" type="qcurve" smooth="yes"/>
+      <point x="505" y="-208" type="line"/>
+      <point x="418" y="-208" type="line"/>
+      <point x="418" y="320" type="line" smooth="yes"/>
+      <point x="418" y="391"/>
+      <point x="368" y="458"/>
+      <point x="315" y="458" type="qcurve" smooth="yes"/>
+      <point x="254" y="458"/>
+      <point x="188" y="372"/>
+      <point x="188" y="291" type="qcurve" smooth="yes"/>
+      <point x="188" y="-7" type="line"/>
+      <point x="101" y="-7" type="line"/>
+      <point x="101" y="521" type="line"/>
+      <point x="188" y="521" type="line"/>
+      <point x="188" y="442" type="line"/>
+      <point x="211" y="487"/>
+      <point x="290" y="534"/>
+      <point x="345" y="534" type="qcurve" smooth="yes"/>
+      <point x="425" y="534"/>
+      <point x="505" y="427"/>
+    </contour>
+    <contour>
+      <point x="366" y="765" type="line"/>
+      <point x="459" y="765" type="line"/>
+      <point x="306" y="588" type="line"/>
+      <point x="233" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

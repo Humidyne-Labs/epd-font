@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="ocircumflex" format="2">
+  <advance width="600"/>
+  <unicode hex="00F4"/>
+  <outline>
+    <contour>
+      <point x="56" y="384"/>
+      <point x="188" y="533"/>
+      <point x="412" y="533"/>
+      <point x="545" y="384"/>
+      <point x="545" y="128"/>
+      <point x="412" y="-21"/>
+      <point x="188" y="-21"/>
+      <point x="56" y="128"/>
+    </contour>
+    <contour>
+      <point x="250" y="421"/>
+      <point x="194" y="334"/>
+      <point x="194" y="178"/>
+      <point x="250" y="91"/>
+      <point x="350" y="91"/>
+      <point x="406" y="178"/>
+      <point x="406" y="334"/>
+      <point x="350" y="421"/>
+    </contour>
+    <contour>
+      <point x="243" y="765" type="line"/>
+      <point x="357" y="765" type="line"/>
+      <point x="478" y="588" type="line"/>
+      <point x="394" y="588" type="line"/>
+      <point x="300" y="694" type="line"/>
+      <point x="207" y="588" type="line"/>
+      <point x="123" y="588" type="line"/>
+    </contour>
+  </outline>
+</glyph>

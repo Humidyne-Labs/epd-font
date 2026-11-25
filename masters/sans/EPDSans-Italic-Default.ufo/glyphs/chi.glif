@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="chi" format="2">
+  <advance width="571"/>
+  <unicode hex="03C7"/>
+  <outline>
+    <contour>
+      <point x="290" y="-118" type="qcurve" smooth="yes"/>
+      <point x="255" y="63" type="line"/>
+      <point x="59" y="-201" type="line"/>
+      <point x="-43" y="-201" type="line"/>
+      <point x="234" y="172" type="line"/>
+      <point x="191" y="394" type="line" smooth="yes"/>
+      <point x="180" y="454"/>
+      <point x="107" y="454" type="qcurve" smooth="yes"/>
+      <point x="84" y="454" type="line"/>
+      <point x="99" y="528" type="line"/>
+      <point x="132" y="527" type="line" smooth="yes"/>
+      <point x="253" y="524"/>
+      <point x="268" y="445" type="qcurve" smooth="yes"/>
+      <point x="303" y="264" type="line"/>
+      <point x="498" y="528" type="line"/>
+      <point x="601" y="528" type="line"/>
+      <point x="323" y="155" type="line"/>
+      <point x="366" y="-67" type="line" smooth="yes"/>
+      <point x="378" y="-126"/>
+      <point x="450" y="-126" type="qcurve" smooth="yes"/>
+      <point x="473" y="-126" type="line"/>
+      <point x="459" y="-201" type="line"/>
+      <point x="426" y="-200" type="line" smooth="yes"/>
+      <point x="305" y="-197"/>
+    </contour>
+  </outline>
+</glyph>
